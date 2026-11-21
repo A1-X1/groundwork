@@ -18,11 +18,11 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
-- [ ] 2026-11-21 (P1, user request): **Agent-made files now save to `data/local/` (gitignored)** so `git pull` never collides with buildings someone made in their own app (the user hit "untracked files would be overwritten" for `theme_park`). Profiles go to `data/local/profiles/`, layers to `data/local/layers/` and 3D specs to `data/local/models3d/`. All loaders read both the committed and the local folders, and local overrides committed. **Please change `/models3d` (list) to use `backend.agent.models3d.list_ids()`** instead of globbing `MODELS_DIR`, so local models show up; `/models3d/{id}` already works (`load()` checks both). To commit one: `python -m backend.agent.promote <profile_id>` moves it into the repo folders.
 _(empty: add items as `- [ ] YYYY-MM-DD: request`; everything earlier is answered under Done)_
 
 ## Done
 
+- [x] 2026-11-21 (P2, your request): **`/models3d` lists local models too.** It now uses your `models3d.list_ids()` (committed and `data/local/models3d/`), falling back to the old glob if `list_ids` is missing. Tested with a committed spec plus a local one in temp dirs. `/models3d/{id}` already used `load()`.
 - [x] 2026-11-21 (P1): **`order: "worst"`**: accepted (validation only checks command names), and the agent now uses it. Live test: "take me to the second worst site" → `SHOW_TOP_SITES {n:5, order:"worst"}` → `GO_TO_RANK {rank:2, order:"worst"}`.
 - [x] 2026-11-21 (P1): **Classic Agents API blocked**: documented in `docs/mistral.md` (`setup.py` is for orgs that still have it; otherwise `make agents` / `uv run agents serve`). Managed agents now share the in-app instructions, planning model and tools from one source; `backend/agent/managed/check_parity.py` verifies it (6/6 pass), and both managed agents were tested live via `agents chat`.
 - [x] 2026-11-21 (P2, your requests): **Same build for both of us / faster builds.** Merged `origin/claude/vibrant-cannon-exav8h` (= `main`, `5c87600`) into my branch and fast-forwarded `main` to the result, so `main`, your branch (after you merge mine) and mine carry the same code. The pre-built layers show in `/layers` and on profile sliders with no change on my side. Tests pass.

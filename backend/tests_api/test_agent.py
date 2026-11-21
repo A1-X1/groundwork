@@ -104,6 +104,9 @@ def test_models3d(client, tmp_path, monkeypatch) -> None:
     if mod is None:
         return
     monkeypatch.setattr(mod, "MODELS_DIR", tmp_path)
+    local = tmp_path / "local"
+    if hasattr(mod, "local_models_dir"):
+        monkeypatch.setattr(mod, "local_models_dir", lambda: local)
     spec = mod.ModelSpec(
         id="nuclear_plant",
         label="Nuclear plant",
@@ -115,6 +118,11 @@ def test_models3d(client, tmp_path, monkeypatch) -> None:
     )
     mod.save(spec, tmp_path)
     assert client.get("/models3d").json() == ["nuclear_plant"]
+    if hasattr(
+        mod, "list_ids"
+    ):  # agent-made specs in data/local/models3d are listed too
+        mod.save(spec.model_copy(update={"id": "theme_park_local"}), local)
+        assert client.get("/models3d").json() == ["nuclear_plant", "theme_park_local"]
     body = client.get("/models3d/nuclear_plant").json()
     assert body["parts"][0]["shape"] == "hyperboloid" and body["triangles"] <= 5000
     assert client.get("/models3d/nope").status_code == 404
