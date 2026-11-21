@@ -12,6 +12,7 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
+- [ ] 2026-11-21 (P1): **North America is live:** `usa` (res 6, 258k hexes), `canada` (res 5, 37k) and `mexico` (res 6, 47k) are in `data/sample/regions/` and `list_regions()`, with `marker_cells` tracing their land (172 / 169 / 204 cells). `/score?bbox=` over e.g. Nevada returns USA hexes (Las Vegas solar irradiance is about 1,966 kWh/m²/yr). Expect up to ~4k hexes per viewport at the zoom threshold, so keep the cap and debounce.
 - [ ] 2026-11-21 (P1, user request, with screenshot): **Hexes must follow the land: nothing over water.** The user saw a big rectangle of hexes over the sea. Two sources in the frontend:
   1. `regionMarkers()` in `App.tsx` fills each region's **bbox** (`polygonToCells` on the bbox ring), so the UK marker is a rectangle covering the North Sea. **Use `list_regions()[i].marker_cells`** (new) instead. These are coarse H3 cells (resolution `marker_resolution`, ≤ 600 per region) made from the parents of the region's real cells, so they trace the coastline (UK: 250 cells at res 4, none over the sea).
   2. MapView's "surrounding grid" (`contextCells`, empty hexes over the padded viewport) also draws over water. Please drop it, or restrict it to `marker_cells` (or their children). Only draw hexes where data exists.

@@ -47,6 +47,18 @@ The API never calls data sources at request time; it only reads `grid.parquet`. 
 
 `python -m backend.pipeline.run --refresh` forces a re-download; a failed refresh falls back to the cached copy. To keep data current, run `make data` once a day (cron or a scheduled job): unchanged sources cost no API calls.
 
+## Regions
+
+| Region | H3 res | Hexes | Real layers | Size (committed) | Sources |
+|---|---|---|---|---|---|
+| London | 8 | 2,654 | 28 | 0.8 MB | everything below |
+| United Kingdom | 7 | 53,100 | 16 | 2.4 MB | global sources |
+| United States | 6 | 257,741 | 15 | 15 MB | global sources |
+| Canada | 5 | 37,165 | 16 | 2.7 MB | global sources |
+| Mexico | 6 | 46,925 | 16 | 3.0 MB | global sources |
+
+Defined in `backend/pipeline/regions.yaml` (Natural Earth 10 m boundaries, so hexes stop at the coast). National regions use **global** sources: WorldClim 2.1 normals (temperature, heat, humidity, wet bulb, free cooling, wind including 100 m, solar, rain, evapotranspiration, elevation and slope), WorldPop 1 km population, OWID grid carbon and USGS earthquakes. Layers without a global source are **unavailable** there (neutral, `raw = null`), never synthetic; masks with no data don't exclude hexes. Build one with `python -m backend.pipeline.run --region usa` (about 40 s from cached downloads), or all with `--region all`. Normalised values are stored as uint8 and raw values as float32 (zstd). Raw downloads total about 1 GB and can be deleted with `--prune-raw`.
+
 ## Default use cases and their data
 
 | Profile | Layers (weight order) | Masks |
