@@ -271,3 +271,8 @@ def test_layers_tolerate_null_range(client, monkeypatch) -> None:
     r = client.get("/layers")
     assert r.status_code == 200
     assert r.json()[0]["min"] is None and r.json()[0]["max"] is None
+
+
+def test_root_points_to_the_app(client):
+    r = client.get("/")
+    assert r.status_code == 200 and "localhost:5173" in r.text

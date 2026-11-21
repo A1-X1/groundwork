@@ -321,6 +321,21 @@ Lat = Annotated[float, Query(ge=-90, le=90, description="Latitude (WGS84).", exa
 Lon = Annotated[float, Query(ge=-180, le=180, description="Longitude (WGS84).", examples=[-0.0922])]
 
 
+@app.get("/", include_in_schema=False)
+def root() -> Response:
+    """Someone opened the API port in a browser: point them at the app and the docs."""
+    html = (
+        "<!doctype html><meta charset=utf-8><title>Groundwork API</title>"
+        "<body style='font:16px system-ui;max-width:36rem;margin:3rem auto;padding:0 1rem'>"
+        "<h1>Groundwork API is running</h1>"
+        "<p>This is the API, not the app. Open the app at "
+        "<a href='http://localhost:5173'>http://localhost:5173</a> "
+        "(start it with <code>cd frontend; npm run dev</code> if it isn't running).</p>"
+        "<p>API docs: <a href='/docs'>/docs</a> · Health: <a href='/health'>/health</a></p>"
+    )
+    return Response(html, media_type="text/html")
+
+
 @app.get("/health", response_model=Health, tags=["meta"], summary="Service status and provenance")
 def health() -> Health:
     """Reports which scoring backend is active, when the data was built, and which layers are
