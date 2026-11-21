@@ -19,6 +19,8 @@ export interface GlobeTarget {
   lon: number;
   /** How close to end up: the whole Earth, a country, or city level (then hand over). */
   level: 'world' | 'country' | 'city';
+  /** 'near': start close in over the target and pull back (hand-back from the map). */
+  from?: 'near';
   nonce: number;
 }
 
@@ -35,7 +37,11 @@ interface Props {
   regionHexes: RegionHex[];
   notice: string | null;
   onArrive: (target: GlobeTarget) => void;
-  onEnterRegion: () => void;
+  /** Click on a data region (with the clicked point), or the enter button (no point). */
+  onEnterRegion: (at?: [number, number]) => void;
+  /** Wheel-zoomed all the way in: the point facing the camera, for the map hand-over. */
+  onZoomIn?: (lat: number, lon: number) => void;
+  enterLabel?: string;
   onUserInteract: () => void;
 }
 
@@ -54,6 +60,15 @@ function toVec(lat: number, lon: number, r = 1): THREE.Vector3 {
     r * Math.cos(phi),
     r * Math.sin(phi) * Math.sin(theta),
   );
+}
+
+/** Inverse of toVec: latitude and longitude of a direction in globe space. */
+function toLatLon(v: THREE.Vector3): [number, number] {
+  const u = v.clone().normalize();
+  const lat = 90 - THREE.MathUtils.radToDeg(Math.acos(THREE.MathUtils.clamp(u.y, -1, 1)));
+  let lon = THREE.MathUtils.radToDeg(Math.atan2(u.z, -u.x)) - 180;
+  if (lon < -180) lon += 360;
+  return [lat, lon];
 }
 
 /** Rotation that brings (lat, lon) to face the camera (+z) with north up. */
@@ -134,6 +149,7 @@ export function GlobeView(props: Props) {
   const api = useRef<{
     fly: (q: THREE.Quaternion, d: number, ms: number, done?: () => void) => void;
     zoomTo: (d: number) => void;
+    jump: (q: THREE.Quaternion, d: number) => void;
     setRegion: (hexes: RegionHex[]) => void;
     distance: () => number;
   } | null>(null);
@@ -254,13 +270,26 @@ export function GlobeView(props: Props) {
         -((e.clientY - rect.top) / rect.height) * 2 + 1,
       );
       raycaster.setFromCamera(ndc, camera);
-      if (raycaster.intersectObject(region).length) propsRef.current.onEnterRegion();
+      const hit = raycaster.intersectObject(region)[0];
+      if (hit) propsRef.current.onEnterRegion(toLatLon(globe.worldToLocal(hit.point.clone())));
     };
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       anim = null;
+      const before = distance;
       distance = THREE.MathUtils.clamp(distance * (1 + e.deltaY * 0.001), NEAR, FAR + 1);
       propsRef.current.onUserInteract();
+      // Reaching the closest distance hands over to the flat map at the point facing us.
+      if (
+        e.deltaY < 0 &&
+        distance <= NEAR + 1e-6 &&
+        before > NEAR + 1e-6 &&
+        propsRef.current.isVisible
+      ) {
+        const front = new THREE.Vector3(0, 0, 1).applyQuaternion(globe.quaternion.clone().invert());
+        const [lat, lon] = toLatLon(front);
+        propsRef.current.onZoomIn?.(lat, lon);
+      }
       renderOnce();
     };
     const el = renderer.domElement;
@@ -336,6 +365,12 @@ export function GlobeView(props: Props) {
         anim = { fromQ: q, toQ: q, fromD: distance, toD: d, t0: performance.now(), ms: 450 };
         kick();
       },
+      jump: (q, d) => {
+        anim = null;
+        globe.quaternion.copy(q);
+        distance = d;
+        renderOnce();
+      },
       setRegion,
       distance: () => distance,
     };
@@ -381,6 +416,7 @@ export function GlobeView(props: Props) {
     const t = props.target;
     if (!t || !api.current) return;
     const d = { world: FAR, country: COUNTRY, city: NEAR }[t.level];
+    if (t.from === 'near') api.current.jump(facing(t.lat, t.lon), NEAR * 1.08);
     api.current.fly(facing(t.lat, t.lon), d, FLY_MS, () => propsRef.current.onArrive(t));
   }, [props.target]);
 
@@ -420,10 +456,10 @@ export function GlobeView(props: Props) {
           </Text>
         )}
         <Button
-          label="Open London map"
+          label={props.enterLabel ?? 'Open London map'}
           variant="secondary"
           size="sm"
-          onClick={props.onEnterRegion}
+          onClick={() => props.onEnterRegion()}
         />
       </VStack>
     </VStack>

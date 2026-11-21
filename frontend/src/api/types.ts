@@ -55,7 +55,7 @@ export interface ScoreResponse {
 export interface LayerValue {
   h3: string;
   value: number;
-  raw: number;
+  raw: number | null;
 }
 
 export interface LayerValues {
@@ -95,7 +95,7 @@ export interface PointScore {
   percentile: number | null;
   weights: Record<string, number>;
   breakdown: Record<string, number>;
-  raw: Record<string, number>;
+  raw: Record<string, number | null>;
   shap: { base_value: number; positive: ShapDriver[]; negative: ShapDriver[] } | null;
   model: ModelInfo | null;
 }

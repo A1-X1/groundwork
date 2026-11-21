@@ -2,7 +2,7 @@ import { Banner } from '@astryxdesign/core/Banner';
 import { ProgressBar } from '@astryxdesign/core/ProgressBar';
 import { VStack } from '@astryxdesign/core/VStack';
 import { HStack } from '@astryxdesign/core/HStack';
-import { cellToLatLng, cellToParent, latLngToCell } from 'h3-js';
+import { cellToLatLng, latLngToCell, polygonToCells } from 'h3-js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api/client';
 import type { AssistantCommand, Poi, Review } from './api/types';
@@ -15,6 +15,7 @@ import {
 } from './lib/structures';
 import { AreaDetail, AreasPanel } from './panels/AreasPanel';
 import type { Area, AreaSummary, Region, StructureRecord } from './api/types';
+import type { BBox } from './lib/viewport';
 import type { Basemap, MapArea } from './map/MapView';
 import { HomeScreen } from './panels/HomeScreen';
 import { findPlace } from './lib/places';
@@ -70,9 +71,8 @@ export default function App() {
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [connectionsReason, setConnectionsReason] = useState<string | null>(null);
   const [modelIds, setModelIds] = useState<string[]>([]);
-  const [regions, setRegions] = useState<Region[]>([]);
   const [progress, setProgress] = useState<AgentProgressState | null>(null);
-  const mapViewRef = useRef<{ center: [number, number]; zoom: number } | null>(null);
+  const mapViewRef = useRef<{ center: [number, number]; zoom: number; bbox: BBox } | null>(null);
   // Live values for callbacks memoised earlier (the command queue).
   const globeVisibleRef = useRef(true);
   const screenRef = useRef<'home' | 'explore'>('home');
@@ -123,6 +123,12 @@ export default function App() {
   const [project, setProject] = useState<Project | null>(null);
   const [pois, setPois] = useState<Poi[]>([]);
   globeVisibleRef.current = globeVisible;
+  // Hexes are fetched for the map's view only; none while the globe is showing.
+  const setGwViewport = gw.setViewport;
+  useEffect(() => {
+    const v = mapViewRef.current;
+    setGwViewport(globeVisible || !v ? null : { bbox: v.bbox, zoom: v.zoom });
+  }, [globeVisible, setGwViewport]);
   screenRef.current = screen;
   projectsRef.current = projects;
 
@@ -135,10 +141,6 @@ export default function App() {
       .models3d()
       .then(setModelIds)
       .catch(() => setModelIds([]));
-    api
-      .regions()
-      .then(setRegions)
-      .catch(() => setRegions([]));
   }, []);
   useEffect(() => {
     api
@@ -225,7 +227,7 @@ export default function App() {
 
   useEffect(() => {
     if (overlay.layer) gw.ensureLayer(overlay.layer);
-  }, [overlay.layer]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [overlay.layer, gw.viewKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- ranks (local, for tooltips and fixture mode)
   const ranks = useMemo(() => {
@@ -239,39 +241,31 @@ export default function App() {
 
   // ---- coarse (res 5) hexes for the globe, and where detailed hexes exist
   // Where detailed hexes exist, independent of the chosen use case (any layer covers the grid).
+  // Fetched for the visible area only (multi-region data), like scores and layers.
+  const regions = gw.regions;
   const [coverage, setCoverage] = useState<string[]>([]);
   useEffect(() => {
     const first = gw.layers[0];
-    if (!first || coverage.length) return;
+    const view = gw.view;
+    if (!first || !view) {
+      setCoverage([]);
+      return;
+    }
+    let alive = true;
     api
-      .layer(first.id)
-      .then((lv) => setCoverage(lv.cells.map((c) => c.h3)))
+      .layer(first.id, view.bbox)
+      .then((lv) => alive && setCoverage(lv.cells.map((c) => c.h3)))
       .catch(() => undefined);
-  }, [gw.layers, coverage.length]);
+    return () => {
+      alive = false;
+    };
+  }, [gw.layers, gw.viewKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const scoredIds = useMemo(
     () => new Set([...coverage, ...(scoreData?.cells.map((c) => c.h3) ?? [])]),
     [scoreData, coverage],
   );
-  const regionHexes: RegionHex[] = useMemo(() => {
-    const acc = new Map<string, { sum: number; n: number }>();
-    if (!scoreData) {
-      // No use case yet: show the covered region as neutral coarse hexes.
-      const parents = new Set(coverage.map((h) => cellToParent(h, 5)));
-      return [...parents].map((h3) => ({ h3, t: 0.25 }));
-    }
-    for (const c of scoreData.cells) {
-      if (c.score == null) continue;
-      const parent = cellToParent(c.h3, 5);
-      const a = acc.get(parent) ?? { sum: 0, n: 0 };
-      a.sum += c.score;
-      a.n += 1;
-      acc.set(parent, a);
-    }
-    const avgs = [...acc].map(([h3, a]) => ({ h3, v: a.sum / a.n }));
-    const lo = Math.min(...avgs.map((x) => x.v));
-    const span = Math.max(1e-6, Math.max(...avgs.map((x) => x.v)) - lo);
-    return avgs.map((x) => ({ h3: x.h3, t: (x.v - lo) / span }));
-  }, [scoreData, coverage]);
+  // The globe marks where data exists (from /regions), never the detailed hexes themselves.
+  const regionHexes: RegionHex[] = useMemo(() => regionMarkers(regions), [regions]);
   const hasDetail = useCallback(
     (lat: number, lon: number) =>
       scoredIds.has(latLngToCell(lat, lon, 8)) ||
@@ -315,6 +309,8 @@ export default function App() {
       t: c.value,
       h: c.value,
       masked: maskedSet.has(c.h3),
+      // raw null: this layer has no data in the region (value is a neutral 0.5)
+      neutral: c.raw === null,
       tooltip: `${layerMeta?.label ?? overlay.label}: ${formatRaw(c.raw, layerMeta?.unit ?? '')}`,
     }));
   }, [scoreData, overlay.layer, overlay.label, layerAsync, layerMeta, ranks]);
@@ -434,11 +430,30 @@ export default function App() {
         setGlobeVisible(false);
         setArrival({ lat: t.lat, lon: t.lon, nonce: Date.now() });
       } else {
-        setGlobeNotice('Detailed hexes aren’t built here yet. London is the demo region.');
+        const names = regions.map((r) => r.name).join(', ');
+        setGlobeNotice(
+          names
+            ? `Detailed hexes aren’t built here yet. Data covers: ${names}.`
+            : 'Detailed hexes aren’t built here yet.',
+        );
         settleCamera();
       }
     },
-    [hasDetail],
+    [hasDetail, regions],
+  );
+
+  /** Map zoomed out past the globe threshold: hand back to the globe, facing the same spot. */
+  const onMapZoomOut = useCallback((lon: number, lat: number) => {
+    setGlobeNotice(null);
+    setSpinning(false);
+    setGlobeVisible(true);
+    setGlobeTarget({ lat, lon, level: 'country', nonce: Date.now(), from: 'near' });
+  }, []);
+
+  /** Globe zoomed all the way in: hand over to the map there (if it has data). */
+  const onGlobeZoomIn = useCallback(
+    (lat: number, lon: number) => onArrive({ lat, lon, level: 'city', nonce: Date.now() }),
+    [onArrive],
   );
 
   /** Go to a place: on the map if it is already showing and has data, else via the globe.
@@ -997,8 +1012,10 @@ export default function App() {
           onAreaClick={selectArea}
           onView={(v) => {
             mapViewRef.current = v;
+            if (!globeVisibleRef.current) gw.setViewport({ bbox: v.bbox, zoom: v.zoom });
             settleCamera();
           }}
+          onZoomOut={onMapZoomOut}
         />
         <GlobeView
           isVisible={globeVisible}
@@ -1008,7 +1025,15 @@ export default function App() {
           regionHexes={regionHexes}
           notice={globeNotice}
           onArrive={onArrive}
-          onEnterRegion={() => flyGlobe(51.5, -0.11, 'city')}
+          onEnterRegion={(at) => {
+            const r = regions[0];
+            const [lat, lon] =
+              at ??
+              (r ? [(r.bbox[1] + r.bbox[3]) / 2, (r.bbox[0] + r.bbox[2]) / 2] : [51.5, -0.11]);
+            flyGlobe(lat, lon, 'city');
+          }}
+          onZoomIn={onGlobeZoomIn}
+          enterLabel={regions[0] ? `Open ${regions[0].name} map` : undefined}
           onUserInteract={() => setSpinning(false)}
         />
         <VStack
@@ -1305,3 +1330,20 @@ export default function App() {
     </VStack>
   );
 }
+
+/** Coarse hexes marking each region with data, for the globe (a few hundred per region). */
+function regionMarkers(regions: Region[]): RegionHex[] {
+  const out: RegionHex[] = [];
+  for (const r of regions) {
+    const [w, so, e, n] = r.bbox;
+    const ring = [[so, w], [so, e], [n, e], [n, w], [so, w]];
+    let cells: string[] = [];
+    for (const res of [5, 4, 3, 2]) {
+      cells = polygonToCells(ring, res);
+      if (cells.length <= 600) break;
+    }
+    if (cells.length === 0) cells = [latLngToCell((so + n) / 2, (w + e) / 2, 5)];
+    for (const h3 of cells) out.push({ h3, t: 0.35 });
+  }
+  return out;
+} // prettier-ignore

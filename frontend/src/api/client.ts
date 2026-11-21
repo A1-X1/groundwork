@@ -1,3 +1,4 @@
+import type { BBox } from '../lib/viewport';
 import type {
   ApiErrorBody,
   AgentEvent,
@@ -231,18 +232,25 @@ export const api = {
 
   layers: (): Promise<LayerMeta[]> => (fixtures ? fixtures.layers() : request('/layers')),
 
-  layer: (id: string): Promise<LayerValues> =>
-    fixtures ? Promise.reject(fixtureOnly()) : request(`/layers/${encodeURIComponent(id)}`),
+  layer: (id: string, bbox?: BBox | null): Promise<LayerValues> =>
+    fixtures
+      ? Promise.reject(fixtureOnly())
+      : request(`/layers/${encodeURIComponent(id)}${bbox ? `?bbox=${bbox.join(',')}` : ''}`),
 
-  score: (profile: string, weights?: Record<string, number>): Promise<ScoreResponse> => {
+  /** Scores for a profile; with `bbox`, only the cells inside it (viewport fetching). */
+  score: (
+    profile: string,
+    weights?: Record<string, number>,
+    bbox?: BBox | null,
+  ): Promise<ScoreResponse> => {
     if (fixtures) return fixtures.score();
     if (weights && Object.keys(weights).length > 0) {
       return request('/score/custom', {
         method: 'POST',
-        body: JSON.stringify({ profile, weights }),
+        body: JSON.stringify({ profile, weights, ...(bbox ? { bbox } : {}) }),
       });
     }
-    return request(`/score/${encodeURIComponent(profile)}`);
+    return request(`/score/${encodeURIComponent(profile)}${bbox ? `?bbox=${bbox.join(',')}` : ''}`);
   },
 
   point: (

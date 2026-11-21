@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { viewFor, type DataView, type Viewport, type ViewReason } from '../lib/viewport';
 import type {
   CompareResponse,
   Health,
@@ -7,6 +8,7 @@ import type {
   LayerValues,
   PointScore,
   Profile,
+  Region,
   ScoreResponse,
 } from '../api/types';
 
@@ -29,6 +31,8 @@ export type Async<T> =
   | { status: 'error'; message: string; data?: T };
 
 const DEBOUNCE_MS = 200;
+/** Viewport changes settle for this long before hexes are fetched for the new view. */
+const VIEW_DEBOUNCE_MS = 250;
 
 function message(err: unknown): string {
   return err instanceof ApiError || err instanceof Error ? err.message : 'Something went wrong.';
@@ -53,6 +57,32 @@ export function useGroundwork() {
   const [compare, setCompare] = useState<Async<CompareResponse>>({ status: 'idle' });
   const [sites, setSites] = useState<PlacedSite[]>([]);
   const [appliedWeights, setAppliedWeights] = useState<Record<string, number> | null>(null);
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [regionsLoaded, setRegionsLoaded] = useState(false);
+  const [viewport, setViewportState] = useState<Viewport | null>(null);
+
+  // ---- data view: fetch hexes only for the visible area, once zoomed in (multi-region data)
+  const viewRef = useRef<DataView | null>(null);
+  const { view, reason: viewReason } = useMemo((): {
+    view: DataView | null;
+    reason: ViewReason;
+  } => {
+    if (!regionsLoaded) return { view: null, reason: 'globe' };
+    const r = viewFor(viewport, regions, viewRef.current);
+    return r;
+  }, [viewport, regions, regionsLoaded]);
+  viewRef.current = view;
+  const viewKey = view?.key ?? null;
+  const viewTimer = useRef(0);
+  /** Report the map's viewport (null while the globe is showing); debounced. */
+  const setViewport = useCallback((vp: Viewport | null) => {
+    window.clearTimeout(viewTimer.current);
+    if (!vp) {
+      setViewportState(null);
+      return;
+    }
+    viewTimer.current = window.setTimeout(() => setViewportState(vp), VIEW_DEBOUNCE_MS);
+  }, []);
 
   const lastGoodWeights = useRef<Record<string, number>>({});
   const scoreSeq = useRef(0);
@@ -74,6 +104,7 @@ export function useGroundwork() {
     profilesRef.current = ps;
     setProfiles({ status: 'ready', data: ps });
     setLayers(ls);
+    layerKeys.current = {};
     setLayerValues({});
   }, []);
 
@@ -92,6 +123,11 @@ export function useGroundwork() {
       .health()
       .then((h) => alive && setHealth(h))
       .catch(() => undefined);
+    api
+      .regions()
+      .then((rs) => alive && setRegions(rs))
+      .catch(() => undefined)
+      .finally(() => alive && setRegionsLoaded(true));
     return () => {
       alive = false;
     };
@@ -104,17 +140,26 @@ export function useGroundwork() {
   }, [profile, weights]);
 
   const lastProfileScored = useRef<string | null>(null);
+  const lastWeightsScored = useRef<Record<string, number> | null>(null);
   useEffect(() => {
     if (!profileId || !profile) return;
-    const profileChanged = lastProfileScored.current !== profileId;
     const seq = ++scoreSeq.current;
+    if (!view) {
+      // Zoomed out, on the globe or outside every region: no hexes to fetch or draw.
+      lastProfileScored.current = null;
+      setScore({ status: 'idle' });
+      return;
+    }
+    const profileChanged = lastProfileScored.current !== profileId;
+    const weightsChanged = !profileChanged && lastWeightsScored.current !== weights;
     const run = () => {
       setScore((s) => ({ status: 'loading', data: 'data' in s ? s.data : undefined }));
       api
-        .score(profileId, isDefaultWeights ? undefined : weights)
+        .score(profileId, isDefaultWeights ? undefined : weights, view.bbox)
         .then((data) => {
           if (seq !== scoreSeq.current) return;
           lastProfileScored.current = profileId;
+          lastWeightsScored.current = weights;
           lastGoodWeights.current = weights;
           setAppliedWeights(isDefaultWeights ? null : weights);
           setWeightsError(null);
@@ -127,37 +172,54 @@ export function useGroundwork() {
             message: message(e),
             data: 'data' in s ? s.data : undefined,
           }));
-          if (!profileChanged) {
+          if (weightsChanged) {
             // Roll back the sliders to the last weights the server accepted.
             setWeights(lastGoodWeights.current);
             setWeightsError(`Couldn't re-score: ${message(e)} Weights were reset.`);
           }
         });
     };
-    if (profileChanged) {
-      run();
+    if (!weightsChanged) {
+      run(); // profile or view change (the viewport is already debounced)
       return;
     }
     const t = window.setTimeout(run, DEBOUNCE_MS);
     return () => window.clearTimeout(t);
-    // weights is the trigger; isDefaultWeights is derived from it
-  }, [profileId, profile, weights]); // eslint-disable-line react-hooks/exhaustive-deps
+    // weights and the view key are the triggers; isDefaultWeights is derived from weights
+  }, [profileId, profile, weights, viewKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ---- layer overlays (cached per layer)
+  // ---- layer overlays (cached per layer and view)
+  const layerKeys = useRef<Record<string, string | null>>({});
   const ensureLayer = useCallback(
     (layerId: string) => {
       const cur = layerValues[layerId];
-      if (cur && cur.status !== 'error') return;
-      setLayerValues((m) => ({ ...m, [layerId]: { status: 'loading' } }));
+      if (!view) {
+        layerKeys.current[layerId] = null;
+        if (cur && cur.status !== 'idle')
+          setLayerValues((m) => ({ ...m, [layerId]: { status: 'idle' } }));
+        return;
+      }
+      if (cur && cur.status !== 'error' && cur.status !== 'idle' && layerKeys.current[layerId] === view.key)
+        return;
+      const key = view.key;
+      layerKeys.current[layerId] = key;
+      setLayerValues((m) => {
+        const prev = m[layerId];
+        return { ...m, [layerId]: { status: 'loading', data: prev && 'data' in prev ? prev.data : undefined } };
+      });
       api
-        .layer(layerId)
-        .then((data) => setLayerValues((m) => ({ ...m, [layerId]: { status: 'ready', data } })))
-        .catch((e: unknown) =>
-          setLayerValues((m) => ({ ...m, [layerId]: { status: 'error', message: message(e) } })),
-        );
+        .layer(layerId, view.bbox)
+        .then((data) => {
+          if (layerKeys.current[layerId] !== key) return;
+          setLayerValues((m) => ({ ...m, [layerId]: { status: 'ready', data } }));
+        })
+        .catch((e: unknown) => {
+          if (layerKeys.current[layerId] !== key) return;
+          setLayerValues((m) => ({ ...m, [layerId]: { status: 'error', message: message(e) } }));
+        });
     },
-    [layerValues],
-  );
+    [layerValues, view],
+  ); // prettier-ignore
 
   // ---- point detail: follows the weights the server last accepted, so it matches the map
   useEffect(() => {
@@ -263,6 +325,11 @@ export function useGroundwork() {
   }, []);
 
   return {
+    regions,
+    view,
+    viewKey,
+    viewReason,
+    setViewport,
     profiles,
     profileList,
     profile,
