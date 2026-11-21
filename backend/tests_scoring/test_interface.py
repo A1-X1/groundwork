@@ -146,9 +146,13 @@ def test_unavailable_masks_do_not_mask():
 
 
 def test_multi_region_routing():
+    import h3
+
     # Edinburgh is in the UK grid only; central London resolves to the finer London grid
     edinburgh = scoring.score_point("wind_farm", 55.95, -3.19)
-    assert edinburgh["region"] == "uk" and edinburgh["score"] is not None or edinburgh["masked"]
+    assert edinburgh["region"] == "uk_urban"  # towns and cities get res-8 hexes
+    rural = scoring.score_point("wind_farm", 57.3, -4.5)
+    assert rural["region"] == "uk" and h3.get_resolution(rural["h3"]) == 7
     assert "crime_rate" in edinburgh["unavailable"] and edinburgh["raw"]["crime_rate"] is None
     assert scoring.score_point("house", 51.5074, -0.1278)["region"] == "london"
     # a bbox over Greater London returns London res-8 cells, not the UK res-7 cells beneath them
@@ -158,7 +162,7 @@ def test_multi_region_routing():
     assert cells and {h3.get_resolution(c["h3"]) for c in cells} == {8}
     # a bbox over Scotland returns UK cells
     scot = scoring.score("wind_farm", bbox=(-4.5, 56.0, -3.5, 56.5))
-    assert scot and {h3.get_resolution(c["h3"]) for c in scot} == {7}
+    assert scot and {h3.get_resolution(c["h3"]) for c in scot} <= {7, 8}
 
 
 def test_list_pois_real_or_seeded_only():
