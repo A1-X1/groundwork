@@ -1,5 +1,6 @@
 import { Banner } from '@astryxdesign/core/Banner';
 import { Button } from '@astryxdesign/core/Button';
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { Collapsible } from '@astryxdesign/core/Collapsible';
 import { Heading } from '@astryxdesign/core/Heading';
 import { Icon } from '@astryxdesign/core/Icon';
@@ -95,6 +96,8 @@ export function TopSites({
   isLoading,
   onPick,
   placeName,
+  order = 'best',
+  onOrderChange,
 }: {
   profiles: Profile[];
   onChooseProfile: (id: string) => void;
@@ -104,10 +107,15 @@ export function TopSites({
   /** Where the sites are: the data region in view (e.g. Greater London, United Kingdom). */
   placeName?: string | null;
   onPick: (cell: ScoredCell, rank: number) => void;
+  /** Best first (default) or worst first ("show the worst sites"). */
+  order?: 'best' | 'worst';
+  onOrderChange?: (order: 'best' | 'worst') => void;
 }) {
   const ranked = (cells ?? [])
     .filter((c) => c.score != null)
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    .sort((a, b) =>
+      order === 'worst' ? (a.score ?? 0) - (b.score ?? 0) : (b.score ?? 0) - (a.score ?? 0),
+    );
   const masked = (cells ?? []).filter((c) => c.masked).length;
   if (!profile) {
     return (
@@ -137,7 +145,8 @@ export function TopSites({
     <VStack gap={4}>
       <VStack gap={1}>
         <Heading level={2} textWrap="balance">
-          Best {profile.label.toLowerCase()} sites {placeName ? `in ${placeName}` : 'in view'}
+          {order === 'worst' ? 'Worst' : 'Best'} {profile.label.toLowerCase()} sites{' '}
+          {placeName ? `in ${placeName}` : 'in view'}
         </Heading>
         {cells ? (
           <Text color="secondary" display="block" hasTabularNumbers textWrap="pretty">
@@ -156,6 +165,17 @@ export function TopSites({
         </VStack>
       ) : (
         <List density="compact" edge="outset" hasDividers>
+          {onOrderChange && (
+            <SegmentedControl
+              label="Order"
+              value={order}
+              onChange={(v) => onOrderChange(v === 'worst' ? 'worst' : 'best')}
+              size="sm"
+            >
+              <SegmentedControlItem value="best" label="Best" />
+              <SegmentedControlItem value="worst" label="Worst" />
+            </SegmentedControl>
+          )}
           {ranked.slice(0, 10).map((c, i) => (
             <ListItem
               key={c.h3}

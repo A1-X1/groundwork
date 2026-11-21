@@ -58,9 +58,9 @@ COMMANDS: dict[str, list[str]] = {
     "SET_OVERLAY": ["layer"],
     "SET_WEIGHT": ["layer", "weight"],
     "RESET_WEIGHTS": [],
-    "SHOW_TOP_SITES": ["n", "profile"],
+    "SHOW_TOP_SITES": ["n", "profile", "order"],
     # fly to and select the n-th best scored hexagon in view; rank: 1, 2, … or "next"/"prev"
-    "GO_TO_RANK": ["rank"],
+    "GO_TO_RANK": ["rank", "order"],
     # fly to a geocoded street address (the agent's find_address tool fills lat/lon)
     "PAN_ADDRESS": ["address", "lat", "lon"],
     "SELECT_PLACE": ["name", "lat", "lon"],
@@ -213,6 +213,12 @@ def clean(raw: Any, profiles: list[str], layers: list[str]) -> list[Command]:
             lay = str(args.get("layer", ""))
             if lay not in OVERLAY_VIEWS and lay not in layers:
                 continue
+        if t in ("GO_TO_RANK", "SHOW_TOP_SITES") and "order" in args:
+            # "best" (default) or "worst": the least suitable sites first
+            if str(args["order"]).lower() in ("best", "worst"):
+                args["order"] = str(args["order"]).lower()
+            else:
+                del args["order"]
         if t == "GO_TO_RANK":
             r = args.get("rank", 1)
             if isinstance(r, str) and r.lower() in ("next", "prev", "previous"):
@@ -253,8 +259,11 @@ def _system_prompt(profiles: list[dict], layers: list[dict]) -> str:
         f"Overlay views: {', '.join(OVERLAY_VIEWS)}; or any layer id: {lays}.\n"
         "Weights are 0-100. state is 'on' or 'off'. direction is 'in' or 'out'. "
         "GO_TO_RANK zooms into one ranked site: 'take me to the best location' -> rank 1, "
-        "'the second best' -> 2, 'next one' -> 'next', 'previous' -> 'prev'. Use SHOW_TOP_SITES "
-        "only for a list ('best sites', 'top 10'). "
+        "'the second best' -> 2, 'next one' -> 'next', 'previous' -> 'prev' "
+        "(no order: next/prev keep the current one); for the least "
+        "suitable add order 'worst' ('the worst location' -> rank 1, order worst; 'second worst' "
+        "-> rank 2, order worst). Use SHOW_TOP_SITES only for a list ('best sites', 'top 10'; "
+        "'worst sites' / 'bottom 10' -> order worst). "
         "Street addresses ('take me to 10 Downing Street') and questions about an address "
         "('what's the address of this site?') need geocoding: set understood=false, no commands. "
         'For compound requests ("pan to X then show Y") return the commands in the order '
@@ -361,22 +370,33 @@ _ORDINALS = {
 _ONE_SITE = r"(?:site|location|spot|place|one|hexagon|hex|area|option)\b(?!s)"
 
 
-def _rank_intent(t: str) -> int | str | None:
-    """'best location' → 1, 'second best' → 2, 'number 5' → 5, 'next one' → 'next'."""
-    if re.search(r"\b(next|following)\b(?: one| site| location| best)?", t) and not re.search(
-        r"\bnext to\b", t
-    ):
-        return "next"
+_WORST = r"\b(worst|lowest[- ]scoring|least suitable|bottom)\b"
+
+
+def _rank_intent(t: str) -> dict[str, Any] | None:
+    """One ranked site: 'best location' → rank 1, 'second worst' → rank 2 (worst first),
+    'number 5' → 5, 'next one' → next (keeps the current order). None when it's not one."""
+    order = {"order": "worst"} if re.search(_WORST, t) else {}
+    if re.search(
+        r"\b(next|following)\b(?: one| site| location| best| worst)?", t
+    ) and not re.search(r"\bnext to\b", t):
+        return {"rank": "next"}
     if re.search(r"\b(previous|prev|go back one|back one|last one)\b", t):
-        return "prev"
-    m = re.search(r"\b(" + "|".join(_ORDINALS) + r")\b(?:\s+(?:best|top|ranked|place))?", t)
-    if m and re.search(r"\b(best|top|ranked|site|location|spot|place|one|option)\b", t):
-        return _ORDINALS[m[1]]
+        return {"rank": "prev"}
+    m = re.search(r"\b(" + "|".join(_ORDINALS) + r")\b(?:\s+(?:best|worst|top|ranked|place))?", t)
+    if m and re.search(
+        r"\b(best|worst|top|bottom|ranked|site|location|spot|place|one|option)\b", t
+    ):
+        return {"rank": _ORDINALS[m[1]], **order}
     m = re.search(r"\b(?:number|no\.?|rank|#)\s*(\d{1,3})\b", t)
     if m:
-        return int(m[1])
-    if re.search(rf"\b(?:the\s+)?(?:very\s+)?(?:best|top|highest[- ]scoring)\s+{_ONE_SITE}", t):
-        return 1
+        return {"rank": int(m[1]), **order}
+    if re.search(
+        rf"\b(?:the\s+)?(?:very\s+)?(?:best|top|highest[- ]scoring|worst|lowest[- ]scoring|"
+        rf"least suitable)\s+{_ONE_SITE}",
+        t,
+    ):
+        return {"rank": 1, **order}
     return None
 
 
@@ -418,20 +438,25 @@ def _rules_part(text: str, profiles: list[dict], layers: list[dict]) -> list[dic
 
     rank = _rank_intent(t)
     if rank is not None:
-        raw.append({"type": "GO_TO_RANK", "args": {"rank": rank}})
-    elif re.search(r"\b(best|top)\b", t):
-        n = re.search(r"\b(?:top|best)\s+(\d+)\b", t)
-        raw.append({"type": "SHOW_TOP_SITES", "args": {"n": int(n[1]) if n else 10}})
+        raw.append({"type": "GO_TO_RANK", "args": rank})
+    elif re.search(r"\b(best|top|worst|bottom)\b", t):
+        n = re.search(r"\b(?:top|best|worst|bottom)\s+(\d+)\b", t)
+        args: dict[str, Any] = {"n": int(n[1]) if n else 10}
+        if re.search(_WORST, t):
+            args["order"] = "worst"
+        raw.append({"type": "SHOW_TOP_SITES", "args": args})
     if re.search(r"\b(why|explain)\b", t):
         raw.append({"type": "EXPLAIN"})
     if re.search(r"\bcompare\b", t):
         raw.append({"type": "COMPARE_USE_CASES", "args": {"profiles": [p["id"] for p in profiles]}})
 
     place = re.search(_PLACE, t)
-    if place:
+    if place and rank is None:  # "take me to the worst location" is a ranked site, not a city
         name = place[1].strip()
         skip = {"the", "data", "the globe", "the world", "suitability", "thermal", "view"}
-        if name not in skip and not any(name.startswith(w) for w in ("the best", "best", "top")):
+        if name not in skip and not any(
+            name.startswith(w) for w in ("the best", "best", "top", "the worst", "worst", "bottom")
+        ):
             raw.append({"type": "PAN_CITY", "args": {"name": name.title()}})
     coords = re.search(rf"(-?{_NUM})\s*,\s*(-?{_NUM})", t)
     if coords and re.search(r"\b(place|build|put|drop)\b", t):

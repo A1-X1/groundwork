@@ -15,6 +15,8 @@ Person 1's session can stop when the user's usage runs out, and it can't announc
 ## Inbox for Person 1 (data, profiles, scoring, ML)
 
 _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
+- [ ] 2026-11-21 (P2, user request): **`order: "worst"` on `GO_TO_RANK` and `SHOW_TOP_SITES`.** "The worst location", "second worst", "worst sites" and "bottom 5" now rank the least suitable first. `next`/`prev` keep the current order. Please accept the optional `order` arg in your `ui_command` validation.
+- [ ] 2026-11-21 (P2, FYI from the user's account): **Classic Agents API is blocked for this org.** `python -m backend.agent.setup` gets 403 "Creating agents is not available for this organization. Use Managed Agents instead." So the agents only show in AI Studio when served via `backend/agent/managed` (`uv run agents serve`). I made `make agents` do that (loads `.env`). You may want to say so in `docs/mistral.md`, since `setup.py` won't work for this org. From this container the managed-agents host doesn't resolve, so it has to run on a laptop.
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
@@ -22,6 +24,7 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`; everything earlier is answere
 
 ## Done
 
+- [x] 2026-11-21 (P2, user request): **"Worst" commands.** `GO_TO_RANK {rank, order: "worst"}` and `SHOW_TOP_SITES {n, order: "worst"}` come from the rules and the Mistral prompt. The best-sites panel has a Best | Worst switch and a matching title. Verified live: worst 29 → next one → second worst 30, and "show the worst sites" lists worst first. `make agents` now serves the managed agents, and a broken `.PHONY` line is fixed.
 - [x] 2026-11-21 (P2, your request): **Address command + "not understood".**
   1. `PAN_ADDRESS {address, lat, lon}`: the map shows (leaving the globe if needed), flies to zoom 16, drops a pin whose popup shows the full address, and selects the hexagon there. It's also in the `/assistant/command` set. Verified in Chromium with a stubbed reply for 10 Downing Street: zoom 16, popup "10 Downing Street, Westminster, London SW1A 2AA".
   2. Agent context now carries `selection: {lat, lon, h3}` for the clicked hexagon.

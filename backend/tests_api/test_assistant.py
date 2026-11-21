@@ -259,3 +259,29 @@ def test_not_understood_matches_agent_wording() -> None:
         [],
     )
     assert pan[0].type == "PAN_ADDRESS" and pan[0].args["address"] == "10 Downing St"
+
+
+def test_worst_commands() -> None:
+    """'the worst location', 'second worst', 'worst sites' / 'bottom 5' rank least suitable first."""
+    from backend.api.assistant import clean, rules
+
+    def cmds(t: str):
+        return [(c.type, c.args) for c in rules(t, [], [])[0]]
+
+    assert cmds("take me to the worst location") == [
+        ("GO_TO_RANK", {"rank": 1, "order": "worst"})
+    ]
+    assert cmds("zoom into the second worst site") == [
+        ("GO_TO_RANK", {"rank": 2, "order": "worst"})
+    ]
+    assert cmds("show the worst sites") == [
+        ("SHOW_TOP_SITES", {"n": 10, "order": "worst"})
+    ]
+    assert cmds("bottom 5") == [("SHOW_TOP_SITES", {"n": 5, "order": "worst"})]
+    assert cmds("next one") == [
+        ("GO_TO_RANK", {"rank": "next"})
+    ]  # keeps the current order
+    bad = clean(
+        [{"type": "GO_TO_RANK", "args": {"rank": 1, "order": "sideways"}}], [], []
+    )
+    assert bad[0].args == {"rank": 1}
