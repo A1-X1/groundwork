@@ -322,3 +322,5 @@ def test_find_address_validates_and_ui_accepts_pan_address():
 def test_go_to_rank_command_allowed():
     q = tools.call("ui_command", {"commands": [{"command": "SHOW_TOP_SITES", "n": 5}, {"command": "GO_TO_RANK", "rank": 1}]})
     assert [c["command"] for c in q["ui"]] == ["SHOW_TOP_SITES", "GO_TO_RANK"]
+    w = tools.call("ui_command", {"commands": [{"command": "GO_TO_RANK", "rank": 2, "order": "worst"}]})
+    assert w["ui"][0]["order"] == "worst"

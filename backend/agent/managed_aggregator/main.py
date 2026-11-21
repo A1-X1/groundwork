@@ -19,14 +19,14 @@ planner = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(planner)  # the planner project's module: shared tools + paths
 
 agents = planner.agents
-AGENT_DIR, AGGREGATOR_TOOLS, MODEL = planner.AGENT_DIR, planner.AGGREGATOR_TOOLS, planner.MODEL
+AGGREGATOR_TOOLS, MODEL = planner.AGGREGATOR_TOOLS, planner.MODEL
 
 agent = agents.Agent(
     model=MODEL,
     name="groundwork-data-aggregator",
     description=("Builds a new Groundwork use case from aggregated free data, with no ML training: layers for "
                  "one city region, weight notes from local data ranges, a 3D model and the best sites."),
-    instructions=(AGENT_DIR / "aggregator.md").read_text(),
+    instructions=planner.AGGREGATOR_INSTRUCTIONS,
     temperature=0.2,
     tools=AGGREGATOR_TOOLS,
 )

@@ -22,10 +22,14 @@ if str(REPO) not in sys.path:
 
 from mistralai import agents  # noqa: E402
 
+from backend.agent import runner as gw_runner  # noqa: E402
 from backend.agent import tools as gw  # noqa: E402
 
 AGENT_DIR = REPO / "backend" / "agent"
-MODEL = "mistral-large-latest"
+# Same planning model and the SAME instruction text as the in-app runner (one source of truth).
+MODEL = gw_runner.DEFAULT_MODEL
+PLANNER_INSTRUCTIONS = gw_runner.INSTRUCTIONS
+AGGREGATOR_INSTRUCTIONS = gw_runner.AGGREGATOR_INSTRUCTIONS
 
 
 async def _call(name: str, **kwargs: Any) -> dict[str, Any]:
@@ -124,7 +128,7 @@ aggregator = agents.Subagent(
     name="groundwork-data-aggregator",
     description=("Builds a new Groundwork use case from aggregated free data, with no ML training, when Azure ML "
                  "isn't connected and the user chose the aggregator: layers, weight notes, 3D model, best sites."),
-    instructions=(AGENT_DIR / "aggregator.md").read_text(),
+    instructions=AGGREGATOR_INSTRUCTIONS,
     model=MODEL,
     temperature=0.2,
     tools=AGGREGATOR_TOOLS,
@@ -135,10 +139,8 @@ agent = agents.Agent(
     name="groundwork-planner",
     description=("Plans a new site-suitability use case in Groundwork (data layers, scoring profile, 3D model, "
                  "Azure ML feasibility model) and drives the map; delegates to the Data Aggregator without Azure."),
-    instructions=(AGENT_DIR / "instructions.md").read_text()
-    + "\n\nWhen Azure ML is not connected and the user chooses aggregation (or asks for it), hand the task to the "
-      "`groundwork-data-aggregator` subagent with the user's original request and region.",
+    instructions=PLANNER_INSTRUCTIONS,
     temperature=0.2,
-    tools=[*AGGREGATOR_TOOLS, azure_status, train_model],
+    tools=[*AGGREGATOR_TOOLS, azure_status, train_model],  # = check_parity.PLANNER_TOOLS
     subagents=[aggregator],
 )

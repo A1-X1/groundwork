@@ -20,7 +20,9 @@ from typing import Any
 
 from . import tools
 
-INSTRUCTIONS = (Path(__file__).parent / "instructions.md").read_text()
+DELEGATION_NOTE = ("\n\nWhen Azure ML is not connected and the user chooses aggregation (or asks for it), hand the task "
+                   "to the `groundwork-data-aggregator` subagent with the user's original request and region.")
+INSTRUCTIONS = (Path(__file__).parent / "instructions.md").read_text() + DELEGATION_NOTE
 AGGREGATOR_INSTRUCTIONS = (Path(__file__).parent / "aggregator.md").read_text()
 AGENTS = {"planner": INSTRUCTIONS, "aggregator": AGGREGATOR_INSTRUCTIONS}
 DEFAULT_MODEL = os.environ.get("GROUNDWORK_AGENT_MODEL", "mistral-large-latest")

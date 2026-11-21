@@ -24,6 +24,9 @@ Mistral powers every natural-language part of Groundwork: two agents that build 
    uv run agents deploy              # Mistral hosts it (needs workflows enabled)
    uv run agents list                # see what's registered
    ```
+   Or simply `make agents` from the repo root (loads `.env`). Run it on a laptop: the managed-agents service doesn't resolve from some cloud sandboxes.
+
+   > **Classic Agents API:** `python -m backend.agent.setup` uses Mistral's older Agents API (`beta.agents.create`), which is **blocked for some organisations** (403 "Creating agents is not available for this organization. Use Managed Agents instead."). For those, managed agents via `uv run agents serve` / `make agents` are the way to appear in AI Studio.
    Served or deployed agents appear in **Mistral AI Studio → Agents** (console.mistral.ai), where you can chat with and debug them.
    The Data Aggregator is also registered **as its own agent** from `backend/agent/managed_aggregator/` (same tools and instructions), so Studio lists both `groundwork-planner` and `groundwork-data-aggregator`. Run `uv run agents serve` in each folder to bring them online.
 
