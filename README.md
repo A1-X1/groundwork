@@ -6,13 +6,24 @@ a use case: a data centre, a house, a school, a mine, or anything you describe i
 result is an interactive 3D map, a per-hexagon explanation of *why* a spot scores the way it does,
 and a documented public API.
 
-London is the demo region.
+Data covers **Greater London, the United Kingdom, the USA, Canada and Mexico**, with smaller
+(res-8, ~0.7 km²) hexagons in towns and cities and larger ones in the countryside.
 
-![Groundwork 3D map: London hexagons extruded by data-centre suitability, with a placed data centre and its score breakdown](docs/img/map.png)
+![Groundwork: London hexagons scored for a family home, with map-key points of interest and the best sites](docs/img/map.jpg)
 
-> **Data status:** the scoring library and pipeline are in place. The committed sample grid
-> (`data/sample/`) still uses deterministic **synthetic** fallbacks for most layers until `make data`
-> is run with network access. `GET /health` and the app both say which layers are real.
+| | |
+|---|---|
+| ![Home screen: "What Groundwork is needed today?", with the command bar and the voice assistant](docs/img/home.jpg) | ![The globe in space, with every region that has data shown as one flat blue area](docs/img/globe.jpg) |
+| **Home.** Pick a use case, or just say what you want to build. | **Globe.** Regions with data show as flat areas; zoom in or click one to load its hexagons. |
+| ![A hexagon's detail: score, rank and why it scores the way it does](docs/img/detail.jpg) | ![The Custom tab: describe any building and the Mistral agents build the use case](docs/img/custom.jpg) |
+| **Why this score.** Each layer's pull, the ML model's drivers, and other use cases at the same spot. | **Custom.** Describe any building; the Mistral planning agent finds data, builds the profile and a 3D model. |
+| ![Data-centre suitability around Las Vegas at resolution 6 and 8, with power plants, airports and data centres](docs/img/usa.jpg) | |
+| **North America.** Data-centre suitability around Las Vegas: res-8 city hexes, res-6 around them, with power plants, airports and data centres. | |
+
+> **Data status:** the committed sample grids (`data/sample/regions/`) mix real sources with
+> deterministic **synthetic** stand-ins where a source couldn't be reached at build time (for
+> example OpenStreetMap layers built without Overpass access). `GET /health`, `/layers` and the
+> app say which layers are real; `make data` rebuilds them with network access.
 
 ## Who it's for
 
@@ -36,17 +47,30 @@ One `MISTRAL_API_KEY` in `.env` (or Connections → Mistral) enables all of it. 
 
 ## Features
 
-- A three.js globe that turns to London and dives into its hex grid, in a dark, single-accent theme.
-- Every hexagon of Greater London scored for four use cases, with a live 0–100 score and rank.
-- Weight sliders re-score the whole city in about 200 ms. The map stays visible while it updates.
-- "Why this score": each layer's signed pull relative to the London average.
-- An ML feasibility model with SHAP drivers for profiles that declare one.
-- Overlays for suitability, thermal, height (with hillshade and optional 3D terrain), flood, crime,
-  air quality, and any other layer.
-- Place a building on any hexagon: low-poly three.js models that grow from the clicked spot. Rename
-  and remove placed sites, and compare two of them side by side.
-- A FastAPI service with real schemas, examples and error bodies at `/docs` and `/redoc`.
-- New use cases need one YAML file and no code.
+- **Any use case:** data centres, homes, schools, hospitals, solar and wind farms, mines, offices,
+  warehouses, a theme park… Each is one YAML profile, and the Mistral agents can write new ones.
+- **Multi-region, multi-resolution:** London, the UK, the USA, Canada and Mexico. Hexagons load only
+  for the area you're looking at once you zoom in; until then each region is one flat area.
+- **Globe to street:** a three.js globe in space (stars, the Moon, the real day/night line) hands
+  over to a MapLibre + deck.gl map and back as you zoom.
+- **Live scoring:** weight sliders (with plain-language notes) re-score the view in a fraction of a
+  second; "Why this score" shows each layer's signed pull; an ML feasibility model with SHAP drivers
+  for profiles that declare one.
+- **Best and worst sites:** a ranked list (Best | Worst), and voice/text commands to jump to "the best
+  location", "the second worst", "next one".
+- **Overlays:** suitability, thermal, height (hillshade, optional 3D terrain), flood, crime, air
+  quality and any other layer. Layers with no data in a region show "no data here".
+- **Map key:** colour-coded points of interest (stations, water and ports, electricity, internet
+  exchanges and data centres, schools, hospitals, airports), listed only when on screen.
+- **Place and compare:** drop a building (low-poly or agent-designed three.js models) on any hexagon,
+  rename or remove it, compare two sites; draw and save areas with a summary of what's inside.
+- **Assistant:** a command bar and a voice assistant (Mistral + Voxtral) that understands compound
+  requests ("fly to Manchester then show the best school sites"), addresses ("take me to 10 Downing
+  Street") and a suitability check that stops impossible requests ("a house in the ocean").
+- **Agents:** describe a new building and the Planner (or the Data Aggregator when Azure ML isn't
+  connected) adds data layers, writes the profile, designs a 3D model and shows the best sites, with a
+  live progress card.
+- **API:** FastAPI with real schemas, examples and error bodies at `/docs` and `/redoc`.
 
 ## Architecture
 
@@ -75,9 +99,9 @@ flowchart LR
   weighted sum of direction-corrected layers. Feasibility is an optional ML model (1.0 when a profile has
   none). Masked hexagons get `score: null`.
 
-The two halves meet only at the contracts in [`shared/contracts/`](shared/contracts/). Async
-requests between the two halves go in [docs/handoff.md](docs/handoff.md). More detail in
-[docs/architecture.md](docs/architecture.md).
+The two halves meet only at the contracts in [`shared/contracts/`](shared/contracts/). More detail in
+[docs/architecture.md](docs/architecture.md); how the project was split between two people is
+logged in [docs/handoff.md](docs/handoff.md).
 
 ## Prerequisites
 
@@ -89,7 +113,7 @@ requests between the two halves go in [docs/handoff.md](docs/handoff.md). More d
 | git | any | |
 | make | any | optional on Windows, see below |
 
-- **macOS:** `brew install python@3.12 node uv`. Xcode command-line tools supply `make`.
+- **macOS:** `brew install node uv libomp` (`libomp` is needed by LightGBM; `make dev` installs it if missing). Xcode command-line tools supply `make`.
 - **Linux:** use your package manager for Python 3.11+ and Node 20+, then
   `curl -LsSf https://astral.sh/uv/install.sh | sh`.
 - **Windows (PowerShell):** `winget install Python.Python.3.12 OpenJS.NodeJS.LTS astral-sh.uv`.
@@ -126,16 +150,32 @@ To run the two halves separately, use `make install`, then `make api` and `make 
 The app needs no data download: the API scores the committed sample grid in `data/sample/`. The basemap and terrain tiles are fetched online. Offline,
 the map falls back to a plain background and the hexagons still render.
 
-### Voice (Mistral Voxtral)
+### Voice and the assistant (Mistral)
 
 1. Put your key in `.env` at the repo root (`cp .env.example .env`, then set `MISTRAL_API_KEY=…`),
    or paste it in the app under **Connections → Connect with Mistral**.
-2. Run `make dev` and open **http://localhost:5173/#voice-lab**. Allow the microphone, then tap the
-   orb (or hold it while you talk). The page shows Voxtral's transcript, timings, the parser used
+2. In the app, press **Mic off** in the Assistant box to turn the mic on, then just talk: each phrase
+   is sent when you pause (or press **Send**). Replies are spoken by Voxtral; mute them with the
+   speaker button. Typing in the command bar does the same.
+3. **http://localhost:5173/#voice-lab** shows Voxtral's transcript, timings, the parser used
    (Mistral or offline rules) and the exact map commands as JSON. You can also upload a recording.
-3. In the main app, the same orb sits in the **Assistant** box at the bottom of the map: tap to
-   talk, mute spoken replies, or open the Voice Lab. Anything that isn't a map command goes to the
-   planning agent.
+
+Things you can say or type:
+
+| Request | What happens |
+|---|---|
+| "fly to Edinburgh", "show me Canada" | the globe or map flies there |
+| "take me to 10 Downing Street" | flies in, drops a pin with the full address |
+| "best house sites", "worst 5 sites" | the ranked list, best or worst first |
+| "take me to the best location", "the second worst", "next one" | zooms into that site |
+| "show the thermal view", "set crime rate to 80" | changes the overlay or a weight |
+| "why this score?", "compare use cases here" | explains the selected hexagon |
+| "I want to build a hydrogen refuelling station" | the planning agent builds a new use case |
+
+Without a key, a rule-based parser handles map commands and the agents are off.
+
+To see the agents in Mistral AI Studio (**Agents**), serve them as managed agents with `make agents`
+(needs `uv`; keep it running).
 
 Frontend-only work without the API:
 
@@ -315,16 +355,19 @@ Sources and licences: [docs/data-sources.md](docs/data-sources.md).
   things are, not where they ought to be.
 - Crime and deprivation data can **encode bias**, both in policing and in reporting. Weighting
   them penalises places, and the people who live there, for being measured.
-- Normalising by percentile rank within London makes scores relative to London, not absolute.
-- Res-8 hexagons (~0.74 km²) are coarse; a single hexagon can contain very different streets.
+- Normalising by percentile rank within each region makes scores relative to that region, not
+  absolute; sites are best "in view", not best in the world.
+- Hexagons are coarse (res 8 ≈ 0.7 km² in cities, res 5–7 elsewhere); one hexagon can contain very
+  different streets.
+- Some layers exist only in some regions (crime, flood zones and protected land are England/UK
+  sources); elsewhere they show "no data here" and don't affect the score.
 
 ## Future plans
 
-- Any region worldwide: pluggable region definitions and global sources (ERA5, WRI Aqueduct water
-  stress, Electricity Maps, WDPA, USGS mineral deposits, global population grids).
+- More regions worldwide from global sources (ERA5, WRI Aqueduct water stress, Electricity Maps,
+  WDPA, USGS mineral deposits, global population grids).
 - Mineral-deposit and geology layers for the mine profile; tailings and downstream watershed analysis.
-- Multi-resolution H3, from res 6 to 9 by zoom level.
-- User-defined profiles from the UI: weight presets saved locally and exported as YAML.
+- Weight presets saved per user and exported as YAML.
 - Scenario modelling: 2050 temperature and flood projections, future grid decarbonisation.
 - Placement impact: after placing a data centre, recompute nearby layers (grid load, heat reuse for
   nearby housing).

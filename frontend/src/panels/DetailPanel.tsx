@@ -306,7 +306,7 @@ export function CellDetail(p: DetailProps) {
         <VStack gap={3}>
           <Heading level={3}>Why this score</Heading>
           <Text color="secondary" display="block" textWrap="pretty">
-            Each layer’s pull relative to the London average, in score points.
+            Each layer’s pull relative to the region’s average, in score points.
           </Text>
           {Object.keys(breakdown).length ? (
             <DivergingBars values={breakdown} labelFor={labelFor} />

@@ -642,6 +642,11 @@ export default function App() {
         await waitFor(() => screenRef.current === 'explore', 2000);
         await new Promise((r) => setTimeout(r, 450)); // globe canvas mounts and sizes
       };
+      const clearSelection = () => {
+        if (!selectionRef.current) return;
+        gw.setSelection(null);
+        setView('overview');
+      };
       for (const { type, args } of cmds) {
         const str = (k: string) => (typeof args[k] === 'string' ? (args[k] as string) : '');
         // Safety net: map commands that arrive on the home screen open the map first.
@@ -655,6 +660,7 @@ export default function App() {
           case 'PAN_REGION': {
             if (Array.isArray(args.bbox) && args.bbox.length === 4) {
               const [w, so, e, n] = args.bbox as number[];
+              clearSelection();
               goTo(((so ?? 0) + (n ?? 0)) / 2, ((w ?? 0) + (e ?? 0)) / 2, false);
               break;
             }
@@ -671,6 +677,7 @@ export default function App() {
               break;
             }
             lastPlaceRef.current = place.name;
+            clearSelection(); // going somewhere else: the old hexagon's details no longer apply
             {
               const landed = waitForCamera();
               goTo(place.lat, place.lon, place.kind !== 'country');
