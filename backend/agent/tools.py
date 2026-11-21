@@ -36,6 +36,13 @@ class ToolError(ValueError):
     """A tool call was invalid; the message is returned to the model so it can fix it."""
 
 
+def _rel(path: Path) -> str:
+    try:
+        return str(path.relative_to(AGENT_DIR.parents[1]))
+    except ValueError:
+        return str(path)
+
+
 def _scoring():
     import backend.scoring as scoring
 
@@ -87,7 +94,7 @@ def add_layer(id: str, label: str, unit: str, kind: str, description: str, templ
     existed = path.exists()
     path.write_text(yaml.safe_dump(spec.model_dump(), sort_keys=False, allow_unicode=True))
     _layers.refresh()
-    return {"layer": spec.id, "file": str(path.relative_to(AGENT_DIR.parents[1])), "replaced": existed,
+    return {"layer": spec.id, "file": _rel(path), "replaced": existed,
             "next": "call build_layers with this id before using it in a profile"}
 
 
@@ -113,7 +120,7 @@ def create_profile(id: str, label: str, description: str, layers: dict[str, dict
         raise ToolError(str(exc)) from exc
     tmp.replace(path)
     _scoring().reload()
-    return {"profile": prof.id, "file": str(path.relative_to(AGENT_DIR.parents[1])),
+    return {"profile": prof.id, "file": _rel(path),
             "weights": prof.public()["layers"], "masks": prof.masks, "has_model": prof.model is not None}
 
 
@@ -139,7 +146,7 @@ def design_3d_model(spec: dict[str, Any]) -> dict[str, Any]:
     except Exception as exc:
         raise ToolError(f"invalid 3D model spec: {exc}") from exc
     path = models3d.save(model)
-    return {"model": model.id, "file": str(path.relative_to(AGENT_DIR.parents[1])), "triangles": model.triangles()}
+    return {"model": model.id, "file": _rel(path), "triangles": model.triangles()}
 
 
 def build_layers(layer_ids: list[str]) -> dict[str, Any]:

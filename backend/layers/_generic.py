@@ -80,7 +80,8 @@ SOURCES = {
 }
 
 
-def load_specs(directory: Path = GENERATED_DIR) -> list[LayerSpec]:
+def load_specs(directory: Path | None = None) -> list[LayerSpec]:
+    directory = directory or GENERATED_DIR
     return [LayerSpec.model_validate(yaml.safe_load(p.read_text())) for p in sorted(directory.glob("*.yaml"))]
 
 

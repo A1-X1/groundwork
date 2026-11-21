@@ -111,7 +111,8 @@ class ModelSpec(BaseModel):
         return sum(p.triangles() for p in self.parts)
 
 
-def save(spec: ModelSpec, directory: Path = MODELS_DIR) -> Path:
+def save(spec: ModelSpec, directory: Path | None = None) -> Path:
+    directory = directory or MODELS_DIR
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{spec.id}.json"
     payload = spec.model_dump(mode="json")
@@ -120,7 +121,8 @@ def save(spec: ModelSpec, directory: Path = MODELS_DIR) -> Path:
     return path
 
 
-def load(model_id: str, directory: Path = MODELS_DIR) -> dict:
+def load(model_id: str, directory: Path | None = None) -> dict:
+    directory = directory or MODELS_DIR
     path = directory / f"{model_id}.json"
     if not path.exists():
         raise KeyError(f"no 3D model {model_id!r}")
