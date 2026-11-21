@@ -22,6 +22,7 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`; everything earlier is answere
 
 ## Done
 
+- [x] 2026-11-21 (P2): **Agent speed-up: wired through.** My final `done` event now also carries your `models` (calls per model) and `seconds` (tested). The README "Built with Mistral" says large for planning/recovery and medium for routine steps (about 1.5 min instead of 3), and `.env.example` documents `GROUNDWORK_AGENT_MODEL` / `GROUNDWORK_AGENT_FAST_MODEL`.
 - [x] 2026-11-21 (P2, your request): **Detailed progress for custom structures.** My SSE route already forwards every field and your new `progress` events unchanged. The progress card now folds them in (`applyAgentEvent`, tested):
   - a segmented bar from `phase_index` / `phase_total`
   - a line "Step 3 of 8 · Building data · 1:49 elapsed · about 1 min left" (`elapsed_s`, `eta_s`)

@@ -27,7 +27,7 @@ The same engine serves different audiences, each with its own scoring profile. T
 
 Mistral powers every natural-language part of Groundwork; scores themselves never come from an LLM. Full details are in [docs/mistral.md](docs/mistral.md).
 
-- **Agents:** the **Planner** turns "I want to build X" into a use case (data layers, profile, 3D model, Azure ML training). The **Data Aggregator** does the same without ML when Azure isn't connected. Both run in-app (`POST /agent/run`, `mistral-large-latest`) or as Mistral managed agents (`backend/agent/managed/`).
+- **Agents:** the **Planner** turns "I want to build X" into a use case (data layers, profile, 3D model, Azure ML training). The **Data Aggregator** does the same without ML when Azure isn't connected. Both run in-app (`POST /agent/run`) or as Mistral managed agents (`backend/agent/managed/`). Planning and error recovery use `mistral-large-latest`; routine steps use the faster `mistral-medium-latest` (`GROUNDWORK_AGENT_FAST_MODEL`), so a typical build takes about 1.5 minutes instead of 3.
 - **Map commands:** `POST /assistant/command` turns typed or spoken requests into ordered map commands with `mistral-small-latest` (JSON mode). Without a key, a rule-based parser takes over.
 - **Suitability reviewer:** `POST /assistant/review` (`mistral-small-latest`, with offline rules as fallback) stops impossible requests ("a house in the ocean") before anything runs.
 - **Voxtral:** speech to text with `voxtral-mini-latest`, and spoken replies with `voxtral-mini-tts-latest` (voice Paul, with a tone picked per reply). With the mic on, each phrase is sent automatically when you pause.

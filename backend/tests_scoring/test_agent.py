@@ -273,3 +273,26 @@ def test_scoring_survives_lightgbm_oserror(monkeypatch):
     assert ml.lightgbm_available() is False
     grid = _data.load(_data.LONDON_SAMPLE)
     assert ml.get_model(grid, load_profiles(set(grid.layer_ids))["data_centre"]) is None
+
+
+def test_runner_routes_routine_steps_to_fast_model():
+    seen = []
+
+    class Client:
+        def __init__(self):
+            self.chat = SimpleNamespace(complete=self.complete)
+
+        def complete(self, **kw):
+            seen.append(kw["model"])
+            n = len(seen)
+            if n == 1:   # plan: a bad call → error
+                call = SimpleNamespace(id="a", function=SimpleNamespace(name="ui_command", arguments='{"commands":[{"command":"NOPE"}]}'))
+            elif n == 2:  # after an error: big model again
+                call = SimpleNamespace(id="b", function=SimpleNamespace(name="ui_command", arguments='{"commands":[{"command":"HELP"}]}'))
+            else:
+                return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="done", tool_calls=None))])
+            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="", tool_calls=[call]))])
+
+    out = runner.run("help", client=Client(), model="big", fast_model="fast")
+    assert seen == ["big", "big", "fast"]
+    assert out["models"] == {"big": 2, "fast": 1}

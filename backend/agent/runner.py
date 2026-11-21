@@ -24,6 +24,10 @@ INSTRUCTIONS = (Path(__file__).parent / "instructions.md").read_text()
 AGGREGATOR_INSTRUCTIONS = (Path(__file__).parent / "aggregator.md").read_text()
 AGENTS = {"planner": INSTRUCTIONS, "aggregator": AGGREGATOR_INSTRUCTIONS}
 DEFAULT_MODEL = os.environ.get("GROUNDWORK_AGENT_MODEL", "mistral-large-latest")
+# Routine steps (reading results, calling the next obvious tool, map commands) go to a faster
+# model; the first planning step and any step after a tool error use DEFAULT_MODEL.
+# Set GROUNDWORK_AGENT_FAST_MODEL to the same value as DEFAULT_MODEL to disable routing.
+FAST_MODEL = os.environ.get("GROUNDWORK_AGENT_FAST_MODEL", "mistral-medium-latest")
 MAX_STEPS = 30
 Event = dict[str, Any]
 
@@ -64,7 +68,7 @@ STEP_LABELS = {
 
 def run(prompt: str, on_event: Callable[[Event], None] | None = None, history: list[dict] | None = None,
         model: str = DEFAULT_MODEL, client: Any = None, context: dict[str, Any] | None = None,
-        return_messages: bool = False) -> dict[str, Any]:
+        return_messages: bool = False, fast_model: str | None = FAST_MODEL) -> dict[str, Any]:
     """Run the agent to completion. Returns {content, steps, ui, actions} (+ messages if asked)."""
     client = client or _client()
     agent = str((context or {}).get("agent") or "planner")
@@ -110,15 +114,21 @@ def run(prompt: str, on_event: Callable[[Event], None] | None = None, history: l
     def finish(content: str, steps: int) -> dict[str, Any]:
         emit({"type": "answer", "content": content, "steps": steps, "message": content[:200], "phase": "map"})
         tools.set_progress(None)
-        out = {"content": content, "steps": steps, "ui": ui, "actions": actions, "agent": agent}
+        out = {"content": content, "steps": steps, "ui": ui, "actions": actions, "agent": agent,
+               "models": {m: models_used.count(m) for m in dict.fromkeys(models_used)},
+               "seconds": round(time.monotonic() - started, 1)}
         if return_messages:
             out["messages"] = messages
         return out
 
     ui: list[dict[str, Any]] = []
     actions: list[dict[str, Any]] = []
+    last_error = False
+    models_used: list[str] = []
     for step in range(MAX_STEPS):
-        resp = client.chat.complete(model=model, messages=messages, tools=schemas,
+        use = model if (step == 0 or last_error or not fast_model) else fast_model
+        models_used.append(use)
+        resp = client.chat.complete(model=use, messages=messages, tools=schemas,
                                     tool_choice="auto", temperature=0.2)
         msg = resp.choices[0].message
         calls = msg.tool_calls or []
@@ -131,11 +141,13 @@ def run(prompt: str, on_event: Callable[[Event], None] | None = None, history: l
             emit({"type": "thinking", "content": text, "message": text[:200]})
         if not calls:
             return finish(text or "", step)
+        last_error = False
         for c in calls:
             name, args = c.function.name, _args_dict(c)
             label = STEP_LABELS.get(name, name)
             emit({"type": "tool_call", "name": name, "args": args, "message": f"{label}…", "detail": _detail(name, args)})
             result = tools.call(name, args) if name in allowed else {"error": f"{name} is not available to the {agent} agent"}
+            last_error = last_error or "error" in result
             emit({"type": "tool_result", "name": name, "result": result,
                   "message": f"{label}: {'error' if 'error' in result else 'done'}"})
             if "ui" in result:
