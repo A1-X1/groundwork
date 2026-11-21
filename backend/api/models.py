@@ -87,8 +87,12 @@ class Layer(BaseModel):
     kind: Literal["raster", "proximity", "aggregate"]
     description: str
     source: str
-    min: float = Field(description="Minimum raw value across the region.")
-    max: float = Field(description="Maximum raw value across the region.")
+    min: float | None = Field(
+        default=None, description="Minimum raw value across the region; null if not built yet."
+    )
+    max: float | None = Field(
+        default=None, description="Maximum raw value across the region; null if not built yet."
+    )
 
 
 class LayerValue(BaseModel):

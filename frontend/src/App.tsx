@@ -385,8 +385,9 @@ export default function App() {
           ? {
               title: layerMeta.label,
               ramp: overlay.ramp,
-              low: formatRaw(layerMeta.min, layerMeta.unit),
-              high: formatRaw(layerMeta.max, layerMeta.unit),
+              // a layer with no data yet has no range: show a dash, not "no data here"
+              low: formatRaw(layerMeta.min ?? undefined, layerMeta.unit),
+              high: formatRaw(layerMeta.max ?? undefined, layerMeta.unit),
             }
           : null
         : {
