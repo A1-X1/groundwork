@@ -2,3 +2,4 @@
 raw/
 processed/
 sample/models/
+sample/**/models/
