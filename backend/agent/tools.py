@@ -93,6 +93,8 @@ def add_layer(id: str, label: str, unit: str, kind: str, description: str, templ
         raise ToolError(f"invalid layer spec: {exc}") from exc
     path = _generic.GENERATED_DIR / f"{spec.id}.yaml"
     existed = path.exists()
+    if existed and yaml.safe_load(path.read_text()).get("added_by") != "agent":
+        raise ToolError(f"layer {spec.id!r} already exists (added by a person); reuse it or choose a new id")
     path.write_text(yaml.safe_dump(spec.model_dump(), sort_keys=False, allow_unicode=True))
     _layers.refresh()
     return {"layer": spec.id, "file": _rel(path), "replaced": existed,

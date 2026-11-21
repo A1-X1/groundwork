@@ -78,6 +78,22 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Done
 
+- [x] 2026-11-21 (P1): **Agent hook-up**: `backend.agent.run(prompt, on_event, context=None)` matches your route. Every event has `type` and a short `message` (shown as the latest step): `tool_call {name, args}`, `tool_result {name, result}`, `ui {commands}`, `thinking {content}`, `action_required {action, message}` (e.g. `action: "connect_azure"`), and finally `answer {content, steps}`. I don't emit `done`, so yours is the only one. The return value is small JSON: `{content, steps, ui, actions}`. `context` is passed to the model as UI context. Needs `MISTRAL_API_KEY` in the API's env, and `mistralai` from `backend/agent/requirements.txt`.
+- [x] 2026-11-21 (P1): **Azure ML config**: `backend.agent.azure_ml.config()` now reads `db.get_setting("azure_ml")` (env vars still win). Auth uses `DefaultAzureCredential` (shared token cache / `az login` / service principal). To reuse your device-code sign-in directly, call `backend.agent.azure_ml.set_credential(cred)` once it succeeds; that's the most reliable option. `train_model(backend="azure")` returns `{action_required: "connect_azure"}` while it isn't connected.
+- [x] 2026-11-21 (P1): **3D model spec format** (`backend/profiles/models/<profile_id>.json`, schema in `backend/agent/models3d.py`):
+  ```json
+  {"id": "nuclear_power_plant", "label": "Nuclear power plant", "footprint_m": [500, 400], "segments": 24,
+   "triangles": 1488, "palette": {"concrete": "#b8bcc2", "white": "#e8eaed", "accent": "#0064e0", "...": "..."},
+   "parts": [
+     {"shape": "box", "position": [x, y, z], "rotation_y": 0, "color": "steel", "size": [w, h, d]},
+     {"shape": "cylinder", "position": [...], "color": "concrete", "radius": 40, "height": 45},
+     {"shape": "cone", "position": [...], "radius": 5, "height": 12},
+     {"shape": "dome", "position": [x, y, z], "radius": 40},
+     {"shape": "hyperboloid", "position": [...], "radius_bottom": 48, "radius_waist": 30, "radius_top": 34,
+      "height": 120, "waist_at": 0.75}]}
+  ```
+  Units are metres, y is up, the origin is the hex centre at ground level. `position` is the **base centre** of each part (box/cylinder/cone sit on `y`; the dome's flat base is at `y`). `rotation_y` is in degrees. `color` is a key into `palette`. Suggested three.js mapping: `BoxGeometry` translated up by h/2; `CylinderGeometry(r, r, h, segments)`; `ConeGeometry(r, h, segments)`; `SphereGeometry(r, segments, segments/2, 0, 2π, 0, π/2)`; hyperboloid as `LatheGeometry` through (radius_bottom, 0) → (radius_waist, waist_at·h) → (radius_top, h) with a smooth curve. Every spec is ≤ 5,000 triangles. Specs exist for `hospital`, `warehouse`, `office` and `solar_farm`; the agent writes new ones per profile. Fall back to your built-in models when a file is missing.
+- [x] 2026-11-21 (P1): **`list_pois` / `list_regions` / extra profiles**: already on my branch (see the items below). Merge `claude/vibrant-cannon-exav8h` to get them.
 - [x] 2026-11-21 (P1): **`scoring.list_pois(kinds, bbox)`**: done, returning `[{id, kind, name, lat, lon, source}]` for kinds `substation | ixp | data_centre | station | water`. `source` is `osm` (cached Overpass data) or `seeded` (IXPs, data-centre clusters, reservoirs). It never returns synthetic points, so kinds with no cached OSM data (substation, station in cloud builds) return `[]`; keep your seed list as the fallback for those. Unknown kind → `KeyError`.
 - [x] 2026-11-21 (P1): **`scoring.list_regions()`**: done, returning `[{id, name, bbox:[w,s,e,n], resolution, cells, is_sample, generated_at}]`. One region (Greater London) today; more appear here as the multi-region pipeline lands.
 - [x] 2026-11-21 (P1): **More profiles**: `hospital`, `warehouse`, `office`, `solar_farm` added with existing layers. Each has a parametric 3D spec in `backend/profiles/models/<id>.json` (primitives box/cylinder/cone/dome/hyperboloid in metres, y up; schema in `backend/agent/models3d.py`). Your own builtin models can stay for the original four.
