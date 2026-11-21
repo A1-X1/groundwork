@@ -118,7 +118,7 @@ def load_all() -> dict[str, GridData]:
         have = set(g.layer_ids)
         for lid, m in all_meta.items():
             if lid not in have:
-                g.frame[lid] = np.float32(0.5)
+                g.frame[lid] = np.float32(0.0 if lid in ("flood_zone_3", "protected_land") else 0.5)
                 g.frame[f"raw_{lid}"] = np.nan
                 g.layers.append({**m, "min": None, "max": None})
                 g.build.setdefault("layers", {})[lid] = {"status": "unavailable", "reason": "not built for this region"}

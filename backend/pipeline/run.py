@@ -166,7 +166,8 @@ def _write(grid: pd.DataFrame, statuses: dict[str, Any], out: Path) -> pd.DataFr
             continue
         m = layers.load(layer_id).META
         raw = grid[col].astype(float)
-        norm = normalise(raw, m.normalise).fillna(0.5)  # unavailable → neutral
+        # unavailable → neutral 0.5, except masks: unknown means "not excluded" (0)
+        norm = normalise(raw, m.normalise).fillna(0.0 if m.is_mask else 0.5)
         table[layer_id] = np.round(norm.to_numpy() * 255).astype("uint8")  # 1 byte per value
         ok = raw.notna().any()
         meta.append({**m.public(), "min": float(raw.min()) if ok else None, "max": float(raw.max()) if ok else None})
