@@ -26,7 +26,7 @@ from .profiles import ProfileError, load_profiles
 from .scorer import validate_bbox  # noqa: F401  (re-exported)
 from .world import World
 
-__all__ = ["ProfileError", "data_status", "default_profiles", "get_layer", "health", "list_pois", "list_regions", "list_layers", "list_profiles",
+__all__ = ["ProfileError", "data_status", "default_profiles", "get_layer", "profile_notes", "health", "list_pois", "list_regions", "list_layers", "list_profiles",
            "reload", "score", "score_point"]
 
 BBox = tuple[float, float, float, float]
@@ -179,6 +179,20 @@ def score_point(profile_id: str, lat: float, lon: float, weights: dict[str, floa
         "shap_flat": shap_flat,
         "model": model_info,
     }
+
+
+def profile_notes(profile_id: str) -> dict[str, str]:
+    """{layer_id: plain-language meaning of its weight} for slider tooltips."""
+    world = _world()
+    prof = world.profile(profile_id)
+    meta = {m["id"]: m for m in world.primary.data.layers}
+    out = {}
+    for lid, lw in prof.layers.items():
+        label = meta.get(lid, {}).get("label", lid).lower()
+        default = (f"Higher {label} gives a {'better' if lw.better == 'higher' else 'worse'} score; "
+                   f"lower gives a {'worse' if lw.better == 'higher' else 'better'} one.")
+        out[lid] = prof.notes.get(lid) or default
+    return out
 
 
 DEFAULT_PROFILES = ("data_centre", "house", "school", "solar_farm", "wind_farm")

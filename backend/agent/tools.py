@@ -109,7 +109,8 @@ def add_layer(id: str, label: str, unit: str, kind: str, description: str, templ
 
 
 def create_profile(id: str, label: str, description: str, layers: dict[str, dict[str, Any]],
-                   masks: list[str] | None = None, model: dict[str, Any] | None = None) -> dict[str, Any]:
+                   masks: list[str] | None = None, model: dict[str, Any] | None = None,
+                   notes: dict[str, str] | None = None) -> dict[str, Any]:
     from backend.scoring.profiles import ProfileError
 
     existing = PROFILES_DIR / f"{id}.yaml"
@@ -119,6 +120,8 @@ def create_profile(id: str, label: str, description: str, layers: dict[str, dict
                            "masks": masks or []}
     if model:
         doc["model"] = model
+    if notes:
+        doc["notes"] = notes
     known = {m["id"] for m in _scoring().list_layers()}  # only layers that exist in the built grid
     path = PROFILES_DIR / f"{id}.yaml"
     tmp = path.with_suffix(".yaml.tmp")
@@ -189,6 +192,33 @@ def build_layers(layer_ids: list[str], region: str = "london") -> dict[str, Any]
             "reasons": {i: build[i].get("reason") for i in layer_ids if build.get(i, {}).get("reason")}}
 
 
+def layer_stats(layer_ids: list[str], region: str = "london") -> dict[str, Any]:
+    """Unit, typical range (p10 / median / p90) and data status of layers in a region, so
+    weights and notes can say what "more" means relative to local conditions."""
+    import numpy as np
+
+    s = _scoring()
+    world = s._world()
+    if region not in world.grids:
+        raise ToolError(f"region {region!r} not built; available: {list(world.grids)}")
+    g = world.grids[region]
+    meta = {m["id"]: m for m in g.layers}
+    out = {}
+    for lid in layer_ids:
+        if lid not in meta:
+            out[lid] = {"error": "unknown layer"}
+            continue
+        raw = g.frame[f"raw_{lid}"].to_numpy(dtype=float)
+        status = g.build.get("layers", {}).get(lid, {}).get("status", "unknown")
+        if np.isnan(raw).all():
+            out[lid] = {"unit": meta[lid]["unit"], "status": status, "note": "no data in this region"}
+            continue
+        p10, med, p90 = np.nanpercentile(raw, [10, 50, 90])
+        out[lid] = {"label": meta[lid]["label"], "unit": meta[lid]["unit"], "status": status,
+                    "p10": round(float(p10), 3), "median": round(float(med), 3), "p90": round(float(p90), 3)}
+    return {"region": region, "layers": out}
+
+
 def azure_status() -> dict[str, Any]:
     return azure_ml.status()
 
@@ -208,8 +238,11 @@ def train_model(profile_id: str, backend: str = "auto") -> dict[str, Any]:
     if profile.model is None:
         raise ToolError("profile declares no model; add a `model` block with positives first")
     connected = azure_ml.status()["configured"] and azure_ml.sdk_installed()
-    if backend == "azure" and not connected:
-        return {"action_required": "connect_azure", "message": azure_ml.PORTAL_HINT, "status": azure_ml.status()}
+    if backend in ("azure", "auto") and not connected:
+        return {"action_required": "choose_training", "options": ["connect_azure", "use_aggregator"],
+                "message": "Azure ML isn't connected. Connect it to train the model in the cloud, or use the "
+                           "Mistral data aggregator to build this use case from aggregated data without ML training.",
+                "status": azure_ml.status()}
     try:
         if backend == "azure" or (backend == "auto" and connected):
             result = azure_ml.submit(grid, profile)
@@ -262,15 +295,19 @@ def ui_command(commands: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def request_user_action(action: str, message: str) -> dict[str, Any]:
-    if action not in ("connect_azure", "connect_mistral", "confirm", "provide_api_key"):
-        raise ToolError("action must be connect_azure | connect_mistral | confirm | provide_api_key")
-    return {"action_required": action, "message": message}
+    allowed = ("connect_azure", "choose_training", "connect_mistral", "confirm", "provide_api_key")
+    if action not in allowed:
+        raise ToolError(f"action must be one of {allowed}")
+    out: dict[str, Any] = {"action_required": action, "message": message}
+    if action == "choose_training":
+        out["options"] = ["connect_azure", "use_aggregator"]
+    return out
 
 
 TOOLS: dict[str, Callable[..., dict[str, Any]]] = {
     "get_catalog": get_catalog, "search_data_sources": search_data_sources, "add_layer": add_layer,
     "build_layers": build_layers, "create_profile": create_profile, "design_3d_model": design_3d_model,
-    "azure_status": azure_status, "train_model": train_model, "preview_scores": preview_scores,
+    "azure_status": azure_status, "train_model": train_model, "layer_stats": layer_stats, "preview_scores": preview_scores,
     "ui_command": ui_command, "request_user_action": request_user_action,
 }
 
@@ -312,7 +349,13 @@ SCHEMAS: list[dict[str, Any]] = [
         "masks": {"type": "array", "items": {"type": "string"}},
         "model": {"type": "object", "description": "optional presence model: {type:'presence', positives:"
                   "'osm:key=value', exclude_features:[...], floor:0.5}"},
+        "notes": {"type": "object", "description": "layer id → one plain sentence on what its weight means, e.g. "
+                  "'Higher crime per 1,000 residents gives a worse score (London median 67)'"},
     }, ["id", "label", "description", "layers"]),
+    _fn("layer_stats", "Typical values (p10/median/p90), unit and real/unavailable status of layers in one region, "
+        "to judge what 'more' of something means locally.", {
+            "layer_ids": {"type": "array", "items": {"type": "string"}},
+            "region": {"type": "string"}}, ["layer_ids"]),
     _fn("design_3d_model", "Save a parametric low-poly 3D model for the placeable building.", {
         "spec": {"type": "object", "description": "{id (= profile id), label, footprint_m:[w,d], parts:[{shape: "
                  "box|cylinder|cone|dome|hyperboloid, position:[x,y,z], rotation_y, color, size|radius|height|"
@@ -329,9 +372,20 @@ SCHEMAS: list[dict[str, Any]] = [
         {"commands": {"type": "array", "items": {"type": "object", "description": "{command: NAME, ...args}"}}},
         ["commands"]),
     _fn("request_user_action", "Ask the user to do something only they can (sign in to Azure ML, add a key, confirm).",
-        {"action": {"type": "string", "enum": ["connect_azure", "connect_mistral", "confirm", "provide_api_key"]},
+        {"action": {"type": "string", "enum": ["connect_azure", "choose_training", "connect_mistral", "confirm",
+                                               "provide_api_key"]},
          "message": {"type": "string"}}, ["action", "message"]),
 ]
+
+
+AGGREGATOR_TOOLS = ("get_catalog", "search_data_sources", "add_layer", "build_layers", "layer_stats",
+                    "create_profile", "design_3d_model", "preview_scores", "ui_command", "request_user_action")
+
+
+def schemas_for(agent: str) -> list[dict[str, Any]]:
+    if agent == "aggregator":
+        return [s for s in SCHEMAS if s["function"]["name"] in AGGREGATOR_TOOLS]
+    return SCHEMAS
 
 
 def call(name: str, args: dict[str, Any]) -> dict[str, Any]:

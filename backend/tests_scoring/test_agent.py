@@ -120,11 +120,57 @@ def test_train_model_runs_azure_job_script_locally(sandbox):
     assert loaded is not None and loaded.features == meta["features"]
 
 
-def test_train_model_asks_for_azure_when_not_connected(sandbox, monkeypatch):
+def test_train_model_offers_choice_when_azure_not_connected(sandbox, monkeypatch):
     for k in ("AZURE_SUBSCRIPTION_ID", "AZURE_RESOURCE_GROUP", "AZUREML_WORKSPACE"):
         monkeypatch.delenv(k, raising=False)
-    r = tools.call("train_model", {"profile_id": "data_centre", "backend": "azure"})
-    assert r["action_required"] == "connect_azure"
+    monkeypatch.setattr(tools.azure_ml, "_api_setting", lambda: {})
+    for backend in ("azure", "auto"):
+        r = tools.call("train_model", {"profile_id": "data_centre", "backend": backend})
+        assert r["action_required"] == "choose_training" and r["options"] == ["connect_azure", "use_aggregator"]
+
+
+def test_layer_stats_and_profile_notes(sandbox):
+    st = tools.call("layer_stats", {"layer_ids": ["crime_rate", "slope"], "region": "london"})
+    assert st["layers"]["crime_rate"]["p10"] <= st["layers"]["crime_rate"]["median"] <= st["layers"]["crime_rate"]["p90"]
+    ok = tools.call("create_profile", {
+        "id": "cafe", "label": "Café", "description": "Test.",
+        "layers": {"population_density": {"weight": 2, "better": "higher"}, "crime_rate": {"weight": 1, "better": "lower"}},
+        "notes": {"crime_rate": "Higher crime gives a worse score."}})
+    assert ok["profile"] == "cafe"
+    import backend.scoring as scoring
+
+    notes = scoring.profile_notes("cafe")
+    assert notes["crime_rate"] == "Higher crime gives a worse score."
+    assert "better score" in notes["population_density"]  # default from direction
+    bad = tools.call("create_profile", {"id": "cafe2", "label": "C", "description": "d",
+                                        "layers": {"slope": {"weight": 1, "better": "lower"}},
+                                        "notes": {"crime_rate": "not in profile"}})
+    assert "notes for layers not in the profile" in bad["error"]
+
+
+def test_aggregator_agent_has_no_training_tools():
+    names = {s["function"]["name"] for s in tools.schemas_for("aggregator")}
+    assert "train_model" not in names and "azure_status" not in names
+    assert {"layer_stats", "create_profile", "design_3d_model", "build_layers"} <= names
+
+
+def test_runner_routes_to_aggregator_and_blocks_other_tools():
+    class Client:
+        def __init__(self):
+            self.n, self.chat = 0, SimpleNamespace(complete=self.complete)
+
+        def complete(self, **kw):
+            self.n += 1
+            if self.n == 1:
+                assert kw["messages"][0]["content"].startswith("You are **Groundwork Data Aggregator**")
+                assert "train_model" not in {t["function"]["name"] for t in kw["tools"]}
+                call = SimpleNamespace(id="c1", function=SimpleNamespace(name="train_model", arguments="{}"))
+                return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="", tool_calls=[call]))])
+            assert "not available" in kw["messages"][-1]["content"]
+            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="ok", tool_calls=None))])
+
+    out = runner.run("build a café", client=Client(), context={"agent": "aggregator"})
+    assert out["agent"] == "aggregator" and out["content"] == "ok"
 
 
 def test_ui_command_whitelist():

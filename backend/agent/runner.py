@@ -21,6 +21,8 @@ from typing import Any
 from . import tools
 
 INSTRUCTIONS = (Path(__file__).parent / "instructions.md").read_text()
+AGGREGATOR_INSTRUCTIONS = (Path(__file__).parent / "aggregator.md").read_text()
+AGENTS = {"planner": INSTRUCTIONS, "aggregator": AGGREGATOR_INSTRUCTIONS}
 DEFAULT_MODEL = os.environ.get("GROUNDWORK_AGENT_MODEL", "mistral-large-latest")
 MAX_STEPS = 30
 Event = dict[str, Any]
@@ -46,7 +48,7 @@ STEP_LABELS = {
     "create_profile": "Creating the scoring profile", "design_3d_model": "Designing the 3D model",
     "azure_status": "Checking Azure ML", "train_model": "Training the feasibility model",
     "preview_scores": "Checking the best sites", "ui_command": "Updating the map",
-    "request_user_action": "Waiting for you",
+    "request_user_action": "Waiting for you", "layer_stats": "Comparing local data ranges",
 }
 
 
@@ -56,7 +58,12 @@ def run(prompt: str, on_event: Callable[[Event], None] | None = None, history: l
     """Run the agent to completion. Returns {content, steps, ui, actions} (+ messages if asked)."""
     emit = on_event or (lambda e: None)
     client = client or _client()
-    messages: list[dict[str, Any]] = [{"role": "system", "content": INSTRUCTIONS}]
+    agent = str((context or {}).get("agent") or "planner")
+    if agent not in AGENTS:
+        raise ValueError(f"unknown agent {agent!r}; known: {sorted(AGENTS)}")
+    schemas = tools.schemas_for(agent)
+    allowed = {sc["function"]["name"] for sc in schemas}
+    messages: list[dict[str, Any]] = [{"role": "system", "content": AGENTS[agent]}]
     if context:
         messages.append({"role": "system", "content": "Current UI context (what the user is looking at): "
                          + json.dumps(context, default=str)[:2000]})
@@ -64,7 +71,7 @@ def run(prompt: str, on_event: Callable[[Event], None] | None = None, history: l
 
     def finish(content: str, steps: int) -> dict[str, Any]:
         emit({"type": "answer", "content": content, "steps": steps, "message": content[:200]})
-        out = {"content": content, "steps": steps, "ui": ui, "actions": actions}
+        out = {"content": content, "steps": steps, "ui": ui, "actions": actions, "agent": agent}
         if return_messages:
             out["messages"] = messages
         return out
@@ -72,7 +79,7 @@ def run(prompt: str, on_event: Callable[[Event], None] | None = None, history: l
     ui: list[dict[str, Any]] = []
     actions: list[dict[str, Any]] = []
     for step in range(MAX_STEPS):
-        resp = client.chat.complete(model=model, messages=messages, tools=tools.SCHEMAS,
+        resp = client.chat.complete(model=model, messages=messages, tools=schemas,
                                     tool_choice="auto", temperature=0.2)
         msg = resp.choices[0].message
         calls = msg.tool_calls or []
@@ -89,7 +96,7 @@ def run(prompt: str, on_event: Callable[[Event], None] | None = None, history: l
             name, args = c.function.name, _args_dict(c)
             label = STEP_LABELS.get(name, name)
             emit({"type": "tool_call", "name": name, "args": args, "message": f"{label}…"})
-            result = tools.call(name, args)
+            result = tools.call(name, args) if name in allowed else {"error": f"{name} is not available to the {agent} agent"}
             emit({"type": "tool_result", "name": name, "result": result,
                   "message": f"{label}: {'error' if 'error' in result else 'done'}"})
             if "ui" in result:

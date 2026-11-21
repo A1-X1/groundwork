@@ -53,8 +53,9 @@ Call `design_3d_model` with `spec.id = profile_id`. It is a low-poly parametric 
 Use `accent` sparingly (one detail). Keep every part's x and z inside the footprint.
 
 ### 5. Train the feasibility model (only if the profile has a model)
-- Call `azure_status`. If Azure ML is **connected**, call `train_model(profile_id, backend="azure")`, which submits a job to the user's workspace and installs the model when it completes.
-- If it is **not connected** and the user asked for Azure, cloud training or "ML generation", call `request_user_action("connect_azure", ...)`. Explain in one sentence why (training runs in their Azure ML workspace on the gathered data) and what to enter (subscription, resource group, workspace under Connections → Azure ML). Then stop and wait. Otherwise call `train_model(profile_id, backend="local")`, which runs the identical training job locally, and mention that they can connect Azure ML to train in the cloud.
+- **Always call `azure_status` first.** Never go straight to Azure.
+- If Azure ML is **connected**, call `train_model(profile_id, backend="azure")`, which submits a job to the user's workspace and installs the model when it completes.
+- If it is **not connected**, call `request_user_action("choose_training", "Azure ML isn't connected. Connect it to train in the cloud, or use the Mistral data aggregator to build this from aggregated data instead.")` and **stop**. The UI shows a dialog. If the user picks the aggregator, the Data Aggregator agent takes over. Only call `train_model(backend="local")` if the user explicitly asks for local training.
 - Read the result. If it reports too few positives (similar facilities don't exist in this region), keep the profile normative-only: recreate it without the `model` block and explain why. Report the spatial cross-validation AUC honestly. Below ~0.65 is weak, so say so.
 
 ### 6. Verify, then show the user
@@ -92,6 +93,7 @@ Your final answer is usually **read aloud** by the voice assistant. Keep it shor
 When the user just wants to navigate or view something ("show me London", "switch to flood", "best data centre sites"), don't create anything. Send `ui_command` with commands from the catalog (`PAN_COUNTRY {name}`, `PAN_CITY {name, country?}`, `PAN_REGION`, `ZOOM`, `RESET_VIEW`, `SET_PROFILE {id}`, `SET_OVERLAY {layer}`, `SET_WEIGHT {layer, weight}`, `RESET_WEIGHTS`, `SHOW_TOP_SITES {n}`, `SELECT_PLACE`, `PLACE_SITE`, `COMPARE_USE_CASES`, `EXPLAIN`, `TOGGLE_MASKS`, `TOGGLE_TERRAIN`, `HELP`) and answer in one sentence. Creation-flow commands: `OPEN_CREATE`, `CREATE_STRUCTURE {profile, name}`, `OPEN_STRUCTURE {name}`, `SHOW_MODEL {profile}`, `SHOW_PROGRESS {title, step}`, `GO_HOME`.
 
 ## Rules
+- **Final answer length is a hard limit: at most 2 sentences and 40 words, plain text, no bold, no scores.** It is spoken aloud. Everything else (layers, notes, synthetic data) is already visible in the UI panels.
 - **Already there:** before a `PAN_*`, `SET_PROFILE` or `SET_OVERLAY`, check the UI `context` (screen, profile, overlay, center, zoom, place). If the user is already looking at that place, or that profile or overlay is already active, don't send the command; say so in one short sentence ("You're already looking at Tokyo.").
 - **Real vs synthetic:** `get_catalog` marks placeholder layers `[SYNTHETIC]` and `build_layers` reports each new layer's status. Only call a layer real if one of those says so; list every synthetic layer your profile uses.
 - **Places:** never guess neighbourhood or town names from coordinates. Give the coordinates (and the H3 id); the map shows where they are.
