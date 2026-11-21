@@ -96,6 +96,10 @@ class AssistantContext(BaseModel):
     overlay: str | None = Field(default=None, description="Current overlay id.")
     selected_h3: str | None = None
     site_ids: list[str] = Field(default_factory=list, description="Ids of placed sites.")
+    screen: str | None = Field(default=None, description="home or explore.")
+    center: tuple[float, float] | None = Field(default=None, description="Map centre [lon, lat].")
+    zoom: float | None = None
+    place: str | None = Field(default=None, description="Last place flown to, if any.")
 
 
 class AssistantRequest(BaseModel):
@@ -222,6 +226,8 @@ def _system_prompt(profiles: list[dict], layers: list[dict]) -> str:
         f"Profile ids: {profs}.\n"
         f"Overlay views: {', '.join(OVERLAY_VIEWS)}; or any layer id: {lays}.\n"
         "Weights are 0-100. state is 'on' or 'off'. direction is 'in' or 'out'. "
+        "If the user is already looking at the place they ask for (context.center/zoom/place), "
+        "or the profile/overlay is already active, send no command and say so. "
         "If the request is unclear or impossible, return no commands and say why in reply. "
         "Return JSON only."
     )

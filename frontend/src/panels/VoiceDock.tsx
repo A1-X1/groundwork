@@ -2,6 +2,7 @@ import { Button } from '@astryxdesign/core/Button';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Icon } from '@astryxdesign/core/Icon';
 import { IconButton } from '@astryxdesign/core/IconButton';
+import { ToggleButton } from '@astryxdesign/core/ToggleButton';
 import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
 import { ChevronDown, FlaskConical, Mic, Square, Volume2, VolumeX } from 'lucide-react';
@@ -18,10 +19,15 @@ function readHidden(): boolean {
   }
 }
 
-type Props = ComponentProps<typeof VoiceOrb> & { muted: boolean; onToggleMute: () => void };
+type Props = ComponentProps<typeof VoiceOrb> & {
+  muted: boolean;
+  onToggleMute: () => void;
+  handsFree: boolean;
+  onToggleHandsFree: () => void;
+};
 
 /** The voice assistant in its own small card, with a hide control that collapses to a pill. */
-export function VoiceDock({ muted, onToggleMute, ...props }: Props) {
+export function VoiceDock({ muted, onToggleMute, handsFree, onToggleHandsFree, ...props }: Props) {
   const [hidden, setHidden] = useState(readHidden);
   const set = (v: boolean) => {
     setHidden(v);
@@ -69,12 +75,25 @@ export function VoiceDock({ muted, onToggleMute, ...props }: Props) {
       </HStack>
       <VoiceOrb {...props} />
       <HStack gap={2} align="center">
+        <ToggleButton
+          label={handsFree ? 'Always listening: on' : 'Always listening: off'}
+          tooltip={
+            handsFree ? 'Stop always-on listening' : 'Listen continuously; speak whenever you like'
+          }
+          isPressed={handsFree}
+          onPressedChange={onToggleHandsFree}
+          icon={<Icon icon={Mic} size="sm" />}
+          pressedIcon={<Icon icon={Mic} size="sm" />}
+          isIconOnly
+          isDisabled={!props.isAvailable}
+          size="sm"
+        />
         <Button
-          label={listening ? 'Stop' : 'Talk'}
+          label={listening && !handsFree ? 'Stop' : 'Talk'}
           variant={listening ? 'secondary' : 'primary'}
           size="sm"
           icon={<Icon icon={listening ? Square : Mic} size="sm" />}
-          isDisabled={!props.isAvailable || props.state === 'thinking'}
+          isDisabled={!props.isAvailable || props.state === 'thinking' || handsFree}
           onClick={listening ? props.onStop : props.onStart}
           width="100%"
         />

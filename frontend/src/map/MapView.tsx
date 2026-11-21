@@ -58,6 +58,8 @@ interface Props {
   onDrawPoint: (lon: number, lat: number) => void;
   onDrawFinish: () => void;
   onAreaClick: (id: string) => void;
+  /** Reports the camera after each move (for "already there" checks and agent context). */
+  onView?: (v: { center: [number, number]; zoom: number }) => void;
 }
 
 export type Basemap = 'map' | 'satellite' | 'grid';
@@ -207,6 +209,14 @@ export function MapView(props: Props) {
     mapRef.current = map;
     if (import.meta.env.DEV) (window as unknown as { __gwMap?: maplibregl.Map }).__gwMap = map;
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
+    // Snappier zoom, calmer pan (user request): ~2× wheel/pinch zoom rate, ~0.6× pan inertia.
+    map.scrollZoom.setWheelZoomRate(2 / 450);
+    map.scrollZoom.setZoomRate(2 / 100);
+    map.dragPan.enable({ linearity: 0.25, maxSpeed: 840, deceleration: 4200 });
+    map.on('moveend', () => {
+      const c = map.getCenter();
+      propsRef.current.onView?.({ center: [c.lng, c.lat], zoom: map.getZoom() });
+    });
 
     const overlay = new MapboxOverlay({ interleaved: true, layers: [] });
     overlayRef.current = overlay;

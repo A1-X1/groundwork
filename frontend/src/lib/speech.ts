@@ -12,6 +12,41 @@ export interface SpeakHandlers {
 
 let current: { stop: () => void } | null = null;
 
+export const VOICES = [
+  { id: 'en_paul', label: 'Paul', description: 'American, warm; cheerful, happy, confident tones' },
+  {
+    id: 'gb_oliver',
+    label: 'Oliver',
+    description: 'British, expressive; curious and cheerful tones',
+  },
+  { id: 'gb_jane', label: 'Jane', description: 'British, clear; confident and curious tones' },
+  {
+    id: 'browser',
+    label: 'Browser voice',
+    description: 'Your system voice; works offline, no key',
+  },
+] as const;
+export type VoiceId = (typeof VOICES)[number]['id'];
+const VOICE_KEY = 'groundwork.voice';
+
+export function getVoice(): VoiceId {
+  try {
+    const v = window.localStorage.getItem(VOICE_KEY);
+    if (VOICES.some((x) => x.id === v)) return v as VoiceId;
+  } catch {
+    // storage unavailable
+  }
+  return 'en_paul';
+}
+
+export function setVoice(v: VoiceId) {
+  try {
+    window.localStorage.setItem(VOICE_KEY, v);
+  } catch {
+    // storage unavailable: this session only
+  }
+}
+
 export function stopSpeaking() {
   current?.stop();
   current = null;
@@ -32,9 +67,10 @@ function browserSpeak(text: string, h: SpeakHandlers) {
 export async function speakReply(text: string, h: SpeakHandlers, useVoxtral: boolean) {
   stopSpeaking();
   if (!text.trim()) return h.onEnd?.();
-  if (!useVoxtral) return browserSpeak(text, h);
+  const speaker = getVoice();
+  if (!useVoxtral || speaker === 'browser') return browserSpeak(text, h);
   try {
-    const { audio, voice } = await api.speak(text);
+    const { audio, voice } = await api.speak(text, speaker);
     const url = URL.createObjectURL(audio);
     const el = new Audio(url);
     const ctx = new AudioContext();

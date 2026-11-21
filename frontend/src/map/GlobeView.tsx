@@ -292,9 +292,24 @@ export function GlobeView(props: Props) {
       }
       camera.position.set(0, 0, distance);
       camera.lookAt(0, 0, 0);
+      maybeLoadHiRes();
       renderer.render(scene, camera);
       running = again;
       if (again) raf = requestAnimationFrame(frame);
+    };
+    // Level of detail: swap in the 4K texture once the camera gets close.
+    let hiResRequested = false;
+    const maybeLoadHiRes = () => {
+      if (hiResRequested || distance > 2.2) return;
+      hiResRequested = true;
+      loader.load('/textures/earth-blue-marble-4k.jpg', (hi) => {
+        hi.colorSpace = THREE.SRGBColorSpace;
+        hi.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+        earthMat.map = hi;
+        earthMat.needsUpdate = true;
+        day.dispose();
+        renderOnce();
+      });
     };
     const renderOnce = () => {
       if (!raf) raf = requestAnimationFrame(frame);

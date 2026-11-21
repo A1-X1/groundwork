@@ -72,13 +72,13 @@ function fixtureOnly(): never {
 
 export const api = {
   /** Voxtral TTS: MP3 for a reply, plus the voice slug used (e.g. gb_oliver_cheerful). */
-  speak: async (text: string): Promise<{ audio: Blob; voice: string }> => {
+  speak: async (text: string, speaker?: string): Promise<{ audio: Blob; voice: string }> => {
     let res: Response;
     try {
       res = await fetch(`${API_URL}/assistant/speak`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, speaker }),
       });
     } catch {
       throw new ApiError(0, 'network', `Can't reach the API at ${API_URL}.`);

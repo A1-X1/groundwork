@@ -72,6 +72,8 @@ export default function App() {
   const [modelIds, setModelIds] = useState<string[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
   const [progress, setProgress] = useState<AgentProgressState | null>(null);
+  const mapViewRef = useRef<{ center: [number, number]; zoom: number } | null>(null);
+  const lastPlaceRef = useRef<string | null>(null);
   const [previewProfile, setPreviewProfile] = useState<string | null>(null);
   const [createNonce, setCreateNonce] = useState(0);
   const openProjectRef = useRef<(p: Project) => void>(() => undefined);
@@ -470,6 +472,23 @@ export default function App() {
     [gw.selection],
   );
 
+  /** Camera: the map's after each move; on the globe, the last fly-to target. */
+  const isAlreadyThere = (place: { lat: number; lon: number; bbox?: number[]; kind: string }) => {
+    const v = mapViewRef.current;
+    if (globeVisible || screen !== 'explore' || !v) return false;
+    const [lon, lat] = v.center;
+    const bbox = place.bbox ?? [
+      place.lon - 0.35,
+      place.lat - 0.25,
+      place.lon + 0.35,
+      place.lat + 0.25,
+    ];
+    const [w, so, e, n] = bbox as [number, number, number, number];
+    const inside = lon >= w && lon <= e && lat >= so && lat <= n;
+    const zoomOk = place.kind === 'country' ? v.zoom >= 4 && v.zoom <= 9 : v.zoom >= 8.5;
+    return inside && zoomOk;
+  };
+
   const runCommands = useCallback(
     async (cmds: AssistantCommand[]): Promise<string[]> => {
       const notes: string[] = [];
@@ -488,8 +507,16 @@ export default function App() {
               str('name'),
               type === 'PAN_COUNTRY' ? 'country' : undefined,
             );
-            if (!place) notes.push(`I couldn't find ${str('name') || 'that place'}.`);
-            else goTo(place.lat, place.lon, place.kind !== 'country');
+            if (!place) {
+              notes.push(`I couldn't find ${str('name') || 'that place'}.`);
+              break;
+            }
+            if (isAlreadyThere(place)) {
+              notes.push(`You're already looking at ${place.name}.`);
+              break;
+            }
+            lastPlaceRef.current = place.name;
+            goTo(place.lat, place.lon, place.kind !== 'country');
             break;
           }
           case 'ZOOM':
@@ -505,15 +532,22 @@ export default function App() {
             setSpinning(args.state !== 'off');
             break;
           case 'SET_PROFILE':
+            if (gw.profile?.id === str('id')) {
+              notes.push(`${gw.profile.label} is already the use case.`);
+              break;
+            }
             gw.chooseProfile(str('id'));
             break;
           case 'SET_OVERLAY': {
             const id = str('layer');
-            gw.setOverlayId(
-              ['suitability', 'thermal', 'height', 'flood', 'crime', 'air'].includes(id)
-                ? id
-                : `layer:${id}`,
-            );
+            const next = ['suitability', 'thermal', 'height', 'flood', 'crime', 'air'].includes(id)
+              ? id
+              : `layer:${id}`;
+            if (gw.overlayId === next) {
+              notes.push(`The ${overlayFor(next).label.toLowerCase()} view is already on.`);
+              break;
+            }
+            gw.setOverlayId(next);
             break;
           }
           case 'SET_WEIGHT':
@@ -740,8 +774,12 @@ export default function App() {
         }
       }
       const res = await api.assistant(text, {
+        screen,
         profile: gw.profile?.id ?? null,
         overlay: gw.overlayId,
+        center: globeVisible ? null : (mapViewRef.current?.center ?? null),
+        zoom: globeVisible ? null : (mapViewRef.current?.zoom ?? null),
+        place: lastPlaceRef.current,
         selected_h3: gw.selection?.h3 ?? null,
         site_ids: gw.sites.map((x) => x.id),
       });
@@ -970,6 +1008,8 @@ export default function App() {
             onStop={voice.stop}
             muted={voice.muted}
             onToggleMute={voice.toggleMute}
+            handsFree={voice.handsFree}
+            onToggleHandsFree={voice.toggleHandsFree}
           />
         </HStack>
       )}
@@ -1144,6 +1184,8 @@ export default function App() {
               onStop={voice.stop}
               muted={voice.muted}
               onToggleMute={voice.toggleMute}
+              handsFree={voice.handsFree}
+              onToggleHandsFree={voice.toggleHandsFree}
             />
           </HStack>
         </>

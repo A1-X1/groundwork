@@ -55,6 +55,7 @@ export function useVoice(
       .catch(() => setEngine(recognitionCtor() ? 'browser' : null));
   }, []);
 
+  const handsFreeOnRef = useRef(false);
   const engineRef = useRef(engine);
   engineRef.current = engine;
   const speak = useCallback((text: string) => {
@@ -71,7 +72,7 @@ export function useVoice(
         },
         onEnd: () => {
           level.current = 0;
-          setState('idle');
+          setState(handsFreeOnRef.current ? 'listening' : 'idle');
         },
       },
       engineRef.current === 'voxtral',
@@ -180,6 +181,7 @@ export function useVoice(
   }, [process]);
 
   const start = useCallback(() => {
+    if (handsFreeOnRef.current) return; // always-on listening is already running
     if (state === 'speaking') stopSpeaking();
     if (state === 'listening' || state === 'thinking') return;
     setMessage(null);
@@ -191,6 +193,164 @@ export function useVoice(
 
   const stop = useCallback(() => stopRef.current?.(), []);
 
+  // ---- hands-free: always-on listening with voice-activity detection ----------------------
+  const [handsFree, setHandsFree] = useState(false);
+  handsFreeOnRef.current = handsFree;
+  const handsFreeRef = useRef<{ stop: () => void } | null>(null);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  /** Voxtral path: mic stays open; record from speech onset until ~800 ms of silence. */
+  const startHandsFreeVoxtral = useCallback(async () => {
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
+    } catch {
+      setMessage('Microphone access was blocked.');
+      setHandsFree(false);
+      return;
+    }
+    const ctx = new AudioContext();
+    const an = ctx.createAnalyser();
+    an.fftSize = 1024;
+    ctx.createMediaStreamSource(stream).connect(an);
+    const buf = new Uint8Array(an.fftSize);
+    const START = 0.035; // RMS to count as speech
+    const STOP = 0.018; // RMS below this counts as silence
+    const SILENCE_MS = 800;
+    const MIN_SPEECH_MS = 250;
+    let rec: MediaRecorder | null = null;
+    let chunks: Blob[] = [];
+    let speechAt = 0;
+    let quietSince = 0;
+    let raf = 0;
+    let alive = true;
+
+    const finishUtterance = () => {
+      const r = rec;
+      rec = null;
+      if (!r) return;
+      const long = performance.now() - speechAt >= MIN_SPEECH_MS + SILENCE_MS;
+      r.onstop = () => {
+        if (!long || !alive) return;
+        const blob = new Blob(chunks, { type: r.mimeType || 'audio/webm' });
+        setState('thinking');
+        api
+          .transcribe(blob)
+          .then(({ text }) => (text.trim() ? process(text) : setState('listening')))
+          .catch((e: unknown) => {
+            setMessage(e instanceof Error ? e.message : 'Transcription failed.');
+            setState('listening');
+          });
+      };
+      r.stop();
+    };
+
+    const loop = () => {
+      if (!alive) return;
+      an.getByteTimeDomainData(buf);
+      let sum = 0;
+      for (const v of buf) sum += ((v - 128) / 128) ** 2;
+      const rms = Math.sqrt(sum / buf.length);
+      const now = performance.now();
+      // Only listen while idle-listening: never while thinking or speaking (no self-hearing).
+      const ready = stateRef.current === 'listening' || stateRef.current === 'idle';
+      if (ready && stateRef.current === 'idle') setState('listening');
+      if (ready) {
+        level.current = Math.min(1, level.current * 0.6 + rms * 5 * 0.4);
+        if (!rec && rms > START) {
+          chunks = [];
+          rec = new MediaRecorder(stream);
+          rec.ondataavailable = (e) => {
+            if (e.data.size) chunks.push(e.data);
+          };
+          rec.start();
+          speechAt = now;
+          quietSince = 0;
+        } else if (rec) {
+          if (rms < STOP) {
+            quietSince ||= now;
+            if (now - quietSince > SILENCE_MS) finishUtterance();
+          } else quietSince = 0;
+          if (now - speechAt > 15000) finishUtterance(); // cap one utterance at 15 s
+        }
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    setState('listening');
+    raf = requestAnimationFrame(loop);
+    handsFreeRef.current = {
+      stop: () => {
+        alive = false;
+        cancelAnimationFrame(raf);
+        if (rec && rec.state === 'recording') rec.stop();
+        stream.getTracks().forEach((t) => t.stop());
+        void ctx.close();
+        level.current = 0;
+      },
+    };
+  }, [process]);
+
+  /** Browser path: continuous recognition, paused while thinking/speaking. */
+  const startHandsFreeBrowser = useCallback(() => {
+    const Ctor = recognitionCtor();
+    if (!Ctor) return;
+    let alive = true;
+    let rec: Recognition | null = null;
+    const listen = () => {
+      if (!alive) return;
+      if (stateRef.current === 'thinking' || stateRef.current === 'speaking') {
+        window.setTimeout(listen, 300);
+        return;
+      }
+      rec = new Ctor();
+      rec.lang = 'en-GB';
+      rec.continuous = true;
+      rec.interimResults = false;
+      rec.onresult = (e) => {
+        const last = e.results[e.results.length - 1];
+        const text = last?.[0]?.transcript ?? '';
+        if (last?.isFinal && text.trim()) {
+          rec?.stop();
+          void process(text);
+        }
+      };
+      rec.onend = () => window.setTimeout(listen, 250);
+      rec.onerror = () => undefined;
+      setState('listening');
+      rec.start();
+    };
+    listen();
+    handsFreeRef.current = {
+      stop: () => {
+        alive = false;
+        rec?.stop();
+      },
+    };
+  }, [process]);
+
+  const toggleHandsFree = useCallback(() => {
+    if (handsFreeRef.current) {
+      handsFreeRef.current.stop();
+      handsFreeRef.current = null;
+      setHandsFree(false);
+      if (stateRef.current === 'listening') setState('idle');
+      return;
+    }
+    if (!engine) {
+      setMessage('Voice needs a microphone and either a Mistral key on the server or Chrome/Edge.');
+      return;
+    }
+    setHandsFree(true);
+    setMessage(null);
+    if (engine === 'voxtral') void startHandsFreeVoxtral();
+    else startHandsFreeBrowser();
+  }, [engine, startHandsFreeVoxtral, startHandsFreeBrowser]);
+
+  useEffect(() => () => handsFreeRef.current?.stop(), []);
+
   const toggleMute = useCallback(() => {
     setMuted((m) => {
       if (!m) stopSpeaking();
@@ -198,5 +358,18 @@ export function useVoice(
     });
   }, []);
 
-  return { state, level, message, engine, start, stop, speak, setMessage, muted, toggleMute };
+  return {
+    state,
+    level,
+    message,
+    engine,
+    start,
+    stop,
+    speak,
+    setMessage,
+    muted,
+    toggleMute,
+    handsFree,
+    toggleHandsFree,
+  };
 }

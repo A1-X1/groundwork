@@ -37,40 +37,68 @@ float snoise(vec3 v){
   return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
 }`;
 
-const VERT = /* glsl */ `
-uniform float uTime; uniform float uAmp; uniform float uFreq;
-varying vec3 vNormal; varying vec3 vPos;
-${NOISE}
-void main(){
-  vec3 p = position;
-  float n = snoise(p * uFreq + vec3(0.0, uTime * 0.4, 0.0));
-  vec3 displaced = p + normal * n * uAmp;
-  vPos = p;
-  vNormal = normalize(normalMatrix * normal);
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
+/* Ribbon field shared by both shaders: two families of bands that twist around the sphere in
+   opposite directions, warped by slow noise, so they read as folded petals converging. */
+const RIBBONS = /* glsl */ `
+uniform float uTime; uniform float uFlow; uniform float uAmp;
+const float TAU = 6.2831853;
+float band(vec3 p, float k, float twist, float speed, float seed){
+  float a = atan(p.z, p.x) + twist * p.y + uTime * uFlow * speed
+          + 0.55 * snoise(p * 1.3 + vec3(seed, uTime * 0.15, 0.0));
+  return a * k / TAU;
 }`;
 
-/* A soft, flowing pastel gradient: domain-warped noise picks between four colours that drift
-   across the sphere. Glassy rim, no hard lighting. */
-const FRAG = /* glsl */ `
-uniform float uTime; uniform float uFlow; uniform float uGlow;
-uniform vec3 cA; uniform vec3 cB; uniform vec3 cC; uniform vec3 cD;
-varying vec3 vNormal; varying vec3 vPos;
+const VERT = /* glsl */ `
+uniform float uFreq;
+varying vec3 vNormal; varying vec3 vPos; varying vec3 vView;
 ${NOISE}
+${RIBBONS}
 void main(){
-  float t = uTime * uFlow;
-  vec3 q = vPos * 0.42;
-  vec3 warp = vec3(snoise(q + vec3(t * 0.6, 0.0, 0.0)), snoise(q + vec3(0.0, t * 0.5, 4.1)), snoise(q + vec3(7.3, 0.0, t * 0.4)));
-  float f1 = snoise(q * 0.9 + warp * 0.45 + vec3(0.0, t * 0.3, 0.0)) * 0.5 + 0.5;
-  float f2 = snoise(q * 0.7 - warp * 0.35 + vec3(t * 0.25, 1.7, 0.0)) * 0.5 + 0.5;
-  vec3 col = mix(cA, cB, smoothstep(0.1, 0.9, f1));
-  col = mix(col, cC, smoothstep(0.3, 0.95, f2) * 0.85);
-  col = mix(col, cD, smoothstep(0.3, 0.95, f1 * f2 * 1.6) * 0.85);
-  vec3 n = normalize(vNormal);
-  float facing = max(dot(n, vec3(0.0, 0.0, 1.0)), 0.0);
-  float rim = pow(1.0 - facing, 3.0);
-  col = mix(col, vec3(1.0), rim * (0.35 + uGlow * 0.4));     // soft, glassy edge
-  col *= 0.88 + 0.12 * max(dot(n, normalize(vec3(-0.4, 0.6, 0.7))), 0.0);
+  vec3 p = position;
+  // Folds: each band bulges at its middle and tucks in at its edges; mic level opens them up.
+  float b1 = fract(band(p, 7.0, 2.2, 0.35, 1.7));
+  float b2 = fract(band(p, 5.0, -2.8, -0.25, 4.3));
+  float fold = sin(b1 * 3.14159) * 0.6 + sin(b2 * 3.14159) * 0.4;
+  float ripple = snoise(p * uFreq + vec3(0.0, uTime * 0.5, 0.0));
+  vec3 displaced = p + normal * (fold * uAmp * 1.6 + ripple * uAmp * 0.6);
+  vPos = p;
+  vNormal = normalize(normalMatrix * normal);
+  vec4 mv = modelViewMatrix * vec4(displaced, 1.0);
+  vView = normalize(-mv.xyz);
+  gl_Position = projectionMatrix * mv;
+}`;
+
+const FRAG = /* glsl */ `
+uniform float uGlow;
+uniform vec3 cA; uniform vec3 cB; uniform vec3 cC; uniform vec3 cD;
+varying vec3 vNormal; varying vec3 vPos; varying vec3 vView;
+${NOISE}
+${RIBBONS}
+vec3 palette(float t){
+  t = fract(t);
+  vec3 c = mix(cA, cB, smoothstep(0.0, 0.35, t));
+  c = mix(c, cC, smoothstep(0.35, 0.7, t));
+  return mix(c, cD, smoothstep(0.7, 1.0, t));
+}
+void main(){
+  float f1 = band(vPos, 7.0, 2.2, 0.35, 1.7);
+  float f2 = band(vPos, 5.0, -2.8, -0.25, 4.3);
+  float b1 = fract(f1); float b2 = fract(f2);
+  // Front ribbons (family 1) over back ribbons (family 2): crisp edges, dark creases.
+  float edge1 = smoothstep(0.0, 0.035, b1) * smoothstep(1.0, 0.965, b1);
+  float crease = 1.0 - 0.45 * (1.0 - smoothstep(0.0, 0.12, min(b1, 1.0 - b1)));
+  vec3 back = palette(floor(f2) * 0.37 + b2 * 0.25 + 0.5) * (0.55 + 0.45 * sin(b2 * 3.14159));
+  vec3 front = palette(floor(f1) * 0.23 + b1 * 0.3) * crease;
+  float overlap = 0.62 + 0.25 * sin(b1 * 3.14159);
+  vec3 col = mix(back, front, overlap * edge1);
+  // Sharp specular on the ribbon surface, tilted by the fold so highlights run along each band.
+  vec3 n = normalize(vNormal + 0.35 * vec3(cos(b1 * 6.28318), 0.0, sin(b1 * 6.28318)));
+  vec3 l = normalize(vec3(-0.45, 0.7, 0.6));
+  float spec = pow(max(dot(reflect(-l, n), normalize(vView)), 0.0), 48.0);
+  float diff = 0.7 + 0.3 * max(dot(n, l), 0.0);
+  col = col * diff + vec3(1.0) * spec * 0.55;
+  float rim = pow(1.0 - max(dot(normalize(vNormal), normalize(vView)), 0.0), 3.5);
+  col += mix(cB, vec3(1.0), 0.4) * rim * (0.35 + uGlow * 0.5);
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }`;
@@ -78,10 +106,10 @@ void main(){
 /** Target shader parameters per state; `level` (0–1) adds on top. */
 const TARGETS: Record<VoiceState, { amp: number; freq: number; swirl: number; scale: number }> = {
   // swirl = speed of the gradient flow; amp = surface ripple
-  idle: { amp: 0.012, freq: 1.6, swirl: 0.35, scale: 0.92 },
-  listening: { amp: 0.035, freq: 2.4, swirl: 0.7, scale: 1.0 },
-  thinking: { amp: 0.025, freq: 2.0, swirl: 2.2, scale: 0.95 },
-  speaking: { amp: 0.03, freq: 1.8, swirl: 0.9, scale: 0.98 },
+  idle: { amp: 0.02, freq: 1.6, swirl: 0.25, scale: 0.92 },
+  listening: { amp: 0.05, freq: 2.4, swirl: 0.5, scale: 1.0 },
+  thinking: { amp: 0.035, freq: 2.0, swirl: 1.6, scale: 0.95 },
+  speaking: { amp: 0.045, freq: 1.8, swirl: 0.7, scale: 0.98 },
 };
 
 const LABEL: Record<VoiceState, string> = {
@@ -131,7 +159,7 @@ export function VoiceOrb({ state, level, message, isAvailable, onStart, onStop }
       cC: { value: new THREE.Color(0x8fe3ff) }, // ice cyan
       cD: { value: new THREE.Color(0xffc9b0) }, // warm peach highlight
     };
-    const geo = new THREE.IcosahedronGeometry(1, 32);
+    const geo = new THREE.IcosahedronGeometry(1, 40);
     const mesh = new THREE.Mesh(
       geo,
       new THREE.ShaderMaterial({ uniforms, vertexShader: VERT, fragmentShader: FRAG }),

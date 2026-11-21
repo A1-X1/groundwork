@@ -11,6 +11,8 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { api } from '../api/client';
 import type { AzureConfig, Connections } from '../api/types';
 import { MicrosoftLogo, MistralLogo } from './BrandLogos';
+import { Selector } from '@astryxdesign/core/Selector';
+import { getVoice, setVoice, VOICES, type VoiceId } from '../lib/speech';
 
 interface Props {
   isOpen: boolean;
@@ -66,6 +68,7 @@ export function ConnectionsDialog({ isOpen, onOpenChange, reason }: Props) {
   const [open, setOpen] = useState<'mistral' | 'azure' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [voice, setVoiceState] = useState<VoiceId>(getVoice);
 
   const refresh = useCallback(async () => {
     try {
@@ -128,6 +131,24 @@ export function ConnectionsDialog({ isOpen, onOpenChange, reason }: Props) {
                   : 'Voice, commands and the planning agent'
               }
             >
+              {conn.mistral.configured && (
+                <Selector
+                  label="Assistant voice"
+                  description="Voxtral voices change tone to suit each reply."
+                  options={VOICES.map((v) => ({
+                    value: v.id,
+                    label: v.label,
+                    description: v.description,
+                  }))}
+                  value={voice}
+                  onChange={(v) => {
+                    if (!v) return;
+                    setVoice(v as VoiceId);
+                    setVoiceState(v as VoiceId);
+                  }}
+                  width="100%"
+                />
+              )}
               {conn.mistral.configured ? (
                 <Button
                   label="Disconnect Mistral"
