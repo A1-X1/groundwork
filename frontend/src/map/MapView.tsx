@@ -3,7 +3,7 @@ import { H3HexagonLayer } from '@deck.gl/geo-layers';
 import { IconLayer, PathLayer, PolygonLayer, ScatterplotLayer } from '@deck.gl/layers';
 import type { PickingInfo } from '@deck.gl/core';
 import { VStack } from '@astryxdesign/core/VStack';
-import { cellToLatLng, polygonToCells } from 'h3-js';
+import { cellToLatLng } from 'h3-js';
 import * as maplibregl from 'maplibre-gl';
 import type { StyleSpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -13,7 +13,6 @@ import { categoryOf, POI_LABEL, poiIconUrl } from './poiIcons';
 import { MASKED_RGB, RAMPS, sample, type RampId } from '../lib/colour';
 import { BuildingsLayer, type SiteRender } from './buildings';
 import { GLOBE_ZOOM } from '../lib/viewport';
-import { onLand, type LandMask } from '../lib/land';
 
 export interface HexDatum {
   h3: string;
@@ -50,10 +49,8 @@ interface Props {
   arrival: { lat: number; lon: number; nonce: number } | null;
   zoomCmd: { dir: 'in' | 'out'; nonce: number } | null;
   pois: Poi[];
-  /** Land with data (from region marker cells): the surrounding grid is clipped to it. */
-  landMask?: LandMask | null;
   /** Outlines of the regions with data, drawn while zoomed out past the hex threshold. */
-  regionOutlines?: { name: string; bbox: [number, number, number, number] }[];
+  regionCells?: string[];
   /** False while hidden behind the home screen; the map resizes when it becomes visible. */
   isActive: boolean;
   basemap: Basemap;
@@ -126,16 +123,6 @@ function styleFor(b: Basemap): string | StyleSpecification {
   return STYLES.dark;
 }
 
-/** H3 resolution for the surrounding grid at a zoom level (about 8–30 px per hex). */
-function contextRes(zoom: number): number {
-  if (zoom < 5) return 3;
-  if (zoom < 6.5) return 4;
-  if (zoom < 8) return 5;
-  if (zoom < 9.3) return 6;
-  if (zoom < 10.6) return 7;
-  return 8;
-}
-const MAX_CONTEXT_CELLS = 7000;
 const HOME = { zoom: 9.7, pitch: 50, bearing: -12 };
 
 function fallbackStyle(dark: boolean): StyleSpecification {
@@ -196,10 +183,6 @@ export function MapView(props: Props) {
   const propsRef = useRef(props);
   propsRef.current = props;
   const [showPois, setShowPois] = useState(false);
-  const [viewport, setViewport] = useState<{
-    bbox: [number, number, number, number];
-    zoom: number;
-  } | null>(null);
 
   // ---- one-time map setup
   useEffect(() => {
@@ -263,15 +246,6 @@ export function MapView(props: Props) {
     map.addControl(overlay);
 
     map.on('zoom', () => setShowPois(map.getZoom() >= POI_MIN_ZOOM));
-    const updateViewport = () => {
-      const b = map.getBounds();
-      setViewport({
-        bbox: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
-        zoom: map.getZoom(),
-      });
-    };
-    map.on('moveend', updateViewport);
-    map.on('load', updateViewport);
 
     // ---- drawing an area: click to add points, double-click (or click the first point) to finish
     map.on('click', (e) => {
@@ -382,33 +356,6 @@ export function MapView(props: Props) {
     map.getCanvas().style.cursor = props.isDrawing || props.isPlacing ? 'crosshair' : '';
   }, [props.isDrawing, props.isPlacing]);
 
-  // ---- surrounding grid: empty hexes around (and beyond) the scored region
-  const dataIds = useMemo(() => new Set(props.cells.map((c) => c.h3)), [props.cells]);
-  const contextCells = useMemo(() => {
-    if (!viewport) return [];
-    const res = contextRes(viewport.zoom);
-    const [w, so, e, n] = viewport.bbox;
-    const padX = (e - w) * 0.15;
-    const padY = (n - so) * 0.15;
-    const ring: [number, number][] = [
-      [so - padY, w - padX],
-      [so - padY, e + padX],
-      [n + padY, e + padX],
-      [n + padY, w - padX],
-    ];
-    let cells: string[] = [];
-    try {
-      cells = polygonToCells(ring, res);
-    } catch {
-      return [];
-    }
-    if (cells.length > MAX_CONTEXT_CELLS) return [];
-    // Only where data exists: no empty hexes over the sea (user request).
-    const mask = props.landMask;
-    if (mask) cells = cells.filter((c) => onLand(c, mask));
-    return res === 8 ? cells.filter((c) => !dataIds.has(c)) : cells;
-  }, [viewport, dataIds, props.landMask]);
-
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !props.zoomCmd) return;
@@ -511,18 +458,23 @@ export function MapView(props: Props) {
       parameters: { depthCompare: 'always' },
       transitions: prefersReducedMotion() ? {} : { getSize: 200 },
     });
-    const gridStrength = props.basemap === 'grid' ? 70 : 26;
-    const contextLayer = new H3HexagonLayer<string>({
-      id: 'context-grid',
-      data: contextCells,
+    // Where data exists, while zoomed out: the regions' coarse land cells (one shared
+    // resolution, never overlapping, never over the sea). Hidden once data hexes load, so big
+    // and small hexes never stack.
+    const regionCells = props.regionCells ?? [];
+    const outlineLayer = new H3HexagonLayer<string>({
+      id: 'region-cells',
+      data: regionCells,
       getHexagon: (d) => d,
-      filled: false,
+      filled: true,
       stroked: true,
       extruded: false,
       highPrecision: false,
-      getLineColor: [255, 255, 255, gridStrength],
+      getFillColor: [...ACCENT, 34],
+      getLineColor: [...ACCENT, 150],
       lineWidthMinPixels: 1,
       lineWidthMaxPixels: 1,
+      visible: regionCells.length > 0,
       pickable: false,
     });
     const areaLayer = new PolygonLayer<MapArea>({
@@ -573,19 +525,8 @@ export function MapView(props: Props) {
           }),
         ]
       : [];
-    const outlines = props.regionOutlines ?? [];
-    const outlineLayer = new PathLayer<{ name: string; bbox: [number, number, number, number] }>({
-      id: 'region-outlines',
-      data: outlines,
-      getPath: ({ bbox: [w, so, e, n] }) => [[w, so], [e, so], [e, n], [w, n], [w, so]],
-      getColor: [...ACCENT, 200],
-      getWidth: 1.5,
-      widthUnits: 'pixels',
-      visible: outlines.length > 0,
-      parameters: { depthCompare: 'always' },
-    }); // prettier-ignore
     overlay.setProps({
-      layers: [contextLayer, layer, areaLayer, outlineLayer, poiLayer, ...draftLayers],
+      layers: [outlineLayer, layer, areaLayer, poiLayer, ...draftLayers],
       getTooltip: ({ object }: PickingInfo<HexDatum | Poi | MapArea>) =>
         object && !propsRef.current.isDrawing
           ? {
@@ -616,13 +557,12 @@ export function MapView(props: Props) {
     extrudeFloor,
     props.pois,
     showPois,
-    contextCells,
     props.basemap,
     props.areas,
     props.selectedAreaId,
     props.draft,
     props.isDrawing,
-    props.regionOutlines,
+    props.regionCells,
   ]);
 
   return (

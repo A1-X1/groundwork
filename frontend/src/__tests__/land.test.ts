@@ -40,3 +40,13 @@ describe('regionsAt', () => {
     expect(regionsAt(51.5, -0.12, [uk, ldn])[0]!.id).toBe('london');
   });
 });
+
+describe('nested regions', () => {
+  const uk: Region = { id: 'uk', name: 'United Kingdom', bbox: [-8.6, 50, 1.7, 60.8], resolution: 7, cells: 53100, marker_cells: [latLngToCell(51.5, -0.12, 4)], marker_resolution: 4 }; // prettier-ignore
+  const london: Region = { id: 'london', name: 'Greater London', bbox: [-0.51, 51.29, 0.33, 51.7], resolution: 8, cells: 2654, marker_cells: [], nested_in: 'uk' }; // prettier-ignore
+  const urban: Region = { id: 'uk_urban', name: 'UK towns', bbox: [-7.5, 50.1, 1.8, 59], resolution: 8, cells: 24705, marker_cells: [], nested_in: 'uk' }; // prettier-ignore
+
+  it('names the city for small nested regions, never the UK-wide urban layer', () => {
+    expect(regionsAt(51.5, -0.12, [uk, london, urban]).map((r) => r.id)).toEqual(['london', 'uk']);
+  });
+});

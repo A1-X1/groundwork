@@ -71,20 +71,53 @@ class World:
                 return rid, cell
         raise KeyError(f"({lat}, {lon}) is outside every built region ({', '.join(self.grids)})")
 
-    def shape(self, rid: str, max_cells: int = 600) -> tuple[int, list[str]]:
-        """Coarse hexes tracing the region's real land shape (parents of its actual cells),
-        at the finest resolution that stays under ``max_cells``. Never covers open water."""
-        if rid not in self._shapes:
-            cells = self.grids[rid].frame.index
-            res = self.grids[rid].resolution
-            out: list[str] = list(cells)
-            for r in range(res - 1, -1, -1):
-                if len(out) <= max_cells:
-                    break
-                out = sorted({h3.cell_to_parent(c, r) for c in cells})
-                res = r
-            self._shapes[rid] = (res, out)
-        return self._shapes[rid]
+    MARKER_RES = 4  # one shared outline resolution (~1,770 km² per hex) so outlines never overlap
+
+    def _markers(self) -> dict[str, tuple[int, list[str], str | None]]:
+        """Outline cells for the globe, computed once for all regions together:
+        - one shared resolution, so neighbouring regions can't overlap;
+        - a coarse hex is included only if most of the land under it belongs to the region
+          (≥ 50% of its descendants at the region's resolution), so outlines hug the coast;
+        - each coarse hex goes to exactly one region (the one covering most of it);
+        - regions nested inside a coarser one (London, uk_urban inside uk) get no outline of
+          their own (`nested_in` names the parent).
+        """
+        if self._shapes:
+            return self._shapes
+        r = self.MARKER_RES
+        coverage: dict[str, dict[str, float]] = {}
+        nested: dict[str, str | None] = {}
+        for rid, g in self.grids.items():
+            per_child = 7 ** max(g.resolution - r, 0)
+            counts: dict[str, int] = {}
+            for c in g.frame.index:
+                p = h3.cell_to_parent(c, r) if g.resolution > r else c
+                counts[p] = counts.get(p, 0) + 1
+            coverage[rid] = {p: n / per_child for p, n in counts.items()}
+        for rid, g in self.grids.items():
+            parent = None
+            for other, og in self.grids.items():
+                if other != rid and og.resolution < g.resolution:
+                    shared = set(coverage[rid]) & set(coverage[other])
+                    if len(shared) >= 0.9 * len(coverage[rid]):
+                        parent = other
+                        break
+            nested[rid] = parent
+        owner: dict[str, tuple[str, float]] = {}
+        for rid, cov in coverage.items():
+            if nested[rid]:
+                continue
+            for p, frac in cov.items():
+                if frac >= 0.5 and frac > owner.get(p, ("", 0.0))[1]:
+                    owner[p] = (rid, frac)
+        for rid in self.grids:
+            cells = sorted(p for p, (o, _) in owner.items() if o == rid)
+            self._shapes[rid] = (r, cells, nested[rid])
+        return self._shapes
+
+    def shape(self, rid: str) -> tuple[int, list[str]]:
+        res, cells, _ = self._markers()[rid]
+        return res, cells
 
     def regions(self) -> list[dict[str, Any]]:
         out = []
@@ -98,6 +131,7 @@ class World:
                 "kind": b.get("kind", "city"), "country": b.get("country"),
                 "real_layers": statuses.count("real"), "unavailable_layers": statuses.count("unavailable"),
                 "generated_at": b.get("generated_at"), "directory": str(g.directory),
-                "marker_resolution": self.shape(rid)[0], "marker_cells": self.shape(rid)[1],
+                "marker_resolution": self._markers()[rid][0], "marker_cells": self._markers()[rid][1],
+                "nested_in": self._markers()[rid][2],
             })
         return out

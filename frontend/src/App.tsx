@@ -3,7 +3,7 @@ import { ProgressBar } from '@astryxdesign/core/ProgressBar';
 import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
 import { HStack } from '@astryxdesign/core/HStack';
-import { cellToLatLng, latLngToCell, polygonToCells } from 'h3-js';
+import { cellToLatLng, latLngToCell } from 'h3-js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api/client';
 import type { AssistantCommand, Poi, Review } from './api/types';
@@ -17,7 +17,7 @@ import {
 import { AreaDetail, AreasPanel } from './panels/AreasPanel';
 import type { Area, AreaSummary, Region, StructureRecord } from './api/types';
 import { padAndSnap, type BBox } from './lib/viewport';
-import { buildLandMask, regionsAt, wrapsWorld } from './lib/land';
+import { regionsAt } from './lib/land';
 import type { Basemap, MapArea } from './map/MapView';
 import { HomeScreen } from './panels/HomeScreen';
 import { findPlace } from './lib/places';
@@ -283,7 +283,11 @@ export default function App() {
   );
   // The globe marks where data exists (from /regions), never the detailed hexes themselves.
   const regionHexes: RegionHex[] = useMemo(() => regionMarkers(regions), [regions]);
-  const landMask = useMemo(() => buildLandMask(regions), [regions]);
+  /** Coarse land cells of every top-level region (nested ones have none): map outlines. */
+  const regionCells = useMemo(
+    () => regions.filter((r) => !r.nested_in).flatMap((r) => r.marker_cells ?? []),
+    [regions],
+  );
   /** The smallest data region containing the map centre (London inside the UK → London). */
   const placeName = useMemo(() => {
     if (!mapBox) return null;
@@ -1077,11 +1081,8 @@ export default function App() {
             settleCamera();
           }}
           onZoomOut={onMapZoomOut}
-          landMask={landMask}
-          regionOutlines={
-            gw.viewReason === 'zoom_in' || gw.viewReason === 'no_data'
-              ? regions.filter((r) => !wrapsWorld(r))
-              : undefined
+          regionCells={
+            gw.viewReason === 'zoom_in' || gw.viewReason === 'no_data' ? regionCells : undefined
           }
         />
         <GlobeView
@@ -1452,26 +1453,13 @@ export default function App() {
   );
 }
 
-/** Hexes marking where each region has data: its land-shaped marker cells (no sea).
- *  Falls back to a coarse fill of the bbox only when the API sends no markers. */
+/** Hexes marking where each region has data: only the regions' own land cells (one shared
+ *  resolution, never overlapping, never over the sea). Nested regions (London inside the UK)
+ *  have none and get no marker; there is no bbox fill. */
 function regionMarkers(regions: Region[]): RegionHex[] {
-  const out: RegionHex[] = [];
-  for (const r of regions) {
-    if (r.marker_cells?.length) {
-      for (const h3 of r.marker_cells) out.push({ h3, t: 0.35 });
-      continue;
-    }
-    const [w, so, e, n] = r.bbox;
-    const ring = [[so, w], [so, e], [n, e], [n, w], [so, w]];
-    let cells: string[] = [];
-    for (const res of [5, 4, 3, 2]) {
-      cells = polygonToCells(ring, res);
-      if (cells.length <= 600) break;
-    }
-    if (cells.length === 0) cells = [latLngToCell((so + n) / 2, (w + e) / 2, 5)];
-    for (const h3 of cells) out.push({ h3, t: 0.35 });
-  }
-  return out;
-} // prettier-ignore
+  return regions
+    .filter((r) => !r.nested_in)
+    .flatMap((r) => (r.marker_cells ?? []).map((h3) => ({ h3, t: 0.35 })));
+}
 
 const keyRowCount = (kinds: string[]) => keyRows(kinds).length;

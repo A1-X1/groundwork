@@ -30,6 +30,8 @@ export interface Region {
   /** Coarse H3 cells tracing the region's land (no sea). */
   marker_cells?: string[];
   marker_resolution?: number | null;
+  /** Parent region id for nested regions (london, uk_urban → uk); they have no marker cells. */
+  nested_in?: string | null;
 }
 
 export interface LayerMeta {

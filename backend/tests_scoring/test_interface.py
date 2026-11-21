@@ -133,9 +133,22 @@ def test_list_regions():
     import h3
 
     uk = regions["uk"]
-    assert 0 < len(uk["marker_cells"]) <= 600
+    assert len(uk["marker_cells"]) > 50
     sea = h3.latlng_to_cell(56.5, 2.5, uk["marker_resolution"])
     assert sea not in uk["marker_cells"]
+
+
+def test_region_outlines_never_overlap():
+    regions = scoring.list_regions()
+    assert len({r["marker_resolution"] for r in regions}) == 1  # one shared resolution
+    seen: dict[str, str] = {}
+    for r in regions:
+        for c in r["marker_cells"]:
+            assert c not in seen, f"{c} in both {seen.get(c)} and {r['id']}"
+            seen[c] = r["id"]
+    nested = {r["id"]: r["nested_in"] for r in regions}
+    assert nested["london"] == "uk" and nested["uk_urban"] == "uk" and nested["uk"] is None
+    assert not next(r for r in regions if r["id"] == "london")["marker_cells"]
 
 
 def test_unavailable_masks_do_not_mask():
