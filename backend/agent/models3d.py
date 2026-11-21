@@ -112,8 +112,21 @@ class ModelSpec(BaseModel):
         return sum(p.triangles() for p in self.parts)
 
 
+def local_models_dir() -> Path:
+    from backend.layers import _common
+
+    return _common.LOCAL_DIR / "models3d"
+
+
+def list_ids() -> list[str]:
+    """Every saved spec: committed (backend/profiles/models/) and local agent-made (data/local/models3d/)."""
+    ids = {p.stem for d in (MODELS_DIR, local_models_dir()) if d.exists() for p in d.glob("*.json")}
+    return sorted(ids)
+
+
 def save(spec: ModelSpec, directory: Path | None = None) -> Path:
-    directory = directory or MODELS_DIR
+    """Agent saves go to the local (gitignored) folder unless a directory is given."""
+    directory = directory or local_models_dir()
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{spec.id}.json"
     payload = spec.model_dump(mode="json")
@@ -123,11 +136,13 @@ def save(spec: ModelSpec, directory: Path | None = None) -> Path:
 
 
 def load(model_id: str, directory: Path | None = None) -> dict:
-    directory = directory or MODELS_DIR
-    path = directory / f"{model_id}.json"
-    if not path.exists():
-        raise KeyError(f"no 3D model {model_id!r}")
-    return json.loads(path.read_text())
+    """A local agent-made spec wins over a committed one with the same id."""
+    dirs = [directory] if directory else [local_models_dir(), MODELS_DIR]
+    for d in dirs:
+        path = d / f"{model_id}.json"
+        if path.exists():
+            return json.loads(path.read_text())
+    raise KeyError(f"no 3D model {model_id!r}")
 
 
 def cooling_tower(x: float, z: float, h: float = 120.0) -> dict:

@@ -27,6 +27,9 @@ log = logging.getLogger("groundwork.layers")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RAW_DIR = Path(os.environ.get("GROUNDWORK_RAW_DIR", REPO_ROOT / "data" / "raw"))
+# Agent-made layers, profiles and 3D models live here (gitignored) until promoted into the repo
+# with `python -m backend.agent.promote <profile_id>`, so a teammate's `git pull` never collides.
+LOCAL_DIR = Path(os.environ.get("GROUNDWORK_LOCAL_DIR", REPO_ROOT / "data" / "local"))
 
 USER_AGENT = "groundwork-site-suitability/0.1 (hackathon demo)"
 

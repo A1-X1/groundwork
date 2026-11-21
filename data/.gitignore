@@ -3,3 +3,4 @@ raw/
 processed/
 sample/models/
 sample/**/models/
+local/

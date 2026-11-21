@@ -115,10 +115,12 @@ def add_layer(id: str, label: str, unit: str, kind: str, description: str, templ
                                   template=template, params=params, added_by="agent", is_mask=is_mask)
     except Exception as exc:
         raise ToolError(f"invalid layer spec: {exc}") from exc
-    path = _generic.GENERATED_DIR / f"{spec.id}.yaml"
-    existed = path.exists()
-    if existed and yaml.safe_load(path.read_text()).get("added_by") != "agent":
+    committed = _generic.GENERATED_DIR / f"{spec.id}.yaml"
+    if committed.exists() and yaml.safe_load(committed.read_text()).get("added_by") != "agent":
         raise ToolError(f"layer {spec.id!r} already exists (added by a person); reuse it or choose a new id")
+    path = _generic.local_dir() / f"{spec.id}.yaml"  # agent output stays local (gitignored)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existed = path.exists() or committed.exists()
     path.write_text(yaml.safe_dump(spec.model_dump(), sort_keys=False, allow_unicode=True))
     _layers.refresh()
     return {"layer": spec.id, "file": _rel(path), "replaced": existed,
@@ -140,7 +142,8 @@ def create_profile(id: str, label: str, description: str, layers: dict[str, dict
     if notes:
         doc["notes"] = notes
     known = {m["id"] for m in _scoring().list_layers()}  # only layers that exist in the built grid
-    path = PROFILES_DIR / f"{id}.yaml"
+    path = local_profiles_dir() / f"{id}.yaml"  # agent output stays local (gitignored)
+    path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".yaml.tmp")
     tmp.write_text(GENERATED_HEADER + yaml.safe_dump(doc, sort_keys=False, allow_unicode=True))
     try:
@@ -152,6 +155,12 @@ def create_profile(id: str, label: str, description: str, layers: dict[str, dict
     _scoring().reload()
     return {"profile": prof.id, "file": _rel(path),
             "weights": prof.public()["layers"], "masks": prof.masks, "has_model": prof.model is not None}
+
+
+def local_profiles_dir() -> Path:
+    from backend.layers import _common
+
+    return _common.LOCAL_DIR / "profiles"
 
 
 def _validate_profile(tmp: Path, pid: str, known: set[str]):

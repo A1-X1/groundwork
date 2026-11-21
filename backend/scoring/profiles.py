@@ -109,8 +109,12 @@ def load_profiles(known_layers: set[str], directory: Path = PROFILES_DIR) -> dic
     layers, so an unbuilt experiment never takes the whole API down."""
     import logging
 
+    from backend.layers import _common
+
+    local = _common.LOCAL_DIR / "profiles"
+    paths = sorted(directory.glob("*.yaml")) + (sorted(local.glob("*.yaml")) if local.exists() else [])
     profiles = {}
-    for path in sorted(directory.glob("*.yaml")):
+    for path in paths:  # local (agent-made, gitignored) profiles load after, and override, committed ones
         try:
             p = load_profile(path, known_layers)
         except ProfileError as exc:

@@ -13,6 +13,8 @@ Mistral powers every natural-language part of Groundwork: two agents that build 
 
 **Tools (function calling).** Both agents act only through validated Groundwork tools (`backend/agent/tools.py`): `get_catalog`, `search_data_sources`, `add_layer`, `build_layers`, `layer_stats`, `create_profile`, `design_3d_model`, `azure_status`, `train_model`, `preview_scores`, `ui_command` and `request_user_action`. Everything they create is **data, not code**: YAML layers from fixed templates, a validated profile, and a JSON 3D spec (≤ 5,000 triangles) that the frontend renders with three.js.
 
+**Where agent output goes.** New layers, profiles and 3D specs are saved to `data/local/` (gitignored), so they never clash with a teammate's `git pull`. To share one, run `python -m backend.agent.promote <profile_id>`, which moves the profile, its new layers and its 3D model into the repo, then commit.
+
 **Two ways to run them:**
 1. **In the app** (`POST /agent/run`, streamed as server-sent events): `backend/agent/runner.py` uses Mistral chat completions with tool calling. `context.agent = "aggregator"` switches agent.
 2. **As Mistral managed agents** (`backend/agent/managed/`, the `mistralai-agents` SDK, Python 3.12+). The Planner is the main `agents.Agent` and the Aggregator is its `agents.Subagent`; both reuse the same tools.

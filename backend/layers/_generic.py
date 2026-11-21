@@ -82,9 +82,22 @@ SOURCES = {
 }
 
 
+def local_dir() -> Path:
+    from . import _common
+
+    return _common.LOCAL_DIR / "layers"
+
+
 def load_specs(directory: Path | None = None) -> list[LayerSpec]:
-    directory = directory or GENERATED_DIR
-    return [LayerSpec.model_validate(yaml.safe_load(p.read_text())) for p in sorted(directory.glob("*.yaml"))]
+    """Committed specs (backend/layers/generated/) plus local agent-made ones (data/local/layers/);
+    a committed id wins over a local duplicate."""
+    dirs = [directory] if directory else [GENERATED_DIR, local_dir()]
+    seen: dict[str, LayerSpec] = {}
+    for d in dirs:
+        for p in sorted(d.glob("*.yaml")) if d.exists() else []:
+            spec = LayerSpec.model_validate(yaml.safe_load(p.read_text()))
+            seen.setdefault(spec.id, spec)
+    return list(seen.values())
 
 
 def module_for(spec: LayerSpec) -> SimpleNamespace:

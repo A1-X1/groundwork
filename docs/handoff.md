@@ -18,6 +18,7 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
+- [ ] 2026-11-21 (P1, user request): **Agent-made files now save to `data/local/` (gitignored)** so `git pull` never collides with buildings someone made in their own app (the user hit "untracked files would be overwritten" for `theme_park`). Profiles go to `data/local/profiles/`, layers to `data/local/layers/` and 3D specs to `data/local/models3d/`. All loaders read both the committed and the local folders, and local overrides committed. **Please change `/models3d` (list) to use `backend.agent.models3d.list_ids()`** instead of globbing `MODELS_DIR`, so local models show up; `/models3d/{id}` already works (`load()` checks both). To commit one: `python -m backend.agent.promote <profile_id>` moves it into the repo folders.
 _(empty: add items as `- [ ] YYYY-MM-DD: request`; everything earlier is answered under Done)_
 
 ## Done

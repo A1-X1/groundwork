@@ -21,6 +21,9 @@ def sandbox(tmp_path, monkeypatch):
     gen = tmp_path / "generated"
     gen.mkdir()
     monkeypatch.setattr(_generic, "GENERATED_DIR", gen)
+    from backend.layers import _common
+
+    monkeypatch.setattr(_common, "LOCAL_DIR", tmp_path / "local")
     monkeypatch.setattr(models3d, "MODELS_DIR", tmp_path / "models")
     prof = tmp_path / "profiles"
     prof.mkdir()
@@ -52,6 +55,7 @@ def test_add_layer_validates_and_registers(sandbox):
                                   "template": "osm_proximity", "params": {"selectors": ['nwr["power"="plant"]']}})
     assert ok["layer"] == "dist_power_plant"
     assert "dist_power_plant" in layers.LAYER_IDS
+    assert ok["file"].endswith("local/layers/dist_power_plant.yaml")  # agent output stays gitignored
 
 
 def test_add_layer_does_not_overwrite_human_layers(sandbox):
@@ -324,3 +328,21 @@ def test_go_to_rank_command_allowed():
     assert [c["command"] for c in q["ui"]] == ["SHOW_TOP_SITES", "GO_TO_RANK"]
     w = tools.call("ui_command", {"commands": [{"command": "GO_TO_RANK", "rank": 2, "order": "worst"}]})
     assert w["ui"][0]["order"] == "worst"
+
+
+def test_agent_output_is_local_and_promotable(sandbox):
+    tools.call("design_3d_model", {"spec": _nuclear_spec()})
+    ok = tools.call("create_profile", {
+        "id": "nuclear_power_plant", "label": "Nuclear power plant", "description": "Test.",
+        "layers": {"population_density": {"weight": 1, "better": "lower"}}})
+    assert "local/profiles" in ok["file"]
+    assert "nuclear_power_plant" in models3d.list_ids()
+    import backend.scoring as scoring
+
+    assert "nuclear_power_plant" in {p["id"] for p in scoring.list_profiles()}  # loaded from local
+    from backend.agent import promote
+
+    moves = promote.plan("nuclear_power_plant")
+    dsts = [str(d) for _, d in moves]
+    assert any(d.endswith("profiles/nuclear_power_plant.yaml") for d in dsts)
+    assert any(d.endswith("models/nuclear_power_plant.json") for d in dsts)
