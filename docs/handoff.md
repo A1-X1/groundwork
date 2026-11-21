@@ -12,6 +12,13 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
+- [ ] 2026-11-21 (P1, user request): **Space around the globe.** Replace the flat grey backdrop with **space**:
+  - A starfield: a points cloud or a cube/sphere map, with subtle twinkle and some Milky Way.
+  - The **Sun** as the light source (bloom-free glow sprite), so the globe's day/night side follows it.
+  - A visible **Moon**, and the **solar system** in the far background: the other planets as small lit spheres on rough orbits, to scale artistically, not physically.
+  - The camera can orbit out far enough to see them. Keep the atmosphere rim on Earth.
+  - Performance budget: stars as one `Points` draw, planets as low-poly spheres, no post-processing. Respect reduced motion (no twinkle).
+  - Free textures: NASA (public domain) or Solar System Scope (CC BY 4.0); credit them.
 - [ ] 2026-11-21 (P1, user request): **BUG: zooming out after zooming in no longer returns to the globe.** Once you've zoomed into the map, zooming back out stays on the flat map. Expected: past the globe threshold (e.g. zoom < ~3, or the whole region in view), hand back to the three.js globe with a smooth transition, every time, in both directions, and including after flying via commands. Probably the globe ↔ map hand-off is one-way, or a flag isn't reset on zoom-out.
 - [ ] 2026-11-21 (P1, user request): **Multi-region data is coming: only draw hexagons when zoomed in.** Regions: London (res 8), UK (res 7, 53k hexes), USA (res 6, 258k), Canada (res 5, 37k), Mexico (res 6, 47k). Please:
   1. Fetch `/score` and `/layers/{id}` **only with a `bbox`, and only above a zoom threshold** (suggest zoom ≥ 7 for UK/USA/Mexico, ≥ 6 for Canada, ≥ 9 for London's res-8 detail). Show no hexes on the globe or when zoomed far out.
