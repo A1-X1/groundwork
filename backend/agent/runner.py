@@ -80,7 +80,7 @@ def run(prompt: str, on_event: Callable[[Event], None] | None = None, history: l
                          "tool_calls": [{"id": c.id, "type": "function",
                                          "function": {"name": c.function.name, "arguments": _args_str(c)}}
                                         for c in calls] or None})
-        text = msg.content if isinstance(msg.content, str) else json.dumps(msg.content, default=str)
+        text = _text(msg.content)
         if text and calls:
             emit({"type": "thinking", "content": text, "message": text[:200]})
         if not calls:
@@ -102,6 +102,23 @@ def run(prompt: str, on_event: Callable[[Event], None] | None = None, history: l
             messages.append({"role": "tool", "name": c.function.name, "tool_call_id": c.id,
                              "content": _trim(result)})
     return finish("Stopped: step limit reached.", MAX_STEPS)
+
+
+def _text(content: Any) -> str:
+    """Plain answer text from a string or a list of content chunks (reasoning chunks dropped)."""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    texts, thoughts = [], []
+    for chunk in content:
+        kind = getattr(chunk, "type", None) or (chunk.get("type") if isinstance(chunk, dict) else None)
+        if kind == "text":
+            texts.append(getattr(chunk, "text", None) or chunk.get("text", ""))
+        elif kind == "thinking":
+            inner = getattr(chunk, "thinking", None) or (chunk.get("thinking") if isinstance(chunk, dict) else [])
+            thoughts.extend(getattr(t, "text", "") or (t.get("text", "") if isinstance(t, dict) else "") for t in inner)
+    return "\n".join(t for t in texts if t).strip() or "\n".join(thoughts).strip()
 
 
 def _args_dict(call: Any) -> dict[str, Any]:

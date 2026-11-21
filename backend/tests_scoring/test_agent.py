@@ -179,3 +179,22 @@ def test_runner_accepts_ui_context():
 def test_live_mistral_navigation():
     out = runner.run("Take me to London and show the best data centre sites")
     assert any(c["command"] in ("PAN_CITY", "SET_PROFILE", "SHOW_TOP_SITES") for c in out["ui"])
+
+
+def test_text_drops_reasoning_chunks():
+    chunks = [SimpleNamespace(type="thinking", thinking=[SimpleNamespace(text="plan…")]),
+              SimpleNamespace(type="text", text="Final answer.")]
+    assert runner._text(chunks) == "Final answer."
+    assert runner._text([{"type": "thinking", "thinking": [{"text": "only thoughts"}]}]) == "only thoughts"
+
+
+def test_generated_profile_with_unbuilt_layer_is_skipped(tmp_path):
+    from backend.scoring.profiles import ProfileError, load_profiles
+
+    (tmp_path / "ok.yaml").write_text("id: ok\nlabel: OK\ndescription: d\nlayers:\n  slope: {weight: 1, better: lower}\n")
+    (tmp_path / "gen.yaml").write_text(tools.GENERATED_HEADER + "id: gen\nlabel: G\ndescription: d\n"
+                                       "layers:\n  not_built: {weight: 1, better: lower}\n")
+    assert set(load_profiles({"slope"}, tmp_path)) == {"ok"}
+    (tmp_path / "bad.yaml").write_text("id: bad\nlabel: B\ndescription: d\nlayers:\n  nope: {weight: 1, better: lower}\n")
+    with pytest.raises(ProfileError):
+        load_profiles({"slope"}, tmp_path)
