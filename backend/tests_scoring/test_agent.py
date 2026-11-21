@@ -317,3 +317,8 @@ def test_find_address_validates_and_ui_accepts_pan_address():
     assert q["ui"][0]["command"] == "PAN_ADDRESS"
     ctx = runner._context_for_model({"place": "London", "selection": {"lat": 51.5, "lon": -0.12, "h3": "abc"}})
     assert ctx["selection"] == {"lat": 51.5, "lon": -0.12, "h3": "abc"}
+
+
+def test_go_to_rank_command_allowed():
+    q = tools.call("ui_command", {"commands": [{"command": "SHOW_TOP_SITES", "n": 5}, {"command": "GO_TO_RANK", "rank": 1}]})
+    assert [c["command"] for c in q["ui"]] == ["SHOW_TOP_SITES", "GO_TO_RANK"]

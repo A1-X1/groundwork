@@ -33,6 +33,7 @@ UI_COMMANDS = {
     # creation flow (usable from the home screen, before any map is open)
     "OPEN_CREATE", "CREATE_STRUCTURE", "OPEN_STRUCTURE", "SHOW_MODEL", "SHOW_PROGRESS", "GO_HOME",
     "PAN_ADDRESS",  # {address, lat, lon}: fly to an exact address and drop a pin
+    "GO_TO_RANK",   # {rank: 1–500 | "next" | "prev"}: fly to and select the n-th best hex in view
 }
 
 
