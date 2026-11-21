@@ -34,6 +34,8 @@ export interface Region {
   marker_resolution?: number | null;
   /** Parent region id for nested regions (london, uk_urban → uk); they have no marker cells. */
   nested_in?: string | null;
+  /** Dissolved GeoJSON Polygon/MultiPolygon of the region's land; null for nested regions. */
+  outline?: { type: string; coordinates: unknown } | null;
 }
 
 export interface LayerMeta {

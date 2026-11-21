@@ -23,6 +23,17 @@ The same engine serves different audiences, each with its own scoring profile. T
 - **Government and public bodies:** schools, hospitals and renewables (solar and wind farms), for siting public infrastructure.
 - **Custom:** describe any building ("a hydrogen refuelling station near motorways"). The Mistral agents find the data, build the profile and a 3D model, and score it.
 
+## Built with Mistral
+
+Mistral powers every natural-language part of Groundwork; scores themselves never come from an LLM. Full details are in [docs/mistral.md](docs/mistral.md).
+
+- **Agents:** the **Planner** turns "I want to build X" into a use case (data layers, profile, 3D model, Azure ML training). The **Data Aggregator** does the same without ML when Azure isn't connected. Both run in-app (`POST /agent/run`, `mistral-large-latest`) or as Mistral managed agents (`backend/agent/managed/`).
+- **Map commands:** `POST /assistant/command` turns typed or spoken requests into ordered map commands with `mistral-small-latest` (JSON mode). Without a key, a rule-based parser takes over.
+- **Suitability reviewer:** `POST /assistant/review` (`mistral-small-latest`, with offline rules as fallback) stops impossible requests ("a house in the ocean") before anything runs.
+- **Voxtral:** speech to text with `voxtral-mini-latest`, and spoken replies with `voxtral-mini-tts-latest` (voice Paul, with a tone picked per reply). With the mic on, each phrase is sent automatically when you pause.
+
+One `MISTRAL_API_KEY` in `.env` (or Connections → Mistral) enables all of it. The key stays on the server.
+
 ## Features
 
 - A three.js globe that turns to London and dives into its hex grid, in a dark, single-accent theme.
@@ -277,6 +288,9 @@ typecheck, lint and Vitest suite (which validates the fixture against the same s
 
 ## Troubleshooting
 
+- **macOS: "Library not loaded: libomp.dylib", or the app says "Can't reach the API":** LightGBM
+  needs OpenMP. Run `brew install libomp`, then restart `make dev`. (`make dev` does this for you
+  when Homebrew is installed.)
 - **GDAL / rasterio fails to install:** use Python 3.11–3.12, where wheels exist. On macOS
   `brew install gdal`, on Debian/Ubuntu `apt install gdal-bin libgdal-dev`. Only the data pipeline
   needs these; the API and app do not.

@@ -31,8 +31,6 @@ export function minZoomFor(resolution: number): number {
   return 9;
 }
 
-/** Views this small are fetched whatever the zoom (e.g. all of London's sample region). */
-export const SMALL_VIEW_CELLS = 6000;
 /** Never ask for more than this many cells in one request. */
 export const MAX_VIEW_CELLS = 40000;
 
@@ -91,8 +89,9 @@ export function viewFor(
   // Any region in view that's zoomed in enough is reason to fetch: the response mixes
   // resolutions (e.g. res-7 rural UK with res-8 towns), and the cell cap still applies.
   const zoomedIn = hits.some((r) => vp.zoom >= minZoomFor(r.resolution));
-  if (!(estimate <= SMALL_VIEW_CELLS || (zoomedIn && estimate <= MAX_VIEW_CELLS)))
-    return { view: null, reason: 'zoom_in' };
+  // Hexes only past the zoom threshold (user request): until then the region shows as one
+  // flat area, so coarse outlines and data hexes never overlap.
+  if (!(zoomedIn && estimate <= MAX_VIEW_CELLS)) return { view: null, reason: 'zoom_in' };
   if (prev?.bbox && contains(prev.bbox, vp.bbox) && area(prev.bbox) <= area(box) * 4)
     return { view: prev, reason: 'ok' };
   return { view: { key: box.join(','), bbox: box }, reason: 'ok' };
