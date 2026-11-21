@@ -1,0 +1,14 @@
+id: mine
+label: Mine
+description: >-
+  Process-water access, distance from residents, heavy-vehicle road access,
+  flat ground and a power connection, outside protected land. London is a demo
+  region: mineral-deposit and geology layers are future work, so this ranks
+  sites on operability alone, not on what is in the ground.
+layers:
+  population_density:    {weight: 0.25, better: lower}
+  dist_water_body:       {weight: 0.25, better: lower}
+  dist_major_road:       {weight: 0.20, better: lower}
+  slope:                 {weight: 0.15, better: lower}
+  dist_hv_line:          {weight: 0.15, better: lower}
+masks: [protected_land, flood_zone_3]

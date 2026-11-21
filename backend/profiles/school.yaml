@@ -1,0 +1,17 @@
+id: school
+label: School
+description: >-
+  Where children live but provision is thin, with clean air, safe streets,
+  away from major roads and close to public transport and green space.
+layers:
+  population_density:    {weight: 0.15, better: higher}
+  air_quality_no2:       {weight: 0.15, better: lower}
+  dist_primary_school:   {weight: 0.12, better: higher}
+  dist_major_road:       {weight: 0.10, better: higher}
+  dist_station:          {weight: 0.10, better: lower}
+  green_space_access:    {weight: 0.10, better: lower}
+  crime_rate:            {weight: 0.10, better: lower}
+  deprivation_index:     {weight: 0.08, better: higher}
+  air_quality_pm25:      {weight: 0.05, better: lower}
+  flood_risk:            {weight: 0.05, better: lower}
+masks: [flood_zone_3, protected_land]
