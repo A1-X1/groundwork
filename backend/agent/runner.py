@@ -42,6 +42,16 @@ def _trim(result: dict[str, Any], limit: int = 12000) -> str:
     return text if len(text) <= limit else text[:limit] + '…"(truncated)"'
 
 
+# Phases shown in the UI, in order, with typical seconds (used for the time estimate).
+PHASES = [("understand", "Understanding the request", 4), ("data", "Choosing data", 6),
+          ("build", "Building data", 45), ("profile", "Creating the scoring profile", 5),
+          ("model3d", "Designing the 3D model", 8), ("train", "Training / checking Azure", 15),
+          ("verify", "Checking the best sites", 6), ("map", "Updating the map", 2)]
+TOOL_PHASE = {"get_catalog": "understand", "search_data_sources": "data", "add_layer": "data", "layer_stats": "data",
+              "build_layers": "build", "create_profile": "profile", "design_3d_model": "model3d",
+              "azure_status": "train", "train_model": "train", "request_user_action": "train",
+              "preview_scores": "verify", "ui_command": "map"}
+
 STEP_LABELS = {
     "get_catalog": "Reading Groundwork's layers and profiles", "search_data_sources": "Searching free data sources",
     "add_layer": "Adding a data layer", "build_layers": "Downloading and building layers",
@@ -56,7 +66,6 @@ def run(prompt: str, on_event: Callable[[Event], None] | None = None, history: l
         model: str = DEFAULT_MODEL, client: Any = None, context: dict[str, Any] | None = None,
         return_messages: bool = False) -> dict[str, Any]:
     """Run the agent to completion. Returns {content, steps, ui, actions} (+ messages if asked)."""
-    emit = on_event or (lambda e: None)
     client = client or _client()
     agent = str((context or {}).get("agent") or "planner")
     if agent not in AGENTS:
@@ -69,8 +78,38 @@ def run(prompt: str, on_event: Callable[[Event], None] | None = None, history: l
                          + json.dumps(context, default=str)[:2000]})
     messages += [*(history or []), {"role": "user", "content": prompt}]
 
+    import time
+
+    started = time.monotonic()
+    phase_ids = [p[0] for p in PHASES]
+    state: dict[str, Any] = {"phase": 0, "since": started, "build": None}
+
+    def timing(phase_id: str | None = None, done: int | None = None, total: int | None = None) -> dict[str, Any]:
+        now = time.monotonic()
+        if phase_id in phase_ids and phase_ids.index(phase_id) > state["phase"]:
+            state["phase"], state["since"] = phase_ids.index(phase_id), now
+        i = state["phase"]
+        elapsed = now - started
+        in_phase = now - state["since"]
+        typical = PHASES[i][2]
+        if done is not None and total:  # data builds: extrapolate from layers finished so far
+            current = (in_phase / done) * (total - done) if done else typical
+        else:
+            current = max(typical - in_phase, 3)  # counts down; never claims 0 while working
+        remaining = current + sum(p[2] for p in PHASES[i + 1:])
+        return {"phase": PHASES[i][0], "phase_label": PHASES[i][1], "phase_index": i + 1,
+                "phase_total": len(PHASES), "elapsed_s": round(elapsed, 1),
+                "eta_s": round(remaining), "percent": round(100 * i / len(PHASES))}
+
+    def emit(e: Event) -> None:  # every event carries elapsed time, phase and an estimate
+        base(e | timing(TOOL_PHASE.get(e.get("name", "")) or e.get("phase"), e.get("done"), e.get("total")))
+
+    base = on_event or (lambda e: None)
+    tools.set_progress(lambda e: emit({**e, "message": e.get("detail", "")}))
+
     def finish(content: str, steps: int) -> dict[str, Any]:
-        emit({"type": "answer", "content": content, "steps": steps, "message": content[:200]})
+        emit({"type": "answer", "content": content, "steps": steps, "message": content[:200], "phase": "map"})
+        tools.set_progress(None)
         out = {"content": content, "steps": steps, "ui": ui, "actions": actions, "agent": agent}
         if return_messages:
             out["messages"] = messages
@@ -95,7 +134,7 @@ def run(prompt: str, on_event: Callable[[Event], None] | None = None, history: l
         for c in calls:
             name, args = c.function.name, _args_dict(c)
             label = STEP_LABELS.get(name, name)
-            emit({"type": "tool_call", "name": name, "args": args, "message": f"{label}…"})
+            emit({"type": "tool_call", "name": name, "args": args, "message": f"{label}…", "detail": _detail(name, args)})
             result = tools.call(name, args) if name in allowed else {"error": f"{name} is not available to the {agent} agent"}
             emit({"type": "tool_result", "name": name, "result": result,
                   "message": f"{label}: {'error' if 'error' in result else 'done'}"})
@@ -109,6 +148,31 @@ def run(prompt: str, on_event: Callable[[Event], None] | None = None, history: l
             messages.append({"role": "tool", "name": c.function.name, "tool_call_id": c.id,
                              "content": _trim(result)})
     return finish("Stopped: step limit reached.", MAX_STEPS)
+
+
+def _detail(name: str, args: dict[str, Any]) -> str:
+    """A specific one-line description of what a tool call is doing, for the progress card."""
+    if name == "add_layer":
+        return f"Adding data: {args.get('label') or args.get('id')} ({args.get('template', '')})"
+    if name == "build_layers":
+        ids = args.get("layer_ids") or []
+        return f"Building {len(ids)} layer(s) for {args.get('region', 'london')}: {', '.join(ids)[:120]}"
+    if name == "search_data_sources":
+        return f"Searching free sources for “{str(args.get('query', ''))[:80]}”"
+    if name == "layer_stats":
+        return f"Comparing local ranges of {len(args.get('layer_ids') or [])} layer(s)"
+    if name == "create_profile":
+        return f"Writing profile “{args.get('label', args.get('id', ''))}” with {len(args.get('layers') or {})} criteria"
+    if name == "design_3d_model":
+        spec = args.get("spec") or {}
+        return f"Designing a 3D {spec.get('label', 'model')} from {len(spec.get('parts') or [])} parts"
+    if name == "train_model":
+        return f"Training the feasibility model ({args.get('backend', 'auto')})"
+    if name == "preview_scores":
+        return "Scoring every hexagon and picking the best sites"
+    if name == "ui_command":
+        return "Map: " + " → ".join(c.get("command", "") for c in (args.get("commands") or []))[:120]
+    return STEP_LABELS.get(name, name)
 
 
 def _text(content: Any) -> str:

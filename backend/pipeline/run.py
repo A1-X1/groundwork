@@ -115,7 +115,8 @@ def run_layer(layer_id: str, grid: pd.DataFrame,
 
 
 def run(layer_ids: list[str] | None = None, out: Path | None = None, offline: bool = False,
-        region: str = "london") -> pd.DataFrame:
+        region: str = "london", progress: Any = None) -> pd.DataFrame:
+    """``progress(done, total, layer_id, status)`` is called after each layer is built."""
     if offline:
         os.environ["GROUNDWORK_OFFLINE"] = "1"
     out = out or region_dir(region)
@@ -129,6 +130,8 @@ def run(layer_ids: list[str] | None = None, out: Path | None = None, offline: bo
     if unknown:
         raise SystemExit(f"unknown layers: {sorted(unknown)}")
 
+    todo = [lid for lid in layers.LAYER_IDS if lid in selected]
+    done = 0
     previous = _read_previous(out)
     statuses: dict[str, Any] = previous.get("layers", {}) if layer_ids else {}
     for layer_id in layers.LAYER_IDS:  # dependency order
@@ -140,6 +143,9 @@ def run(layer_ids: list[str] | None = None, out: Path | None = None, offline: bo
             continue
         grid[col], statuses[layer_id] = (run_layer_national(layer_id, grid, statuses) if national
                                          else run_layer(layer_id, grid, statuses))
+        if progress and layer_id in selected:
+            done += 1
+            progress(done, len(todo), layer_id, statuses[layer_id])
 
     return _write(grid, statuses, out)
 
