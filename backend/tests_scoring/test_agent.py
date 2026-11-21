@@ -115,7 +115,7 @@ def test_train_model_runs_azure_job_script_locally(sandbox):
     from backend.scoring import ml
     from backend.scoring.profiles import load_profiles
 
-    grid = _data.load(_data.SAMPLE_DIR)
+    grid = _data.load(_data.LONDON_SAMPLE)
     loaded = ml.load_saved(grid, load_profiles(set(grid.layer_ids))["data_centre"], grid.directory / "models")
     assert loaded is not None and loaded.features == meta["features"]
 

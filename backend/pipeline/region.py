@@ -1,12 +1,20 @@
-"""Region definitions. Only Greater London for now; see README "Future plans"."""
+"""Region definitions (regions.yaml): city outlines and Natural Earth countries."""
 
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
+from typing import Any
+
+import yaml
 
 from backend.layers._common import RAW_DIR
+
+REGIONS_FILE = Path(__file__).parent / "regions.yaml"
+NATURAL_EARTH = RAW_DIR / "naturalearth" / "ne_10m_admin_0_countries.zip"
+NATURAL_EARTH_URL = "https://naciscdn.org/naturalearth/10m/cultural/ne_10m_admin_0_countries.zip"
 
 # Simplified Greater London boundary (lon, lat), clockwise from the Colne Valley. Edges are
 # within ~1-2 km of the real boundary and the area is ~10% larger (1,755 vs 1,572 km²).
@@ -30,19 +38,70 @@ class Region:
     id: str
     label: str
     resolution: int
-    outline: list[tuple[float, float]]  # (lon, lat) exterior ring
+    geometry: dict[str, Any] = field(hash=False)  # GeoJSON Polygon/MultiPolygon (lon, lat)
     source: str
+    country: str = "GBR"
+    kind: str = "city"
+    order: int = 0
+
+    @property
+    def outline(self) -> list[tuple[float, float]]:
+        """Exterior ring of the largest polygon (kept for older callers)."""
+        polys = self.geometry["coordinates"] if self.geometry["type"] == "MultiPolygon" else [self.geometry["coordinates"]]
+        return [tuple(p) for p in max(polys, key=lambda poly: len(poly[0]))[0]]
+
+
+def definitions() -> list[dict[str, Any]]:
+    return sorted(yaml.safe_load(REGIONS_FILE.read_text()), key=lambda r: r.get("order", 99))
+
+
+def region_ids() -> list[str]:
+    return [r["id"] for r in definitions()]
+
+
+@lru_cache(maxsize=16)
+def get(region_id: str = "london") -> Region:
+    spec = next((r for r in definitions() if r["id"] == region_id), None)
+    if spec is None:
+        raise KeyError(f"unknown region {region_id!r}; known: {region_ids()}")
+    if spec["boundary"] == "london":
+        geom, source = _london_geometry()
+    else:
+        geom, source = _country_geometry(spec["boundary"]), f"Natural Earth 10m admin-0 ({spec['boundary']})"
+    return Region(spec["id"], spec["name"], int(spec["resolution"]), geom, source,
+                  spec.get("country", "GBR"), spec.get("kind", "national"), int(spec.get("order", 0)))
 
 
 def london(resolution: int = 8) -> Region:
+    r = get("london")
+    return r if r.resolution == resolution else Region(r.id, r.label, resolution, r.geometry, r.source, r.country, r.kind)
+
+
+def _london_geometry() -> tuple[dict[str, Any], str]:
     path = RAW_DIR / "london_boundary.geojson"
     if path.exists():
-        with path.open() as fh:
-            gj = json.load(fh)
+        gj = json.loads(path.read_text())
         geom = gj["features"][0]["geometry"] if "features" in gj else gj
-        coords = geom["coordinates"]
-        if geom["type"] == "MultiPolygon":  # take the largest part
-            coords = max(coords, key=lambda poly: len(poly[0]))
-        ring = [(float(x), float(y)) for x, y in coords[0]]
-        return Region("london", "Greater London", resolution, ring, f"boundary file {Path(path).name}")
-    return Region("london", "Greater London", resolution, LONDON_OUTLINE, "simplified built-in outline")
+        return geom, f"boundary file {path.name}"
+    return {"type": "Polygon", "coordinates": [[list(p) for p in LONDON_OUTLINE]]}, "simplified built-in outline"
+
+
+def _country_geometry(adm0_a3: str) -> dict[str, Any]:
+    if not NATURAL_EARTH.exists():
+        from backend.layers._common import is_offline
+
+        if is_offline():
+            raise FileNotFoundError(f"offline and no {NATURAL_EARTH}")
+        import requests
+
+        NATURAL_EARTH.parent.mkdir(parents=True, exist_ok=True)
+        NATURAL_EARTH.write_bytes(requests.get(NATURAL_EARTH_URL, timeout=120).content)
+    import shapefile
+
+    reader = shapefile.Reader(str(NATURAL_EARTH))
+    names = [f[0] for f in reader.fields[1:]]
+    idx = names.index("ADM0_A3")
+    for sr in reader.iterShapeRecords():
+        if sr.record[idx] == adm0_a3:
+            return sr.shape.__geo_interface__
+    raise KeyError(f"country {adm0_a3!r} not in Natural Earth")

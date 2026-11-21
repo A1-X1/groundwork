@@ -1,9 +1,16 @@
-"""Run all (or some) layers over the grid and write grid.parquet + layers.json.
+"""Run all (or some) layers over a region's grid and write grid.parquet + layers.json.
 
-    python -m backend.pipeline.run                    # everything, real sources where possible
+    python -m backend.pipeline.run                          # London detail grid
+    python -m backend.pipeline.run --region uk              # UK (res 7) from global sources
+    python -m backend.pipeline.run --region all             # every region in regions.yaml, in order
     python -m backend.pipeline.run --layers crime_rate,dist_station
-    python -m backend.pipeline.run --offline          # synthetic for anything not cached
-    python -m backend.pipeline.run --offline --out data/sample   # regenerate the demo sample
+    python -m backend.pipeline.run --offline                # never download
+    python -m backend.pipeline.run --region uk --prune-raw  # delete raw downloads afterwards
+
+Output: data/processed/regions/<region>/ (or --out). London may use synthetic London-shaped
+fallbacks; national regions use real global sources or mark a layer *unavailable*
+(neutral 0.5, raw = null). Normalised values are stored as uint8 (0–255) and raw values
+as float32, zstd-compressed, so even the USA grid stays in the tens of megabytes.
 """
 
 from __future__ import annotations
@@ -21,14 +28,52 @@ import numpy as np
 import pandas as pd
 
 from backend import layers
-from backend.layers._common import REPO_ROOT, OfflineError, SourceUnavailable
+from backend.layers import _global
+from backend.layers._common import RAW_DIR, REPO_ROOT, OfflineError, SourceUnavailable, set_region
 from backend.layers._geo import fill_gaps
 
 from .build_grid import build_grid
 from .normalise import normalise
 
 log = logging.getLogger("groundwork.pipeline")
-DEFAULT_OUT = REPO_ROOT / "data" / "processed"
+PROCESSED = REPO_ROOT / "data" / "processed"
+DEFAULT_OUT = PROCESSED  # base; each region writes to <base>/regions/<id>/
+
+
+def region_dir(region: str, base: Path = PROCESSED) -> Path:
+    return base / "regions" / region
+
+
+def run_layer_national(layer_id: str, grid: pd.DataFrame,
+                       statuses: dict[str, Any]) -> tuple[pd.Series, dict[str, Any]]:
+    """National regions: a real global source, a derivation, a region-aware template, or unavailable."""
+    mod = layers.load(layer_id)
+    started = time.perf_counter()
+    try:
+        if layer_id in _global.SOURCES:
+            raw = _global.compute(layer_id, grid)
+            status: dict[str, Any] = {"status": "real", "source": _global.SOURCES[layer_id][1]}
+        elif mod.META.derived and all(statuses.get(d, {}).get("status") == "real" for d in mod.META.depends_on):
+            raw = mod.to_hex(mod.fetch(), grid)
+            status = {"status": "real"}
+        elif getattr(mod.META, "source", "").startswith(("USGS", "OpenStreetMap")) and not mod.META.is_mask:
+            raw = mod.to_hex(mod.fetch(), grid)  # region-aware templates (USGS, OSM ≤ MAX_TILES)
+            status = {"status": "real"}
+        else:
+            raise SourceUnavailable(f"no global source for {layer_id} (available in London only)")
+        if raw.isna().all():
+            raise RuntimeError("source produced no values")
+        nan_share = float(raw.isna().mean())
+        values = fill_gaps(grid, raw) if nan_share < 0.5 else raw
+        if nan_share:
+            status["gap_filled_share"] = round(nan_share, 4)
+    except Exception as exc:  # noqa: BLE001 — never fabricate outside London
+        reason = str(exc).replace(str(REPO_ROOT) + os.sep, "")[:300]
+        status = {"status": "unavailable", "reason": reason}
+        values = pd.Series(np.nan, index=grid.index)
+    status["seconds"] = round(time.perf_counter() - started, 2)
+    log.info("%-24s %-11s %6.1fs", layer_id, status["status"], status["seconds"])
+    return values, status
 
 
 def run_layer(layer_id: str, grid: pd.DataFrame,
@@ -69,11 +114,16 @@ def run_layer(layer_id: str, grid: pd.DataFrame,
     return values, status
 
 
-def run(layer_ids: list[str] | None = None, out: Path = DEFAULT_OUT, offline: bool = False) -> pd.DataFrame:
+def run(layer_ids: list[str] | None = None, out: Path | None = None, offline: bool = False,
+        region: str = "london") -> pd.DataFrame:
     if offline:
         os.environ["GROUNDWORK_OFFLINE"] = "1"
+    out = out or region_dir(region)
     out.mkdir(parents=True, exist_ok=True)
-    grid = build_grid().copy()
+    grid = build_grid(region_id=region).copy()
+    set_region(grid.attrs)
+    national = grid.attrs.get("kind") == "national"
+    log.info("region %s: %d cells at res %d", region, len(grid), grid.attrs["resolution"])
     selected = set(layer_ids or layers.LAYER_IDS)
     unknown = selected - set(layers.LAYER_IDS)
     if unknown:
@@ -88,7 +138,8 @@ def run(layer_ids: list[str] | None = None, out: Path = DEFAULT_OUT, offline: bo
             continue
         if layer_id not in selected and not _needed_by(layer_id, selected):
             continue
-        grid[col], statuses[layer_id] = run_layer(layer_id, grid, statuses)
+        grid[col], statuses[layer_id] = (run_layer_national(layer_id, grid, statuses) if national
+                                         else run_layer(layer_id, grid, statuses))
 
     return _write(grid, statuses, out)
 
@@ -115,27 +166,38 @@ def _write(grid: pd.DataFrame, statuses: dict[str, Any], out: Path) -> pd.DataFr
             continue
         m = layers.load(layer_id).META
         raw = grid[col].astype(float)
-        table[layer_id] = normalise(raw, m.normalise).round(6)
-        meta.append({**m.public(), "min": float(raw.min()), "max": float(raw.max())})
+        norm = normalise(raw, m.normalise).fillna(0.5)  # unavailable → neutral
+        table[layer_id] = np.round(norm.to_numpy() * 255).astype("uint8")  # 1 byte per value
+        ok = raw.notna().any()
+        meta.append({**m.public(), "min": float(raw.min()) if ok else None, "max": float(raw.max()) if ok else None})
     for layer_id in layers.LAYER_IDS:
         col = f"raw_{layer_id}"
         if col in grid:
-            table[col] = grid[col].astype(float).round(4)
+            table[col] = grid[col].astype("float32")
     table = table.reset_index().rename(columns={"index": "h3"})
-    table.to_parquet(out / "grid.parquet", index=False, compression="zstd")
+    table.to_parquet(out / "grid.parquet", index=False, compression="zstd", compression_level=9)
     (out / "layers.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False) + "\n")
     build = {
         "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "region": grid.attrs.get("region", "london"),
         "resolution": grid.attrs.get("resolution", 8),
         "boundary": grid.attrs.get("boundary"),
+        "label": grid.attrs.get("label"),
+        "kind": grid.attrs.get("kind", "city"),
+        "country": grid.attrs.get("country"),
+        "bbox": [round(v, 4) for v in grid.attrs.get("bbox", ())],
+        "normalised_dtype": "uint8",
         "cells": len(table),
         "layers": {k: statuses[k] for k in layers.LAYER_IDS if k in statuses},
     }
     (out / "build.json").write_text(json.dumps(build, indent=2, ensure_ascii=False) + "\n")
     real = sorted(k for k, v in build["layers"].items() if v["status"] == "real")
     synth = sorted(k for k, v in build["layers"].items() if v["status"] == "synthetic")
-    log.info("wrote %s (%d cells, %d layers)", out / "grid.parquet", len(table), len(meta))
+    unav = sorted(k for k, v in build["layers"].items() if v["status"] == "unavailable")
+    size = (out / "grid.parquet").stat().st_size / 1e6
+    log.info("wrote %s (%d cells, %d layers, %.1f MB)", out / "grid.parquet", len(table), len(meta), size)
+    if unav:
+        log.info("UNAVAILABLE (%d): %s", len(unav), ", ".join(unav))
     log.info("REAL (%d): %s", len(real), ", ".join(real) or "-")
     log.info("SYNTHETIC (%d): %s", len(synth), ", ".join(synth) or "-")
     return table
@@ -146,14 +208,27 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--layers", help="comma-separated layer ids to (re)build; others are kept")
     ap.add_argument("--offline", action="store_true", help="never download; synthetic where not cached")
     ap.add_argument("--refresh", action="store_true", help="re-download every cached source now")
-    ap.add_argument("--out", type=Path, default=DEFAULT_OUT, help="output directory (default data/processed)")
+    ap.add_argument("--region", default="london", help="region id from regions.yaml, or 'all'")
+    ap.add_argument("--out", type=Path, default=None, help="output directory (default data/processed/regions/<id>)")
+    ap.add_argument("--prune-raw", action="store_true", help="delete data/raw downloads after building")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
     if args.refresh:
         os.environ["GROUNDWORK_REFRESH"] = "1"
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format="%(asctime)s %(levelname)-7s %(message)s", datefmt="%H:%M:%S")
-    run([s.strip() for s in args.layers.split(",")] if args.layers else None, args.out, args.offline)
+    from .region import region_ids
+
+    regions = region_ids() if args.region == "all" else [args.region]
+    for rid in regions:
+        run([s.strip() for s in args.layers.split(",")] if args.layers else None,
+            args.out if len(regions) == 1 else None, args.offline, rid)
+    if args.prune_raw:
+        import shutil
+
+        mb = _global.raw_dir_size_mb()
+        shutil.rmtree(RAW_DIR, ignore_errors=True)
+        log.info("pruned %.0f MB of raw downloads from %s", mb, RAW_DIR)
 
 
 if __name__ == "__main__":

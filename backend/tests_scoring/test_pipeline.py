@@ -36,5 +36,5 @@ def test_offline_build_is_deterministic(tmp_path, monkeypatch):
     pd.testing.assert_frame_equal(a, b)
     assert set(layers.LAYER_IDS) <= set(a.columns)
     for lid in layers.LAYER_IDS:
-        assert a[lid].between(0, 1).all(), lid
+        assert a[lid].dtype == "uint8", lid  # normalised 0–1 stored as 0–255
         assert a[f"raw_{lid}"].notna().all(), lid

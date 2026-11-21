@@ -1,0 +1,9 @@
+# Regions Groundwork builds, finest first where they overlap (London sits inside the UK).
+# resolution: H3 level. ~res 8 = 0.7 km², 7 = 5 km², 6 = 36 km², 5 = 250 km².
+# boundary: "london" (built-in outline or data/raw/london_boundary.geojson) or a
+# Natural Earth ADM0_A3 country code. order = build priority (UK → USA → rest of N. America → …).
+- {id: london, name: Greater London, country: GBR, resolution: 8, boundary: london, kind: city, order: 0}
+- {id: uk, name: United Kingdom, country: GBR, resolution: 7, boundary: GBR, kind: national, order: 1}
+- {id: usa, name: United States, country: USA, resolution: 6, boundary: USA, kind: national, order: 2}
+- {id: canada, name: Canada, country: CAN, resolution: 5, boundary: CAN, kind: national, order: 3}
+- {id: mexico, name: Mexico, country: MEX, resolution: 6, boundary: MEX, kind: national, order: 4}

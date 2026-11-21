@@ -68,6 +68,7 @@ def get_catalog() -> dict[str, Any]:
         "data_note": "Layers marked [SYNTHETIC] are placeholders (source unreachable in this build); all others are real.",
         "profiles": [{"id": p["id"], "label": p["label"], "has_model": p["has_model"]} for p in s.list_profiles()],
         "default_profiles": s.default_profiles(),
+        "regions": [{k: r[k] for k in ("id", "name", "resolution", "cells")} for r in s.list_regions()],
         "mask_layers": [m["id"] for m in s.list_layers() if m["id"] in ("flood_zone_3", "protected_land")],
         "positives_sources": ["osm:<key>=<value>[;<key>=<value>]", "osm:telecom=data_center",
                               "osm:landuse=residential", "gias:schools"],
@@ -158,26 +159,33 @@ def design_3d_model(spec: dict[str, Any]) -> dict[str, Any]:
     return {"model": model.id, "file": _rel(path), "triangles": model.triangles()}
 
 
-def build_layers(layer_ids: list[str]) -> dict[str, Any]:
-    """Compute layers into data/processed (seeded from the sample if empty)."""
-    from backend.pipeline.run import run
+def build_layers(layer_ids: list[str], region: str = "london") -> dict[str, Any]:
+    """Compute layers for ONE region only (the one the user is working in), into
+    data/processed/regions/<region>/, seeded from the sample grid if not built yet.
+    Other regions are untouched, so a one-off building never triggers national downloads."""
+    from backend.pipeline.region import region_ids
+    from backend.pipeline.run import region_dir, run
     from backend.scoring import data as _data
 
     _layers.refresh()
     unknown = [i for i in layer_ids if i not in _layers.LAYER_IDS]
     if unknown:
         raise ToolError(f"unknown layers {unknown}; add them with add_layer first")
-    processed = _data.PROCESSED_DIR
-    if not (processed / "grid.parquet").exists():
-        processed.mkdir(parents=True, exist_ok=True)
+    if region not in region_ids():
+        raise ToolError(f"unknown region {region!r}; known: {region_ids()}")
+    out = region_dir(region, _data.PROCESSED_DIR)
+    if not (out / "grid.parquet").exists():
+        src = _data.region_dirs().get(region)
+        if src is None:
+            raise ToolError(f"region {region!r} has no grid yet; build it with `make data REGION={region}`")
+        out.mkdir(parents=True, exist_ok=True)
         for name in ("grid.parquet", "layers.json", "build.json"):
-            src = _data.data_dir() / name
-            if src.exists():
-                shutil.copy(src, processed / name)
-    run(layer_ids, out=processed)
+            if (src / name).exists():
+                shutil.copy(src / name, out / name)
+    run(layer_ids, out=out, region=region)
     _scoring().reload()
-    build = json.loads((processed / "build.json").read_text())["layers"]
-    return {"built": {i: build.get(i, {}).get("status") for i in layer_ids},
+    build = json.loads((out / "build.json").read_text())["layers"]
+    return {"region": region, "built": {i: build.get(i, {}).get("status") for i in layer_ids},
             "reasons": {i: build[i].get("reason") for i in layer_ids if build.get(i, {}).get("reason")}}
 
 
@@ -293,8 +301,11 @@ SCHEMAS: list[dict[str, Any]] = [
                    "radius_km}"},
         "is_mask": {"type": "boolean", "description": "true only for 0/1 hard-exclusion layers"},
     }, ["id", "label", "unit", "kind", "description", "template", "params"]),
-    _fn("build_layers", "Download and compute layers over the region grid. Returns real/synthetic status per layer.",
-        {"layer_ids": {"type": "array", "items": {"type": "string"}}}, ["layer_ids"]),
+    _fn("build_layers", "Download and compute layers for ONE region only (the region the user is working in; "
+        "default london). Returns real/synthetic/unavailable status per layer.",
+        {"layer_ids": {"type": "array", "items": {"type": "string"}},
+         "region": {"type": "string", "description": "region id from get_catalog.regions (e.g. london, uk, usa)"}},
+        ["layer_ids"]),
     _fn("create_profile", "Create the use-case profile (weights auto-normalise; masks are hard exclusions).", {
         "id": {"type": "string"}, "label": {"type": "string"}, "description": {"type": "string"},
         "layers": _LAYER_WEIGHTS,

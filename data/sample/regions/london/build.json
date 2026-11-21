@@ -1,21 +1,31 @@
 {
-  "generated_at": "2026-11-21T12:01:46Z",
+  "generated_at": "2026-11-21T12:49:36Z",
   "region": "london",
   "resolution": 8,
   "boundary": "simplified built-in outline",
+  "label": "Greater London",
+  "kind": "city",
+  "country": "GBR",
+  "bbox": [
+    -0.5112,
+    51.287,
+    0.3341,
+    51.6966
+  ],
+  "normalised_dtype": "uint8",
   "cells": 2654,
   "layers": {
     "elevation": {
       "status": "real",
-      "seconds": 0.0
+      "seconds": 0.01
     },
     "slope": {
       "status": "real",
-      "seconds": 0.1
+      "seconds": 0.08
     },
     "mean_temp_annual": {
       "status": "real",
-      "seconds": 0.25
+      "seconds": 0.33
     },
     "summer_max_temp": {
       "status": "real",
@@ -43,15 +53,15 @@
     },
     "wind_speed_100m": {
       "status": "real",
-      "seconds": 0.14
+      "seconds": 0.11
     },
     "wind_power_density": {
       "status": "real",
-      "seconds": 0.01
+      "seconds": 0.0
     },
     "precipitation_annual": {
       "status": "real",
-      "seconds": 0.15
+      "seconds": 0.17
     },
     "soil_moisture_mean": {
       "status": "real",
@@ -67,7 +77,7 @@
     },
     "population_density": {
       "status": "real",
-      "seconds": 4.11
+      "seconds": 4.45
     },
     "land_use_residential": {
       "status": "synthetic",
@@ -76,7 +86,7 @@
     },
     "crime_rate": {
       "status": "real",
-      "seconds": 0.33
+      "seconds": 0.22
     },
     "deprivation_index": {
       "status": "synthetic",
@@ -86,19 +96,19 @@
     "median_house_price": {
       "status": "synthetic",
       "reason": "Save Price Paid CSVs (no header, e.g. pp-2025.csv) in data/raw/landreg/ and a postcode lookup with columns pcds,lat,long (from the ONS Postcode Directory) as data/raw/onspd/postcodes.csv",
-      "seconds": 0.02
+      "seconds": 0.01
     },
     "flood_risk": {
       "status": "real",
-      "seconds": 370.15
+      "seconds": 13.59
     },
     "flood_zone_3": {
       "status": "real",
-      "seconds": 9.89
+      "seconds": 11.35
     },
     "air_quality_no2": {
       "status": "real",
-      "seconds": 6.18
+      "seconds": 0.17
     },
     "air_quality_pm25": {
       "status": "real",
@@ -106,12 +116,12 @@
     },
     "grid_carbon_intensity": {
       "status": "real",
-      "seconds": 2.14
+      "seconds": 0.0
     },
     "dist_station": {
       "status": "synthetic",
       "reason": "offline and no cache at data/raw/osm/stations/0_1.json",
-      "seconds": 0.05
+      "seconds": 0.16
     },
     "dist_substation": {
       "status": "synthetic",
@@ -121,7 +131,7 @@
     "dist_hv_line": {
       "status": "synthetic",
       "reason": "offline and no cache at data/raw/osm/hv_lines/0_0.json",
-      "seconds": 0.01
+      "seconds": 0.0
     },
     "dist_fibre_ix": {
       "status": "real",
@@ -140,7 +150,7 @@
     "dist_major_road": {
       "status": "synthetic",
       "reason": "offline and no cache at data/raw/osm/major_roads/0_0.json",
-      "seconds": 0.03
+      "seconds": 0.02
     },
     "dist_primary_school": {
       "status": "synthetic",
@@ -155,18 +165,15 @@
     "school_quality_nearby": {
       "status": "synthetic",
       "reason": "offline and no cache at data/raw/osm/schools/0_0.json",
-      "seconds": 0.02
+      "seconds": 0.01
     },
     "protected_land": {
       "status": "real",
-      "uses_synthetic": [
-        "population_density"
-      ],
-      "seconds": 208.13
+      "seconds": 1.12
     },
     "cloud_cover_mean": {
       "status": "real",
-      "seconds": 0.07
+      "seconds": 0.09
     },
     "dist_airport": {
       "status": "synthetic",
@@ -183,7 +190,7 @@
     },
     "wind_gust_max": {
       "status": "real",
-      "seconds": 0.07
+      "seconds": 0.1
     }
   }
 }

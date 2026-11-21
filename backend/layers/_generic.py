@@ -146,9 +146,9 @@ def _usgs(spec: LayerSpec):
     radius = float(spec.params.get("radius_km", 100))
 
     def fetch() -> list[list[float]]:
-        from ._osm import BBOX
+        from ._common import REGION
 
-        s, w, n, e = BBOX
+        w, s, e, n = REGION["bbox"]
         pad = radius / 111.0 + 0.5
         start = f"{datetime.now(UTC).year - years}-01-01"
 
@@ -160,7 +160,10 @@ def _usgs(spec: LayerSpec):
             return [[f["geometry"]["coordinates"][0], f["geometry"]["coordinates"][1], f["properties"]["mag"] or mag]
                     for f in res["features"]]
 
-        return cached_json(f"usgs/eq_m{mag}_{years}y_{radius:.0f}km.json", produce, MONTHLY)
+        rid = REGION.get("id", "london")
+        name = f"usgs/eq_m{mag}_{years}y_{radius:.0f}km.json" if rid == "london" else \
+            f"usgs/{rid}/eq_m{mag}_{years}y_{radius:.0f}km.json"
+        return cached_json(name, produce, MONTHLY)
 
     def to_hex(raw: list[list[float]], grid: pd.DataFrame) -> pd.Series:
         if not raw:

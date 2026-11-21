@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
+
 from ._common import MONTHLY, cached_json, http_get
 
 # Tried in order; public instances rate-limit or refuse some networks, so fall back.
@@ -12,6 +14,7 @@ OVERPASS_URLS = (
     "https://overpass.kumi.systems/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
 )
+MAX_TILES = 400  # refuse continent-sized Overpass crawls (USA would be ~3,000 tiles per query)
 # Greater London bbox padded by ~3 km so edge hexes see features just outside.
 BBOX = (51.26, -0.56, 51.72, 0.37)  # south, west, north, east (Overpass order)
 
@@ -41,7 +44,16 @@ def query(name: str, selectors: list[str], *, geometry: bool = True, timeout: in
     The bbox is split into ``tiles``×``tiles`` sub-queries (each cached) so heavy
     geometry requests stay under public-server limits; elements are de-duplicated.
     """
+    from ._common import REGION
+
     s, w, n, e = BBOX
+    if REGION.get("id") != "london":
+        w, s, e, n = REGION["bbox"]
+        tiles = max(tiles, int(np.ceil(max(e - w, n - s))))  # ~1° tiles for big regions
+        if tiles * tiles > MAX_TILES:
+            raise RuntimeError(f"region too large for Overpass ({tiles * tiles} tiles > {MAX_TILES}); "
+                               "use a Geofabrik extract for this region")
+        name = f"{REGION['id']}/{name}"
     out = "out geom;" if geometry else "out center;"
     lats = [s + (n - s) * i / tiles for i in range(tiles + 1)]
     lons = [w + (e - w) * j / tiles for j in range(tiles + 1)]

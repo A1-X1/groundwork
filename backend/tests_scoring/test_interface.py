@@ -123,9 +123,28 @@ def test_extra_profiles_score(profile):
 
 
 def test_list_regions():
-    (region,) = scoring.list_regions()
-    w, s, e, n = region["bbox"]
-    assert region["id"] == "london" and w < -0.1 < e and s < 51.5 < n and region["cells"] > 1000
+    regions = {r["id"]: r for r in scoring.list_regions()}
+    assert {"london", "uk"} <= set(regions)
+    assert list(regions)[0] == "london"  # finest first
+    w, s, e, n = regions["london"]["bbox"]
+    assert w < -0.1 < e and s < 51.5 < n and regions["london"]["cells"] > 1000
+    assert regions["uk"]["resolution"] == 7 and regions["uk"]["cells"] > 40000
+
+
+def test_multi_region_routing():
+    # Edinburgh is in the UK grid only; central London resolves to the finer London grid
+    edinburgh = scoring.score_point("wind_farm", 55.95, -3.19)
+    assert edinburgh["region"] == "uk" and edinburgh["score"] is not None or edinburgh["masked"]
+    assert "crime_rate" in edinburgh["unavailable"] and edinburgh["raw"]["crime_rate"] is None
+    assert scoring.score_point("house", 51.5074, -0.1278)["region"] == "london"
+    # a bbox over Greater London returns London res-8 cells, not the UK res-7 cells beneath them
+    import h3
+
+    cells = scoring.score("house", bbox=(-0.2, 51.45, -0.05, 51.55))
+    assert cells and {h3.get_resolution(c["h3"]) for c in cells} == {8}
+    # a bbox over Scotland returns UK cells
+    scot = scoring.score("wind_farm", bbox=(-4.5, 56.0, -3.5, 56.5))
+    assert scot and {h3.get_resolution(c["h3"]) for c in scot} == {7}
 
 
 def test_list_pois_real_or_seeded_only():
