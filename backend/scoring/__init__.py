@@ -20,7 +20,7 @@ from . import data as _data
 from .profiles import ProfileError, load_profiles
 from .scorer import Scorer, validate_bbox
 
-__all__ = ["ProfileError", "data_status", "get_layer", "list_layers", "list_profiles",
+__all__ = ["ProfileError", "data_status", "get_layer", "health", "list_layers", "list_profiles",
            "reload", "score", "score_point"]
 
 BBox = tuple[float, float, float, float]
@@ -80,8 +80,11 @@ def score_point(profile_id: str, lat: float, lon: float, weights: dict[str, floa
     Keys: profile, h3, lat, lon (hex centre), score, masked, masks (ids hit),
     sustainability_score, feasibility_score, rank (1 = best, None if masked), rank_of,
     percentile, weights, breakdown, layers (per profile layer: id, label, unit, value,
-    raw, weight, better, contribution), raw and values (every layer), shap (None or
-    {base_value, positive, negative}), model (None or metadata).
+    raw, weight, better, contribution), raw and values (every layer), feasibility (None
+    without a model), shap (None or {layer: signed TreeSHAP value} for the top 5 positive
+    and top 5 negative drivers), shap_detail (None or {base_value, positive, negative}),
+    model (None or metadata). Matches the proposed clarification in
+    shared/contracts/scoring_interface.md and adds fields.
     """
     import h3
 
@@ -111,14 +114,15 @@ def score_point(profile_id: str, lat: float, lon: float, weights: dict[str, floa
             "contribution": round(float(result.contributions[i, j]), 4),
         })
 
-    shap = model_info = None
+    shap = shap_detail = model_info = None
     if result.model is not None:
         contrib = result.model.contributions(frame.iloc[[i]])[0]
         pairs = [{"layer": f, "label": meta[f]["label"], "value": round(float(c), 4),
                   "raw": round(float(row[f"raw_{f}"]), 4)} for f, c in zip(result.model.features, contrib[:-1], strict=True)]
         pos = sorted((p for p in pairs if p["value"] > 0), key=lambda p: -p["value"])[:TOP_DRIVERS]
         neg = sorted((p for p in pairs if p["value"] < 0), key=lambda p: p["value"])[:TOP_DRIVERS]
-        shap = {"base_value": round(float(contrib[-1]), 4), "positive": pos, "negative": neg}
+        shap_detail = {"base_value": round(float(contrib[-1]), 4), "positive": pos, "negative": neg}
+        shap = {d["layer"]: d["value"] for d in pos + neg}
         m = result.model.metrics
         model_info = {"type": "presence", "positives": m.get("positives"),
                       "auc_spatial_cv": m.get("auc_spatial_cv"), "n_positives": m.get("n_positives"),
@@ -137,6 +141,7 @@ def score_point(profile_id: str, lat: float, lon: float, weights: dict[str, floa
         "masks": [m for m, hit in result.mask_hits.items() if hit[i]],
         "sustainability_score": round(float(result.sustainability[i]), 4),
         "feasibility_score": round(float(result.feasibility[i]), 4),
+        "feasibility": round(float(result.feasibility[i]), 4) if result.model is not None else None,
         "rank": rank,
         "rank_of": n_ranked,
         "percentile": None if rank is None else round(1 - (rank - 1) / max(n_ranked - 1, 1), 4),
@@ -146,8 +151,17 @@ def score_point(profile_id: str, lat: float, lon: float, weights: dict[str, floa
         "raw": {lid: round(float(row[f"raw_{lid}"]), 4) for lid in eng.data.layer_ids},
         "values": {lid: round(float(row[lid]), 4) for lid in eng.data.layer_ids},
         "shap": shap,
+        "shap_detail": shap_detail,
         "model": model_info,
     }
+
+
+def health() -> dict[str, Any]:
+    """Optional extension used by ``GET /health`` (shared/handoff/p2-to-p1.md)."""
+    eng = _engine()
+    statuses = {k: v.get("status", "unknown") for k, v in eng.data.build.get("layers", {}).items()}
+    return {"data_generated_at": eng.data.build.get("generated_at"),
+            "layers": {lid: statuses.get(lid, "unknown") for lid in eng.data.layer_ids}}
 
 
 def data_status() -> dict[str, Any]:

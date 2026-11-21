@@ -77,12 +77,15 @@ def test_score_point_agrees_with_score():
     assert p["h3"] in cells and p["score"] == cells[p["h3"]]["score"]
     assert p["breakdown"] == pytest.approx(cells[p["h3"]]["breakdown"], abs=1e-4)
     assert set(p["raw"]) == set(LAYER_IDS)
-    assert p["shap"] is not None and len(p["shap"]["positive"]) <= 5
+    assert p["shap"] is not None and 0 < len(p["shap"]) <= 10
+    assert all(isinstance(v, float) for v in p["shap"].values())
+    assert len(p["shap_detail"]["positive"]) <= 5 and p["feasibility"] == p["feasibility_score"]
 
 
 def test_score_point_without_model_has_no_shap():
     p = scoring.score_point("mine", 51.4, 0.1)
-    assert p["shap"] is None and p["model"] is None and p["feasibility_score"] == 1.0
+    assert p["shap"] is None and p["model"] is None and p["feasibility"] is None
+    assert p["feasibility_score"] == 1.0
 
 
 def test_score_point_errors():
@@ -104,3 +107,9 @@ def test_data_status_reports_synthetic_layers():
     status = scoring.data_status()
     assert status["is_sample"] and status["cells"] > 1000
     assert set(status["real_layers"]) | set(status["synthetic_layers"]) == set(LAYER_IDS)
+
+
+def test_health_extension():
+    h = scoring.health()
+    assert set(h["layers"]) == set(LAYER_IDS)
+    assert set(h["layers"].values()) <= {"real", "synthetic", "unknown"}
