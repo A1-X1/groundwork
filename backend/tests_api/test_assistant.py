@@ -187,3 +187,13 @@ def test_clean_sorts_by_seq() -> None:
     raw = [{"type": "ZOOM", "seq": 1, "args": {"direction": "in"}},
            {"type": "RESET_VIEW", "seq": 0}]
     assert [c.type for c in assistant.clean(raw, [], [])] == ["RESET_VIEW", "ZOOM"]
+
+
+def test_solar_system_toggle_rules() -> None:
+    """'remove solar system' turns the far-zoom solar-system view off; 'show' turns it on."""
+    from backend.api.assistant import rules
+
+    off, _ = rules("remove solar system", [], [])
+    assert [(c.type, c.args) for c in off] == [("TOGGLE_SOLAR_SYSTEM", {"state": "off"})]
+    on, _ = rules("show the solar system again", [], [])
+    assert [(c.type, c.args) for c in on] == [("TOGGLE_SOLAR_SYSTEM", {"state": "on"})]

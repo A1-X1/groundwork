@@ -65,6 +65,8 @@ COMMANDS: dict[str, list[str]] = {
     "EXPLAIN": ["name", "lat", "lon"],
     "TOGGLE_MASKS": ["state"],
     "TOGGLE_TERRAIN": ["state"],
+    # the solar-system view when zooming far out on the globe ("remove solar system")
+    "TOGGLE_SOLAR_SYSTEM": ["state"],
     "HELP": [],
     # creation flow (home screen; Person 1's agent emits these too)
     "OPEN_CREATE": [],
@@ -79,7 +81,7 @@ CommandType = Literal[
     "PAN_COUNTRY", "PAN_CITY", "PAN_REGION", "ZOOM", "RESET_VIEW", "ROTATE_GLOBE",
     "SET_PROFILE", "SET_OVERLAY", "SET_WEIGHT", "RESET_WEIGHTS", "SHOW_TOP_SITES",
     "SELECT_PLACE", "PLACE_SITE", "REMOVE_SITE", "RENAME_SITE", "COMPARE_SITES",
-    "COMPARE_USE_CASES", "EXPLAIN", "TOGGLE_MASKS", "TOGGLE_TERRAIN", "HELP",
+    "COMPARE_USE_CASES", "EXPLAIN", "TOGGLE_MASKS", "TOGGLE_TERRAIN", "TOGGLE_SOLAR_SYSTEM", "HELP",
     "OPEN_CREATE", "CREATE_STRUCTURE", "OPEN_STRUCTURE", "SHOW_MODEL", "SHOW_PROGRESS", "GO_HOME",
 ]  # fmt: skip
 
@@ -235,6 +237,8 @@ def _system_prompt(profiles: list[dict], layers: list[dict]) -> str:
         f"Profile ids: {profs}.\n"
         f"Overlay views: {', '.join(OVERLAY_VIEWS)}; or any layer id: {lays}.\n"
         "Weights are 0-100. state is 'on' or 'off'. direction is 'in' or 'out'. "
+        "TOGGLE_SOLAR_SYSTEM turns the solar-system view (shown when zooming far out on the "
+        "globe) on or off, e.g. 'remove solar system' -> state off. "
         "For compound requests (\"pan to X then show Y\") return the commands in the order "
         "they must run. "
         "If the user is already looking at the place they ask for (context.center/zoom/place), "
@@ -348,6 +352,9 @@ def _rules_part(text: str, profiles: list[dict], layers: list[dict]) -> list[dic
         raw.append({"type": "ROTATE_GLOBE", "args": {"state": on_off}})
     if re.search(r"\b(mask|no-go|no go)", t):
         raw.append({"type": "TOGGLE_MASKS", "args": {"state": on_off}})
+    if re.search(r"\bsolar ?system\b|\bplanets\b", t):
+        off = re.search(r"\b(remove|hide|disable|off|stop|get rid|without|no more|close)\b", t)
+        raw.append({"type": "TOGGLE_SOLAR_SYSTEM", "args": {"state": "off" if off else "on"}})
     if re.search(r"\b3d terrain\b|\bterrain (on|off)\b", t):
         raw.append({"type": "TOGGLE_TERRAIN", "args": {"state": on_off}})
 

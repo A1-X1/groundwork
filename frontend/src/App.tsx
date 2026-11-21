@@ -57,6 +57,22 @@ export default function App() {
   const [isPlacing, setPlacing] = useState(false);
   const [showMasked, setShowMasked] = useState(true);
   const [terrain, setTerrain] = useState(false);
+  /** The solar-system view when zooming far out on the globe; "remove solar system" turns it off. */
+  const [solarSystem, setSolarSystemState] = useState(() => {
+    try {
+      return window.localStorage.getItem('groundwork.solarSystem') !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  const setSolarSystem = useCallback((on: boolean) => {
+    setSolarSystemState(on);
+    try {
+      window.localStorage.setItem('groundwork.solarSystem', on ? 'on' : 'off');
+    } catch {
+      // storage unavailable: the choice lasts for this session
+    }
+  }, []);
   const [lowPower, setLowPower] = useState(false);
   const [focus, setFocus] = useState<MapFocus | null>(null);
   const [heroSiteId, setHeroSiteId] = useState<string | null>(null);
@@ -621,6 +637,16 @@ export default function App() {
           case 'TOGGLE_TERRAIN':
             setTerrain(args.state !== 'off');
             break;
+          case 'TOGGLE_SOLAR_SYSTEM': {
+            const on = args.state !== 'off';
+            setSolarSystem(on);
+            notes.push(
+              on
+                ? 'Solar system is on. Zoom far out on the globe to see the planets line up, then orbit.'
+                : 'Solar system removed. Zooming out now stops at Earth. Say “show solar system” to bring it back.',
+            );
+            break;
+          }
           case 'SHOW_TOP_SITES':
             if (typeof args.profile === 'string') gw.chooseProfile(args.profile);
             gw.setSelection(null);
@@ -834,7 +860,8 @@ export default function App() {
         .catch(() => null);
       const verdictText = (rv: Review) => [rv.reason, rv.suggestion].filter(Boolean).join(' ');
 
-      if (screen === 'home' || looksLikePlanning(text)) {
+      const isViewToggle = /\bsolar ?system\b|\bplanets\b/i.test(text); // a UI switch, not planning
+      if (!isViewToggle && (screen === 'home' || looksLikePlanning(text))) {
         const rv = await reviewP; // a long agent run should never start on an absurd request
         if (rv?.verdict === 'unsuitable') return verdictText(rv);
         try {
@@ -1034,6 +1061,7 @@ export default function App() {
           }}
           onZoomIn={onGlobeZoomIn}
           enterLabel={regions[0] ? `Open ${regions[0].name} map` : undefined}
+          solarSystem={solarSystem}
           onUserInteract={() => setSpinning(false)}
         />
         <VStack

@@ -12,7 +12,7 @@
 import * as THREE from 'three';
 
 export const SPACE_FAR = 14; // furthest the camera may pull back
-const STAR_RADIUS = 60;
+const STAR_RADIUS = 400; // well beyond the solar-system view's camera
 const SUN_DISTANCE = 42;
 
 /** Sub-solar point (where the Sun is overhead) for a date: [lat, lon] in degrees. */
@@ -93,6 +93,8 @@ export interface Space {
   group: THREE.Group;
   /** Advance twinkle and orbits by dt seconds (pass 0 under reduced motion). */
   tick: (dt: number) => void;
+  /** 0–1 as the solar-system view takes over: the backdrop Sun, Moon and planets fade out. */
+  setSystemMix: (mix: number) => void;
   dispose: () => void;
 }
 
@@ -188,7 +190,7 @@ export function buildSpace(sunDir: THREE.Vector3): Space {
     hazeGeo,
     keep(
       new THREE.PointsMaterial({
-        size: 9,
+        size: 60,
         map: hazeTex,
         transparent: true,
         opacity: 0.1,
@@ -276,6 +278,12 @@ export function buildSpace(sunDir: THREE.Vector3): Space {
         p.mesh.position.copy(onEcliptic(p.dist, p.angle, p.mesh.position.dot(normal)));
         p.mesh.rotation.y += dt * 0.1;
       }
+    },
+    setSystemMix: (mix) => {
+      (sunSprite.material as THREE.SpriteMaterial).opacity = 1 - mix;
+      light.intensity = 2.6 * (1 - mix);
+      moon.visible = mix < 0.5;
+      for (const p of planets) p.mesh.visible = mix < 0.5;
     },
     dispose: () => disposables.forEach((d) => d.dispose()),
   };
