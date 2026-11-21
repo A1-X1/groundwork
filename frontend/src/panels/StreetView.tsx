@@ -4,6 +4,7 @@
  * is set on the server, else Mapillary; the API picks and proxies the preview.
  */
 import { Button } from '@astryxdesign/core/Button';
+import { Heading } from '@astryxdesign/core/Heading';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Icon } from '@astryxdesign/core/Icon';
 import { IconButton } from '@astryxdesign/core/IconButton';
@@ -35,7 +36,16 @@ type PreviewState =
   | { status: 'off' }
   | { status: 'error'; message: string };
 
-export function StreetPreview({ lat, lon }: { lat: number; lon: number }) {
+export function StreetPreview({
+  lat,
+  lon,
+  onConnect,
+}: {
+  lat: number;
+  lon: number;
+  /** Opens Connections → Street view (shown when no provider key is set yet). */
+  onConnect?: () => void;
+}) {
   const [state, setState] = useState<PreviewState>({ status: 'loading' });
   const [config, setConfig] = useState<StreetViewConfig | null>(null);
   const [open, setOpen] = useState(false);
@@ -65,9 +75,31 @@ export function StreetPreview({ lat, lon }: { lat: number; lon: number }) {
     };
   }, [lat, lon]);
 
-  if (state.status === 'off') return null; // no provider: nothing to show (Connections adds one)
   return (
     <VStack gap={2}>
+      <Heading level={3}>Street view</Heading>
+      {state.status === 'off' && (
+        <VStack
+          gap={3}
+          align="center"
+          justify="center"
+          padding={6}
+          style={{
+            aspectRatio: '16 / 9',
+            borderRadius: 'var(--radius-element)',
+            border: '1px dashed var(--color-border)',
+            background: 'var(--color-background-muted, transparent)',
+          }}
+        >
+          <Icon icon={Camera} size="lg" />
+          <Text color="secondary" textWrap="pretty" style={{ textAlign: 'center' }}>
+            See this place at street level. Connect Google Street View or free Mapillary imagery.
+          </Text>
+          {onConnect && (
+            <Button label="Connect street view" variant="secondary" size="sm" onClick={onConnect} />
+          )}
+        </VStack>
+      )}
       {state.status === 'loading' && <Skeleton height={180} />}
       {state.status === 'none' && (
         <Text type="supporting" color="secondary">

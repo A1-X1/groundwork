@@ -1337,6 +1337,12 @@ export default function App() {
                 }}
                 onPlace={() => gw.selection && gw.placeSite(gw.selection)}
                 onChooseProfile={gw.chooseProfile}
+                onConnectStreetView={() => {
+                  setConnectionsReason(
+                    'Add a Google Maps key or a free Mapillary token to see street-level imagery for any hexagon.',
+                  );
+                  setConnectionsOpen(true);
+                }}
               />
             ) : (
               <TopSites
