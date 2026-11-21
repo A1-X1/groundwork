@@ -12,6 +12,15 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
+- [ ] 2026-11-21 (P1, user request): **Voice agent from the very start: create absolutely any building.** Please show the assistant orb (and the command bar) on the **home screen** too, sending prompts to `POST /agent/run` with `context: {"screen": "home"}`. The agent now accepts any building type and drives the UI with these new `ui` commands (alongside the existing PAN_*, SET_*, PLACE_SITE…):
+  - `OPEN_CREATE`: go to "What are you building?"
+  - `CREATE_STRUCTURE {profile, name}`: same as submitting the Create form for that profile (new agent profiles appear in `/profiles` once created; refetch on this command), then open the map.
+  - `OPEN_STRUCTURE {name}`: reopen a saved structure.
+  - `SHOW_MODEL {profile}`: preview the 3D spec (`/models3d/{profile}`).
+  - `SHOW_PROGRESS {title, step}`: a progress card while the agent works (steps: choosing data → profile → 3D model → training → results). Hide it on `answer`/`done`.
+  - `GO_HOME`.
+
+  A run that creates a new type takes ~1–3 minutes (data builds), so keep the stream open and show `message` updates.
 _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Done

@@ -35,7 +35,7 @@ def _client() -> Any:
     return Mistral(api_key=key)
 
 
-def _trim(result: dict[str, Any], limit: int = 6000) -> str:
+def _trim(result: dict[str, Any], limit: int = 12000) -> str:
     text = json.dumps(result, default=str, ensure_ascii=False)
     return text if len(text) <= limit else text[:limit] + '…"(truncated)"'
 
