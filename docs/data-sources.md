@@ -18,7 +18,7 @@ Retrieval date: whenever you run `make data`. The weather and air-quality year i
 | `api.carbonintensity.org.uk` | no | ✅ 200 | grid carbon (GB) |
 | `data.police.uk/api` | no | ✅ 200 | crime (England & Wales) |
 | `www.planning.data.gov.uk/entity.geojson` | no | ✅ 200 | flood zones, Green Belt, SSSI (England) |
-| `hub.worldpop.org/rest` | no | ✅ 200 | global population (next step) |
+| `hub.worldpop.org/rest`, `data.worldpop.org` | no | ✅ 200 (34 MB GeoTIFF for GBR in 12 s) | `population_density` (any country by ISO3) |
 | `earthquake.usgs.gov/fdsnws` | no | ✅ 200 | global seismic hazard (next step) |
 | `naciscdn.org` (Natural Earth) | no | ✅ 200 | country boundaries for the globe and `PAN_COUNTRY` |
 | `www.geoboundaries.org/api` | no | ✅ 200 | admin boundaries worldwide |
@@ -47,6 +47,18 @@ The API never calls data sources at request time; it only reads `grid.parquet`. 
 
 `python -m backend.pipeline.run --refresh` forces a re-download; a failed refresh falls back to the cached copy. To keep data current, run `make data` once a day (cron or a scheduled job): unchanged sources cost no API calls.
 
+## Default use cases and their data
+
+| Profile | Layers (weight order) | Masks |
+|---|---|---|
+| **Data centre** | free-cooling hours, wet-bulb p99, grid carbon, HV substation, internet exchange, slope, population | Flood Zone 3, protected land |
+| **House** | crime, station, good schools, price, primary school, park, NO₂, flood risk, summer heat, major road (away) | Flood Zone 3, protected land |
+| **School** | population (high), NO₂, primary-school gap, major road (away), station, park, crime, deprivation (need), PM2.5, flood | Flood Zone 3, protected land |
+| **Solar farm** | irradiance, HV substation, slope, population (low), sunshine hours, land price, HV line, cloud cover, summer heat, peak gusts | Flood Zone 3, protected land |
+| **Wind farm** | wind power density @100 m, population (low), wind speed @100 m, residential land, HV line, airport (away), substation, slope, elevation, peak gusts | Protected land |
+
+Wind at hub height (`wind_speed_100m`, `wind_power_density = ½ρ⟨v³⟩`) comes from Open-Meteo's ERA5 hourly 100 m wind. Sunshine, cloud cover and peak gusts are 10-year ERA5 daily normals (`backend/layers/generated/*.yaml`). Population is WorldPop 2020 (100 m, constrained) sampled at 49 points per hex, about 9.5 M residents in the grid.
+
 ## Automatic downloads (no key)
 
 | Layers | Source | Licence | Notes |
@@ -68,7 +80,7 @@ Put these under `data/raw/`; the layer is synthetic until they exist.
 | File | Layers | Source | Licence |
 |---|---|---|---|
 | `ons/lsoa_pwc.csv` | population, deprivation | ONS Open Geography Portal: *LSOA (Dec 2021) Population Weighted Centroids* (CSV) | OGL v3 |
-| `ons/lsoa_population.csv` | `population_density` (→ `crime_rate` denominator) | [Nomis](https://www.nomisweb.co.uk/) Census 2021 **TS001** by LSOA 2021 | OGL v3 |
+| `ons/lsoa_population.csv` | optional override for `population_density` (WorldPop is automatic) | [Nomis](https://www.nomisweb.co.uk/) Census 2021 **TS001** by LSOA 2021 | OGL v3 |
 | `ons/imd.csv` | `deprivation_index` | [English Indices of Deprivation](https://www.gov.uk/government/collections/english-indices-of-deprivation), File 7 (scores). Use the edition whose LSOA vintage matches the centroid file. | OGL v3 |
 | `landreg/pp-YYYY.csv` | `median_house_price` | [HM Land Registry Price Paid Data](https://www.gov.uk/government/statistical-data-sets/price-paid-data-downloads) (yearly files) | OGL v3 (see HMLR terms) |
 | `onspd/postcodes.csv` (`pcds,lat,long`) | `median_house_price` | ONS Postcode Directory, trimmed to those three columns | OGL v3 + Royal Mail / OS terms |
