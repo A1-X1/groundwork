@@ -296,3 +296,10 @@ def test_runner_routes_routine_steps_to_fast_model():
     out = runner.run("help", client=Client(), model="big", fast_model="fast")
     assert seen == ["big", "big", "fast"]
     assert out["models"] == {"big": 2, "fast": 1}
+
+
+def test_build_layers_refuses_whole_countries(sandbox):
+    assert set(tools.city_regions()) >= {"london", "uk_urban", "usa_urban"}
+    assert "uk" not in tools.city_regions() and "usa" not in tools.city_regions()
+    r = tools.call("build_layers", {"layer_ids": ["slope"], "region": "usa"})
+    assert "too big" in r["error"]
