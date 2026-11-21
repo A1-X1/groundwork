@@ -21,6 +21,7 @@ import { VStack } from '@astryxdesign/core/VStack';
 import {
   ArrowLeft,
   Atom,
+  FerrisWheel,
   Building2,
   Hospital,
   House,
@@ -62,6 +63,7 @@ const TYPE_ICONS: Record<string, LucideIcon> = {
   solar_farm: Sun,
   wind_farm: Wind,
   nuclear_power_plant: Atom,
+  theme_park: FerrisWheel,
 };
 
 const n0 = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 0 });

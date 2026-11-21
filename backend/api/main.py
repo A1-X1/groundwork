@@ -18,7 +18,7 @@ from typing import Annotated, Any, TypeVar
 
 import h3
 import httpx
-from backend.api import agent_routes, areas, assistant, pois, reviewer, scoring_source, streetview
+from backend.api import agent_routes, areas, assistant, pois, reviewer, scoring_source
 from backend.api.models import (
     CompareEntry,
     CompareResponse,
@@ -123,7 +123,6 @@ app.add_middleware(
 areas.scoring = scoring
 app.include_router(areas.router, responses=ERRORS)
 app.include_router(agent_routes.router, responses=ERRORS)
-app.include_router(streetview.router)
 
 
 def _reload_after_agent() -> None:

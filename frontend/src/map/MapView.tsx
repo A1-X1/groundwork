@@ -59,6 +59,8 @@ interface Props {
   zoomCmd: { dir: 'in' | 'out'; nonce: number } | null;
   pois: Poi[];
   /** Outlines of the regions with data, drawn while zoomed out past the hex threshold. */
+  /** A dropped pin with an address popup (PAN_ADDRESS). */
+  pin?: { lat: number; lon: number; label: string; nonce: number } | null;
   /** Regions as flat areas while zoomed out; clicking one zooms in until data hexes load. */
   regionAreas?: RegionArea[];
   /** False while hidden behind the home screen; the map resizes when it becomes visible. */
@@ -389,6 +391,25 @@ export function MapView(props: Props) {
       duration: prefersReducedMotion() ? 0 : 900,
     });
   }, [props.focus]);
+
+  // ---- address pin: a marker with its full address in a popup (PAN_ADDRESS)
+  const pinRef = useRef<maplibregl.Marker | null>(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    pinRef.current?.remove();
+    pinRef.current = null;
+    if (!map || !props.pin) return;
+    const popup = new maplibregl.Popup({
+      offset: 28,
+      closeButton: true,
+      maxWidth: '280px',
+    }).setText(props.pin.label);
+    pinRef.current = new maplibregl.Marker({ color: '#76acff' })
+      .setLngLat([props.pin.lon, props.pin.lat])
+      .setPopup(popup)
+      .addTo(map);
+    pinRef.current.togglePopup();
+  }, [props.pin]);
 
   // ---- buildings
   useEffect(() => {
