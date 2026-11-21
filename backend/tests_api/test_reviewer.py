@@ -86,3 +86,17 @@ def test_rules_no_false_positives() -> None:
     ]:
         assert reviewer.rules_review(text).verdict == "ok", text
     assert reviewer.rules_review("build a hotel in the sea").verdict == "unsuitable"
+
+
+def test_rank_navigation_is_not_reviewed(monkeypatch) -> None:
+    """'the third best site' moves between ranked sites; no model call, no warning."""
+    from backend.api import reviewer
+
+    def boom(*_a, **_k):
+        raise AssertionError("no Mistral review for navigation")
+
+    monkeypatch.setattr(reviewer, "mistral_review", boom)
+    monkeypatch.setattr(reviewer.assistant, "mistral_key", lambda: "k")
+    for text in ("the third best site", "take me to the best location", "next one"):
+        out = reviewer.review(reviewer.ReviewRequest(text=text, context={}))
+        assert out.verdict == "ok"

@@ -37,6 +37,8 @@ export interface MapFocus {
   lat: number;
   lon: number;
   nonce: number;
+  /** Zoom to fly to (default: at least 11.2, keeping a closer zoom). */
+  zoom?: number;
 }
 
 interface Props {
@@ -383,7 +385,7 @@ export function MapView(props: Props) {
     if (!map || !props.focus) return;
     map.easeTo({
       center: [props.focus.lon, props.focus.lat],
-      zoom: Math.max(map.getZoom(), 11.2),
+      zoom: props.focus.zoom ?? Math.max(map.getZoom(), 11.2),
       duration: prefersReducedMotion() ? 0 : 900,
     });
   }, [props.focus]);

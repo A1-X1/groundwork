@@ -40,6 +40,9 @@ def test_google_preview_and_no_imagery(client, monkeypatch: pytest.MonkeyPatch) 
 
     def fake_get(url: str, params: dict | None = None, timeout: float = 0) -> _Resp:
         if url.endswith("/metadata"):
+            assert (
+                params and params["radius"] == streetview.RADIUS_M == 1000
+            )  # 1 km search
             ok = params and params["location"].startswith("51.5")
             return _Resp(
                 {
@@ -68,12 +71,42 @@ def test_mapillary_fallback(client, monkeypatch: pytest.MonkeyPatch) -> None:
 
     def fake_get(url: str, params: dict | None = None, timeout: float = 0) -> _Resp:
         if "graph.mapillary.com" in url:
-            return _Resp(
-                {"data": [{"id": "42", "thumb_1024_url": "https://img/42.jpg"}]}
-            )
+            assert (
+                params and params["limit"] > 1
+            )  # several candidates; the closest wins
+            far = {
+                "id": "7",
+                "thumb_1024_url": "https://img/7.jpg",
+                "computed_geometry": {"coordinates": [-0.11, 51.505]},
+            }
+            near = {
+                "id": "42",
+                "thumb_1024_url": "https://img/42.jpg",
+                "computed_geometry": {"coordinates": [-0.1201, 51.5001]},
+            }
+            return _Resp({"data": [far, near]})
         return _Resp(content=b"\xff\xd8jpeg")
 
     monkeypatch.setattr(streetview.httpx, "get", fake_get)
     assert client.get("/streetview/config").json()["provider"] == "mapillary"
     r = client.get("/streetview/preview", params={"lat": 51.5, "lon": -0.12})
     assert r.status_code == 200 and r.headers["x-pano-id"] == "42"
+
+
+def test_google_key_problem_is_not_reported_as_no_imagery(
+    client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A rejected key must surface Google's reason, not 'no imagery here'."""
+    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "server-key-123")
+
+    def fake_get(url: str, params: dict | None = None, timeout: float = 0) -> _Resp:
+        return _Resp(
+            {"status": "REQUEST_DENIED", "error_message": "This API is not activated."}
+        )
+
+    monkeypatch.setattr(streetview.httpx, "get", fake_get)
+    r = client.get("/streetview/preview", params={"lat": 51.5, "lon": -0.12})
+    assert r.status_code == 502
+    body = r.json()["error"]
+    assert body["code"] == "provider_error"
+    assert "REQUEST_DENIED" in body["message"] and "not activated" in body["message"]

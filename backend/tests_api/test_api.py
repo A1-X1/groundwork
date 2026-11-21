@@ -259,3 +259,15 @@ def test_regions_pass_outline_through(client, monkeypatch) -> None:
     monkeypatch.setattr(main.scoring, "list_regions", lambda: regions, raising=False)
     body = client.get("/regions").json()
     assert body[0]["outline"] == outline and body[1]["outline"] is None
+
+
+def test_layers_tolerate_null_range(client, monkeypatch) -> None:
+    """A layer without a built range (min/max null) must not 500 the whole /layers list."""
+    from backend.api import main
+
+    real = main.scoring.list_layers()
+    broken = [{**real[0], "id": "agent_layer", "min": None, "max": None}, *real[1:]]
+    monkeypatch.setattr(main.scoring, "list_layers", lambda: broken)
+    r = client.get("/layers")
+    assert r.status_code == 200
+    assert r.json()[0]["min"] is None and r.json()[0]["max"] is None

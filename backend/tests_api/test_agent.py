@@ -26,7 +26,14 @@ def test_agent_streams_events(client, monkeypatch) -> None:
             {"type": "action_required", "action": "connect_azure", "message": "Sign in"}
         )
         on_event({"type": "answer", "content": f"Planned {prompt}", "steps": 3})
-        return {"content": f"Planned {prompt}", "steps": 3, "ui": [], "actions": []}
+        return {
+            "content": f"Planned {prompt}",
+            "steps": 3,
+            "ui": [],
+            "actions": [],
+            "models": {"mistral-large-latest": 2, "mistral-medium-latest": 5},
+            "seconds": 84.2,
+        }
 
     fake.run = run  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "backend.agent", fake)
@@ -41,6 +48,11 @@ def test_agent_streams_events(client, monkeypatch) -> None:
     assert types_ == ["tool_call", "ui", "action_required", "answer", "done"]
     assert events[2]["action"] == "connect_azure"
     assert events[-1]["content"] == "Planned nuclear" and "messages" not in events[-1]
+    assert events[-1]["models"] == {
+        "mistral-large-latest": 2,
+        "mistral-medium-latest": 5,
+    }
+    assert events[-1]["seconds"] == 84.2
     assert "event: action_required" in body
 
 

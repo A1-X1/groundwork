@@ -45,8 +45,9 @@ export interface LayerMeta {
   kind: 'raster' | 'proximity' | 'aggregate';
   description: string;
   source: string;
-  min: number;
-  max: number;
+  /** Raw value range; null when the layer isn't built anywhere yet. */
+  min: number | null;
+  max: number | null;
 }
 
 export interface ScoredCell {

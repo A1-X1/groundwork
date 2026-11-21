@@ -186,6 +186,9 @@ def run_agent(body: AgentRequest) -> Any:
                     "ui": result.get("ui", []),
                     "actions": result.get("actions", []),
                     "steps": result.get("steps"),
+                    # calls per model (large for planning, medium for routine steps) and run time
+                    "models": result.get("models"),
+                    "seconds": result.get("seconds"),
                 }
             )
         except Exception as exc:  # surfaced to the UI as an error event
