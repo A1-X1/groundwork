@@ -62,6 +62,8 @@ def run_layer(layer_id: str, grid: pd.DataFrame,
     values = values.reindex(grid.index).astype(float)
     if not np.isfinite(values).all():
         values = fill_gaps(grid, values.where(np.isfinite(values)))
+    if "reason" in status:  # keep build.json portable: no absolute machine paths
+        status["reason"] = status["reason"].replace(str(REPO_ROOT) + os.sep, "")
     status["seconds"] = round(time.perf_counter() - started, 2)
     log.info("%-24s %-9s %6.1fs", layer_id, status["status"], status["seconds"])
     return values, status
