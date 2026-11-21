@@ -121,13 +121,25 @@ def smooth_neighbours(grid: pd.DataFrame, values: pd.Series, rings: int = 1) -> 
 
 
 def fill_gaps(grid: pd.DataFrame, values: pd.Series) -> pd.Series:
-    """Fill NaNs from neighbours (growing rings), then the regional median."""
+    """Fill NaNs from neighbours (growing rings), then the regional median.
+
+    Only the empty cells are visited, so this stays fast on national grids (100k+ cells).
+    """
+    import h3
+
     values = values.reindex(grid.index).astype(float)
     for rings in (1, 2, 3):
-        if not values.isna().any():
+        missing = values.index[values.isna()]
+        if len(missing) == 0:
             break
-        smoothed = smooth_neighbours(grid, values, rings)
-        values = values.fillna(smoothed)
+        known = values.dropna()
+        fills = {}
+        for cell in missing:
+            nb = [c for c in h3.grid_disk(cell, rings) if c in known.index]
+            if nb:
+                fills[cell] = float(known.loc[nb].mean())
+        if fills:
+            values.loc[list(fills)] = list(fills.values())
     return values.fillna(values.median() if values.notna().any() else 0.0)
 
 

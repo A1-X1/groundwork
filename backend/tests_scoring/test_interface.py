@@ -129,6 +129,13 @@ def test_list_regions():
     w, s, e, n = regions["london"]["bbox"]
     assert w < -0.1 < e and s < 51.5 < n and regions["london"]["cells"] > 1000
     assert regions["uk"]["resolution"] == 7 and regions["uk"]["cells"] > 40000
+    # markers trace the land: ≤600 coarse cells, none over the open North Sea
+    import h3
+
+    uk = regions["uk"]
+    assert 0 < len(uk["marker_cells"]) <= 600
+    sea = h3.latlng_to_cell(56.5, 2.5, uk["marker_resolution"])
+    assert sea not in uk["marker_cells"]
 
 
 def test_unavailable_masks_do_not_mask():
