@@ -23,8 +23,11 @@ def test_profiles(client) -> None:
 
 
 def test_unknown_profile_is_404_with_error_body(client) -> None:
-    for r in (client.get("/profiles/nope"), client.get("/score/nope"),
-              client.get("/score/nope/point", params=CITY)):
+    for r in (
+        client.get("/profiles/nope"),
+        client.get("/score/nope"),
+        client.get("/score/nope/point", params=CITY),
+    ):
         assert r.status_code == 404
         assert r.json()["error"]["code"] == "not_found"
 
@@ -41,7 +44,9 @@ def test_layers_and_layer_values(client) -> None:
 
 def test_bbox_filters(client) -> None:
     full = client.get("/score/house").json()["cells"]
-    part = client.get("/score/house", params={"bbox": "-0.2,51.45,0.0,51.55"}).json()["cells"]
+    part = client.get("/score/house", params={"bbox": "-0.2,51.45,0.0,51.55"}).json()[
+        "cells"
+    ]
     assert 0 < len(part) < len(full)
 
 
@@ -70,7 +75,10 @@ def test_point_has_rank_and_raw(client) -> None:
 
 
 def test_point_outside_region_is_404(client) -> None:
-    assert client.get("/score/house/point", params={"lat": 48.85, "lon": 2.35}).status_code == 404
+    assert (
+        client.get("/score/house/point", params={"lat": 48.85, "lon": 2.35}).status_code
+        == 404
+    )
 
 
 def test_point_validates_lat(client) -> None:
@@ -82,7 +90,8 @@ def test_point_validates_lat(client) -> None:
 def test_custom_weights_change_scores(client) -> None:
     default = client.get("/score/house").json()["cells"]
     custom = client.post(
-        "/score/custom", json={"profile": "house", "weights": {"median_house_price": 10}}
+        "/score/custom",
+        json={"profile": "house", "weights": {"median_house_price": 10}},
     ).json()["cells"]
     assert [c["score"] for c in default] != [c["score"] for c in custom]
 
@@ -110,7 +119,10 @@ def test_compare(client) -> None:
     assert r.status_code == 200
     body = r.json()
     assert [e["profile"] for e in body["results"]] == ["data_centre", "house", "mine"]
-    assert client.get("/compare", params={"profiles": "house,nope", **CITY}).status_code == 404
+    assert (
+        client.get("/compare", params={"profiles": "house,nope", **CITY}).status_code
+        == 404
+    )
     assert client.get("/compare", params={"profiles": ",", **CITY}).status_code == 422
 
 
@@ -131,8 +143,17 @@ def test_cors(client) -> None:
 def test_openapi_documents_every_endpoint(client) -> None:
     spec = client.get("/openapi.json").json()
     paths = spec["paths"]
-    for p in ["/health", "/profiles", "/profiles/{profile_id}", "/layers", "/layers/{layer_id}",
-              "/score/{profile_id}", "/score/{profile_id}/point", "/score/custom", "/compare"]:
+    for p in [
+        "/health",
+        "/profiles",
+        "/profiles/{profile_id}",
+        "/layers",
+        "/layers/{layer_id}",
+        "/score/{profile_id}",
+        "/score/{profile_id}/point",
+        "/score/custom",
+        "/compare",
+    ]:
         assert p in paths
         for op in paths[p].values():
             assert op.get("summary") and op.get("description") and op.get("tags")
@@ -152,7 +173,9 @@ def test_point_accepts_weights(client) -> None:
 
 
 def test_point_model_explanation(client) -> None:
-    body = client.get("/score/data_centre/point", params={"lat": 51.56, "lon": -0.05}).json()
+    body = client.get(
+        "/score/data_centre/point", params={"lat": 51.56, "lon": -0.05}
+    ).json()
     if body["shap"] is not None:
         assert {"base_value", "positive", "negative"} <= set(body["shap"])
         assert all(d["value"] > 0 for d in body["shap"]["positive"])
@@ -171,3 +194,20 @@ def test_regions(client) -> None:
     for r in regions:
         w, s, e, n = r["bbox"]
         assert w < e and s < n and r["cells"] > 0
+
+
+def test_profiles_carry_layer_notes(client, monkeypatch) -> None:
+    """Per-layer notes from scoring.profile_notes appear on /profiles (empty if absent)."""
+    from backend.api import main
+
+    pid = client.get("/profiles").json()[0]["id"]
+    monkeypatch.setattr(
+        main.scoring,
+        "profile_notes",
+        lambda p: {"crime_rate": f"note for {p}"},
+        raising=False,
+    )
+    body = client.get(f"/profiles/{pid}").json()
+    assert body["notes"] == {"crime_rate": f"note for {pid}"}
+    monkeypatch.setattr(main.scoring, "profile_notes", lambda p: 1 / 0, raising=False)
+    assert client.get(f"/profiles/{pid}").json()["notes"] == {}

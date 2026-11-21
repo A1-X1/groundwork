@@ -17,6 +17,8 @@ export interface Profile {
   has_model: boolean;
   /** Main option on the home screen; others go under "More". */
   is_default?: boolean;
+  /** Per-layer meaning for this profile (layer id → sentence); may be empty. */
+  notes?: Record<string, string>;
 }
 
 export interface Region {
@@ -145,7 +147,8 @@ export interface AssistantResponse {
 
 export interface Poi {
   id: string;
-  kind: 'substation' | 'ixp' | 'data_centre' | 'station' | 'water';
+  /** substation | ixp | data_centre | station | water today; new kinds get their own colour. */
+  kind: string;
   name: string;
   lat: number;
   lon: number;

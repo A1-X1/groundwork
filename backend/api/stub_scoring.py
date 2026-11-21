@@ -22,59 +22,296 @@ CENTRE = (51.495, -0.11)  # lat, lon of roughly Charing Cross
 
 # Rough line of the Thames through London, (lon, lat).
 THAMES: list[tuple[float, float]] = [
-    (-0.50, 51.43), (-0.42, 51.43), (-0.33, 51.45), (-0.28, 51.48), (-0.22, 51.485),
-    (-0.18, 51.47), (-0.12, 51.505), (-0.08, 51.508), (-0.03, 51.50), (0.00, 51.49),
-    (0.05, 51.50), (0.12, 51.50), (0.20, 51.47), (0.33, 51.46),
+    (-0.50, 51.43),
+    (-0.42, 51.43),
+    (-0.33, 51.45),
+    (-0.28, 51.48),
+    (-0.22, 51.485),
+    (-0.18, 51.47),
+    (-0.12, 51.505),
+    (-0.08, 51.508),
+    (-0.03, 51.50),
+    (0.00, 51.49),
+    (0.05, 51.50),
+    (0.12, 51.50),
+    (0.20, 51.47),
+    (0.33, 51.46),
 ]
 # Green-belt-ish / designated blobs: (lon, lat, radius_km).
 PROTECTED = [
-    (-0.27, 51.44, 2.2), (-0.17, 51.57, 1.2), (0.03, 51.65, 3.0), (-0.45, 51.62, 3.5),
-    (0.20, 51.33, 4.0), (-0.47, 51.36, 3.0), (-0.32, 51.44, 1.2),
+    (-0.27, 51.44, 2.2),
+    (-0.17, 51.57, 1.2),
+    (0.03, 51.65, 3.0),
+    (-0.45, 51.62, 3.5),
+    (0.20, 51.33, 4.0),
+    (-0.47, 51.36, 3.0),
+    (-0.32, 51.44, 1.2),
 ]
 STATIONS = [
-    (-0.1236, 51.5308), (-0.1426, 51.5154), (-0.0886, 51.5050), (-0.1631, 51.4952),
-    (-0.0755, 51.5178), (-0.1278, 51.4950), (-0.2250, 51.5100), (0.0170, 51.5430),
-    (-0.0750, 51.4500), (-0.1900, 51.4200), (-0.3000, 51.5600), (0.0700, 51.4000),
-    (-0.0200, 51.6000), (-0.3700, 51.4600), (0.1600, 51.5600), (-0.2100, 51.6100),
+    (-0.1236, 51.5308),
+    (-0.1426, 51.5154),
+    (-0.0886, 51.5050),
+    (-0.1631, 51.4952),
+    (-0.0755, 51.5178),
+    (-0.1278, 51.4950),
+    (-0.2250, 51.5100),
+    (0.0170, 51.5430),
+    (-0.0750, 51.4500),
+    (-0.1900, 51.4200),
+    (-0.3000, 51.5600),
+    (0.0700, 51.4000),
+    (-0.0200, 51.6000),
+    (-0.3700, 51.4600),
+    (0.1600, 51.5600),
+    (-0.2100, 51.6100),
 ]
 SUBSTATIONS = [
-    (-0.20, 51.49), (0.01, 51.51), (-0.33, 51.54), (0.12, 51.47), (-0.05, 51.60),
-    (-0.15, 51.40), (0.25, 51.53), (-0.42, 51.48),
+    (-0.20, 51.49),
+    (0.01, 51.51),
+    (-0.33, 51.54),
+    (0.12, 51.47),
+    (-0.05, 51.60),
+    (-0.15, 51.40),
+    (0.25, 51.53),
+    (-0.42, 51.48),
 ]
 FIBRE_IX = [(-0.0735, 51.5215), (0.0055, 51.5113), (-0.0207, 51.5089), (-0.4280, 51.5100)]
 
 LAYER_META: list[tuple[str, str, str, str, str, str]] = [
     # id, label, unit, kind, description, source
-    ("elevation", "Elevation", "m", "raster", "Ground height above sea level.", "Copernicus GLO-30 DEM"),
+    (
+        "elevation",
+        "Elevation",
+        "m",
+        "raster",
+        "Ground height above sea level.",
+        "Copernicus GLO-30 DEM",
+    ),
     ("slope", "Slope", "°", "raster", "Mean terrain slope.", "Derived from elevation"),
-    ("mean_temp_annual", "Mean annual temperature", "°C", "raster", "Average 2 m air temperature.", "Open-Meteo (ERA5)"),
-    ("summer_max_temp", "Summer max temperature", "°C", "raster", "Mean daily maximum, June–August.", "Open-Meteo (ERA5)"),
-    ("wet_bulb_p99", "Wet-bulb 99th percentile", "°C", "raster", "Hourly wet-bulb temperature exceeded 1% of the year.", "Open-Meteo (ERA5)"),
-    ("free_cooling_hours", "Free cooling hours", "h/yr", "raster", "Hours per year below 18 °C dry bulb.", "Derived from Open-Meteo hourly"),
-    ("humidity_mean", "Mean relative humidity", "%", "raster", "Average relative humidity.", "Open-Meteo (ERA5)"),
-    ("wind_speed_mean", "Mean wind speed", "m/s", "raster", "Average 10 m wind speed.", "Open-Meteo (ERA5)"),
-    ("solar_irradiance", "Solar irradiance", "kWh/m²/yr", "raster", "Annual global horizontal irradiance.", "Open-Meteo (ERA5)"),
-    ("flood_zone_3", "Flood zone 3", "flag", "raster", "Inside EA Flood Zone 3 (1% river / 0.5% sea annual chance).", "Environment Agency Flood Map for Planning"),
-    ("flood_risk", "Flood risk", "index", "raster", "Relative flood likelihood.", "Environment Agency"),
-    ("air_quality_no2", "NO₂", "µg/m³", "raster", "Annual mean nitrogen dioxide.", "Open-Meteo Air Quality"),
-    ("air_quality_pm25", "PM2.5", "µg/m³", "raster", "Annual mean fine particulates.", "Open-Meteo Air Quality"),
-    ("grid_carbon_intensity", "Grid carbon intensity", "gCO₂/kWh", "aggregate", "Regional average grid carbon intensity.", "National Grid ESO Carbon Intensity API"),
-    ("crime_rate", "Crime rate", "per 1,000", "aggregate", "Street-level crimes per 1,000 residents, last 12 months.", "data.police.uk"),
-    ("population_density", "Population density", "people/km²", "aggregate", "Usual residents per km².", "ONS Census 2021"),
-    ("deprivation_index", "Deprivation", "IMD score", "aggregate", "Index of Multiple Deprivation score.", "English Indices of Deprivation 2019"),
-    ("median_house_price", "Median house price", "£", "aggregate", "Median sale price, last 12 months.", "HM Land Registry Price Paid"),
-    ("dist_primary_school", "Distance to primary school", "m", "proximity", "To nearest open primary school.", "GIAS"),
-    ("dist_secondary_school", "Distance to secondary school", "m", "proximity", "To nearest open secondary school.", "GIAS"),
-    ("school_quality_nearby", "School quality nearby", "share", "proximity", "Share of nearby schools rated Good or Outstanding.", "GIAS + Ofsted"),
-    ("dist_station", "Distance to station", "m", "proximity", "To nearest rail, Tube or DLR station.", "OpenStreetMap"),
-    ("dist_substation", "Distance to substation", "m", "proximity", "To nearest electrical substation.", "OpenStreetMap"),
-    ("dist_hv_line", "Distance to HV line", "m", "proximity", "To nearest high-voltage power line.", "OpenStreetMap"),
-    ("dist_fibre_ix", "Distance to internet exchange", "m", "proximity", "To nearest London IXP site.", "OpenStreetMap / seeded list"),
-    ("dist_water_body", "Distance to water", "m", "proximity", "To nearest river or water body.", "OpenStreetMap"),
-    ("green_space_access", "Distance to park", "m", "proximity", "To nearest public park.", "OpenStreetMap"),
-    ("dist_major_road", "Distance to major road", "m", "proximity", "To nearest motorway, trunk or primary road.", "OpenStreetMap"),
-    ("protected_land", "Protected land", "flag", "raster", "Designated site or Green Belt.", "Natural England / WDPA"),
-    ("land_use_residential", "Residential land use", "share", "aggregate", "Share of hex with residential land use.", "OpenStreetMap"),
+    (
+        "mean_temp_annual",
+        "Mean annual temperature",
+        "°C",
+        "raster",
+        "Average 2 m air temperature.",
+        "Open-Meteo (ERA5)",
+    ),
+    (
+        "summer_max_temp",
+        "Summer max temperature",
+        "°C",
+        "raster",
+        "Mean daily maximum, June–August.",
+        "Open-Meteo (ERA5)",
+    ),
+    (
+        "wet_bulb_p99",
+        "Wet-bulb 99th percentile",
+        "°C",
+        "raster",
+        "Hourly wet-bulb temperature exceeded 1% of the year.",
+        "Open-Meteo (ERA5)",
+    ),
+    (
+        "free_cooling_hours",
+        "Free cooling hours",
+        "h/yr",
+        "raster",
+        "Hours per year below 18 °C dry bulb.",
+        "Derived from Open-Meteo hourly",
+    ),
+    (
+        "humidity_mean",
+        "Mean relative humidity",
+        "%",
+        "raster",
+        "Average relative humidity.",
+        "Open-Meteo (ERA5)",
+    ),
+    (
+        "wind_speed_mean",
+        "Mean wind speed",
+        "m/s",
+        "raster",
+        "Average 10 m wind speed.",
+        "Open-Meteo (ERA5)",
+    ),
+    (
+        "solar_irradiance",
+        "Solar irradiance",
+        "kWh/m²/yr",
+        "raster",
+        "Annual global horizontal irradiance.",
+        "Open-Meteo (ERA5)",
+    ),
+    (
+        "flood_zone_3",
+        "Flood zone 3",
+        "flag",
+        "raster",
+        "Inside EA Flood Zone 3 (1% river / 0.5% sea annual chance).",
+        "Environment Agency Flood Map for Planning",
+    ),
+    (
+        "flood_risk",
+        "Flood risk",
+        "index",
+        "raster",
+        "Relative flood likelihood.",
+        "Environment Agency",
+    ),
+    (
+        "air_quality_no2",
+        "NO₂",
+        "µg/m³",
+        "raster",
+        "Annual mean nitrogen dioxide.",
+        "Open-Meteo Air Quality",
+    ),
+    (
+        "air_quality_pm25",
+        "PM2.5",
+        "µg/m³",
+        "raster",
+        "Annual mean fine particulates.",
+        "Open-Meteo Air Quality",
+    ),
+    (
+        "grid_carbon_intensity",
+        "Grid carbon intensity",
+        "gCO₂/kWh",
+        "aggregate",
+        "Regional average grid carbon intensity.",
+        "National Grid ESO Carbon Intensity API",
+    ),
+    (
+        "crime_rate",
+        "Crime rate",
+        "per 1,000",
+        "aggregate",
+        "Street-level crimes per 1,000 residents, last 12 months.",
+        "data.police.uk",
+    ),
+    (
+        "population_density",
+        "Population density",
+        "people/km²",
+        "aggregate",
+        "Usual residents per km².",
+        "ONS Census 2021",
+    ),
+    (
+        "deprivation_index",
+        "Deprivation",
+        "IMD score",
+        "aggregate",
+        "Index of Multiple Deprivation score.",
+        "English Indices of Deprivation 2019",
+    ),
+    (
+        "median_house_price",
+        "Median house price",
+        "£",
+        "aggregate",
+        "Median sale price, last 12 months.",
+        "HM Land Registry Price Paid",
+    ),
+    (
+        "dist_primary_school",
+        "Distance to primary school",
+        "m",
+        "proximity",
+        "To nearest open primary school.",
+        "GIAS",
+    ),
+    (
+        "dist_secondary_school",
+        "Distance to secondary school",
+        "m",
+        "proximity",
+        "To nearest open secondary school.",
+        "GIAS",
+    ),
+    (
+        "school_quality_nearby",
+        "School quality nearby",
+        "share",
+        "proximity",
+        "Share of nearby schools rated Good or Outstanding.",
+        "GIAS + Ofsted",
+    ),
+    (
+        "dist_station",
+        "Distance to station",
+        "m",
+        "proximity",
+        "To nearest rail, Tube or DLR station.",
+        "OpenStreetMap",
+    ),
+    (
+        "dist_substation",
+        "Distance to substation",
+        "m",
+        "proximity",
+        "To nearest electrical substation.",
+        "OpenStreetMap",
+    ),
+    (
+        "dist_hv_line",
+        "Distance to HV line",
+        "m",
+        "proximity",
+        "To nearest high-voltage power line.",
+        "OpenStreetMap",
+    ),
+    (
+        "dist_fibre_ix",
+        "Distance to internet exchange",
+        "m",
+        "proximity",
+        "To nearest London IXP site.",
+        "OpenStreetMap / seeded list",
+    ),
+    (
+        "dist_water_body",
+        "Distance to water",
+        "m",
+        "proximity",
+        "To nearest river or water body.",
+        "OpenStreetMap",
+    ),
+    (
+        "green_space_access",
+        "Distance to park",
+        "m",
+        "proximity",
+        "To nearest public park.",
+        "OpenStreetMap",
+    ),
+    (
+        "dist_major_road",
+        "Distance to major road",
+        "m",
+        "proximity",
+        "To nearest motorway, trunk or primary road.",
+        "OpenStreetMap",
+    ),
+    (
+        "protected_land",
+        "Protected land",
+        "flag",
+        "raster",
+        "Designated site or Green Belt.",
+        "Natural England / WDPA",
+    ),
+    (
+        "land_use_residential",
+        "Residential land use",
+        "share",
+        "aggregate",
+        "Share of hex with residential land use.",
+        "OpenStreetMap",
+    ),
 ]
 
 PROFILES: list[dict[str, Any]] = [
@@ -83,9 +320,12 @@ PROFILES: list[dict[str, Any]] = [
         "label": "Data centre",
         "description": "Low cooling demand, clean grid power, connectivity, low hazard.",
         "layers": {
-            "free_cooling_hours": (0.20, "higher"), "wet_bulb_p99": (0.15, "lower"),
-            "grid_carbon_intensity": (0.15, "lower"), "dist_substation": (0.15, "lower"),
-            "dist_fibre_ix": (0.15, "lower"), "slope": (0.10, "lower"),
+            "free_cooling_hours": (0.20, "higher"),
+            "wet_bulb_p99": (0.15, "lower"),
+            "grid_carbon_intensity": (0.15, "lower"),
+            "dist_substation": (0.15, "lower"),
+            "dist_fibre_ix": (0.15, "lower"),
+            "slope": (0.10, "lower"),
             "population_density": (0.10, "lower"),
         },
         "masks": ["flood_zone_3", "protected_land"],
@@ -96,10 +336,14 @@ PROFILES: list[dict[str, Any]] = [
         "label": "House",
         "description": "Safe, connected, green and affordable places to live.",
         "layers": {
-            "crime_rate": (0.20, "lower"), "dist_station": (0.15, "lower"),
-            "green_space_access": (0.15, "lower"), "median_house_price": (0.15, "lower"),
-            "school_quality_nearby": (0.10, "higher"), "air_quality_no2": (0.10, "lower"),
-            "flood_risk": (0.10, "lower"), "dist_primary_school": (0.05, "lower"),
+            "crime_rate": (0.20, "lower"),
+            "dist_station": (0.15, "lower"),
+            "green_space_access": (0.15, "lower"),
+            "median_house_price": (0.15, "lower"),
+            "school_quality_nearby": (0.10, "higher"),
+            "air_quality_no2": (0.10, "lower"),
+            "flood_risk": (0.10, "lower"),
+            "dist_primary_school": (0.05, "lower"),
         },
         "masks": ["flood_zone_3", "protected_land"],
         "has_model": True,
@@ -109,9 +353,12 @@ PROFILES: list[dict[str, Any]] = [
         "label": "School",
         "description": "Where children live, clean air, safe streets and walkable access.",
         "layers": {
-            "population_density": (0.25, "higher"), "air_quality_no2": (0.20, "lower"),
-            "crime_rate": (0.15, "lower"), "dist_secondary_school": (0.15, "higher"),
-            "dist_station": (0.10, "lower"), "dist_major_road": (0.10, "higher"),
+            "population_density": (0.25, "higher"),
+            "air_quality_no2": (0.20, "lower"),
+            "crime_rate": (0.15, "lower"),
+            "dist_secondary_school": (0.15, "higher"),
+            "dist_station": (0.10, "lower"),
+            "dist_major_road": (0.10, "higher"),
             "green_space_access": (0.05, "lower"),
         },
         "masks": ["flood_zone_3", "protected_land"],
@@ -125,8 +372,10 @@ PROFILES: list[dict[str, Any]] = [
             "demo region; mineral deposit layers are future work."
         ),
         "layers": {
-            "dist_water_body": (0.20, "lower"), "population_density": (0.30, "lower"),
-            "dist_major_road": (0.20, "lower"), "slope": (0.15, "lower"),
+            "dist_water_body": (0.20, "lower"),
+            "population_density": (0.30, "lower"),
+            "dist_major_road": (0.20, "lower"),
+            "slope": (0.15, "lower"),
             "dist_hv_line": (0.15, "lower"),
         },
         "masks": ["protected_land"],
@@ -201,8 +450,12 @@ def _grid() -> dict[str, Any]:
         urban = math.exp(-r / 11)
         n = lambda seed, k=1.0, la=lat, lo=lon: _noise(la, lo, seed, k)  # noqa: E731
 
-        elev = 5 + 9 * thames + 8 * max(0.0, lat - 51.55) * 100 / 10 + 6 * n(1) + (
-            25 if lat < 51.38 else 0
+        elev = (
+            5
+            + 9 * thames
+            + 8 * max(0.0, lat - 51.55) * 100 / 10
+            + 6 * n(1)
+            + (25 if lat < 51.38 else 0)
         )
         elev = max(1.0, elev)
         raw["elevation"].append(elev)
@@ -243,8 +496,13 @@ def _grid() -> dict[str, Any]:
         raw["land_use_residential"].append(max(0.0, min(1.0, 0.45 + 0.3 * urban + 0.2 * n(27))))
 
     norm = {k: _percentile_rank(v) for k, v in raw.items()}
-    return {"cells": cells, "centroids": centroids, "raw": raw, "norm": norm,
-            "index": {c: i for i, c in enumerate(cells)}}
+    return {
+        "cells": cells,
+        "centroids": centroids,
+        "raw": raw,
+        "norm": norm,
+        "index": {c: i for i, c in enumerate(cells)},
+    }
 
 
 def _percentile_rank(values: list[float]) -> list[float]:
@@ -288,22 +546,32 @@ def list_layers() -> list[dict]:
     out = []
     for lid, label, unit, kind, desc, source in LAYER_META:
         vals = g["raw"][lid]
-        out.append({
-            "id": lid, "label": label, "unit": unit, "kind": kind, "description": desc,
-            "source": f"{source} (synthetic stand-in)", "min": float(min(vals)),
-            "max": float(max(vals)),
-        })
+        out.append(
+            {
+                "id": lid,
+                "label": label,
+                "unit": unit,
+                "kind": kind,
+                "description": desc,
+                "source": f"{source} (synthetic stand-in)",
+                "min": float(min(vals)),
+                "max": float(max(vals)),
+            }
+        )
     return out
 
 
 def list_profiles() -> list[dict]:
     return [
         {
-            "id": p["id"], "label": p["label"], "description": p["description"],
+            "id": p["id"],
+            "label": p["label"],
+            "description": p["description"],
             "layers": [
                 {"id": lid, "weight": w, "better": b} for lid, (w, b) in p["layers"].items()
             ],
-            "masks": list(p["masks"]), "has_model": p["has_model"],
+            "masks": list(p["masks"]),
+            "has_model": p["has_model"],
         }
         for p in PROFILES
     ]
@@ -350,10 +618,7 @@ def _effective_weights(
 def _feasibility(profile_id: str) -> list[float]:
     g = _grid()
     seed = sum(map(ord, profile_id))
-    return [
-        0.55 + 0.45 * (0.5 + 0.5 * _noise(lat, lon, seed, 1.7))
-        for lat, lon in g["centroids"]
-    ]
+    return [0.55 + 0.45 * (0.5 + 0.5 * _noise(lat, lon, seed, 1.7)) for lat, lon in g["centroids"]]
 
 
 def _score_all(profile_id: str, weights: dict[str, float] | None) -> list[dict]:
@@ -372,14 +637,19 @@ def _score_all(profile_id: str, weights: dict[str, float] | None) -> list[dict]:
         masked = any(g["raw"][m][i] >= 0.5 for m in p["masks"])
         sust = sum(w * directed[lid][i] for lid, (w, _) in eff.items())
         s = sust * (feas[i] if feas else 1.0)
-        out.append({
-            "h3": c,
-            "score": None if masked else round(max(0.0, min(1.0, s)), 4),
-            "masked": masked,
-            "breakdown": {} if masked else {
-                lid: round(w * (directed[lid][i] - means[lid]), 4) for lid, (w, _) in eff.items()
-            },
-        })
+        out.append(
+            {
+                "h3": c,
+                "score": None if masked else round(max(0.0, min(1.0, s)), 4),
+                "masked": masked,
+                "breakdown": {}
+                if masked
+                else {
+                    lid: round(w * (directed[lid][i] - means[lid]), 4)
+                    for lid, (w, _) in eff.items()
+                },
+            }
+        )
     return out
 
 
@@ -415,18 +685,30 @@ def score_point(
         result["sustainability_score"] = round(result["score"] / feas, 4)
     if p["has_model"]:
         drivers = [
-            {"layer": lid, "label": labels[lid], "value": round(0.8 * _noise(lat, lon, 100 + k, 2.0), 4),
-             "raw": result["raw"][lid]}
+            {
+                "layer": lid,
+                "label": labels[lid],
+                "value": round(0.8 * _noise(lat, lon, 100 + k, 2.0), 4),
+                "raw": result["raw"][lid],
+            }
             for k, lid in enumerate(g["raw"])
             if lid not in p["masks"]
         ]
         pos = sorted((d for d in drivers if d["value"] > 0), key=lambda d: -d["value"])
         neg = sorted((d for d in drivers if d["value"] < 0), key=lambda d: d["value"])
-        result["shap"] = {"base_value": -2.0, "positive": pos[:DEFAULT_TOP_N],
-                          "negative": neg[:DEFAULT_TOP_N]}
-        result["model"] = {"type": "presence", "positives": "synthetic stub", "note": (
-            "Stub model. The feasibility model learns where similar sites have been built, "
-            "not where they should be.")}
+        result["shap"] = {
+            "base_value": -2.0,
+            "positive": pos[:DEFAULT_TOP_N],
+            "negative": neg[:DEFAULT_TOP_N],
+        }
+        result["model"] = {
+            "type": "presence",
+            "positives": "synthetic stub",
+            "note": (
+                "Stub model. The feasibility model learns where similar sites have been built, "
+                "not where they should be."
+            ),
+        }
     else:
         result["shap"] = None
         result["model"] = None
@@ -435,5 +717,10 @@ def score_point(
 
 def data_status() -> dict:
     """Same shape as Person 1's ``backend.scoring.data_status``."""
-    return {"is_sample": True, "generated_at": None, "cells": len(_grid()["cells"]),
-            "real_layers": [], "synthetic_layers": [m[0] for m in LAYER_META]}
+    return {
+        "is_sample": True,
+        "generated_at": None,
+        "cells": len(_grid()["cells"]),
+        "real_layers": [],
+        "synthetic_layers": [m[0] for m in LAYER_META],
+    }

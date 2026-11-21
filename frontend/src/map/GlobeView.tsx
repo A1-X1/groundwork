@@ -10,9 +10,8 @@ import { Button } from '@astryxdesign/core/Button';
 import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
 import { cellToBoundary, cellToChildren, getRes0Cells } from 'h3-js';
-import { buildSolarSystem, SYSTEM_FAR } from './solarSystem';
-import { buildSpace, SPACE_FAR, subsolarPoint } from './space';
-import { useEffect, useRef, useState } from 'react';
+import { buildSpace, MAX_DISTANCE, subsolarPoint } from './space';
+import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RAMPS, sample } from '../lib/colour';
 
@@ -44,8 +43,6 @@ interface Props {
   /** Wheel-zoomed all the way in: the point facing the camera, for the map hand-over. */
   onZoomIn?: (lat: number, lon: number) => void;
   enterLabel?: string;
-  /** Show the solar-system view when zoomed far out (default on). */
-  solarSystem?: boolean;
   onUserInteract: () => void;
 }
 
@@ -150,7 +147,6 @@ export function GlobeView(props: Props) {
   const hostRef = useRef<HTMLElement | null>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
-  const [systemView, setSystemView] = useState(false);
   const api = useRef<{
     fly: (q: THREE.Quaternion, d: number, ms: number, done?: () => void) => void;
     zoomTo: (d: number) => void;
@@ -191,11 +187,8 @@ export function GlobeView(props: Props) {
     // Space turns with the globe, so the Sun stays over today's real subsolar point.
     const space = buildSpace(toVec(...subsolarPoint(new Date())));
     globe.add(space.group);
-    // Zoomed far out: the planets line up, then swing onto orbits (unless turned off).
-    const solar = buildSolarSystem();
-    scene.add(solar.group);
-    const maxDistance = () => (propsRef.current.solarSystem === false ? SPACE_FAR : SYSTEM_FAR);
-    let wasSystem = false;
+    // The Moon sits in view space (decoration you can't fly to), up and to the right of Earth.
+    scene.add(space.moon);
     let lastFrame = performance.now();
     const loader = new THREE.TextureLoader();
     const day = loader.load('/textures/earth-blue-marble-2k.jpg', () => renderOnce());
@@ -291,7 +284,7 @@ export function GlobeView(props: Props) {
       e.preventDefault();
       anim = null;
       const before = distance;
-      distance = THREE.MathUtils.clamp(distance * (1 + e.deltaY * 0.001), NEAR, maxDistance());
+      distance = THREE.MathUtils.clamp(distance * (1 + e.deltaY * 0.001), NEAR, MAX_DISTANCE);
       propsRef.current.onUserInteract();
       // Reaching the closest distance hands over to the flat map at the point facing us.
       if (
@@ -338,20 +331,8 @@ export function GlobeView(props: Props) {
       const dt = reduced ? 0 : Math.min((now - lastFrame) / 1000, 1 / 30);
       space.tick(dt);
       lastFrame = now;
-      // Places the camera too (straight at Earth until the solar-system view kicks in).
-      const mix = solar.update(p.solarSystem === false ? 0 : distance, camera, dt);
-      if (p.solarSystem === false) {
-        camera.position.set(0, 0, distance);
-        camera.lookAt(0, 0, 0);
-      }
-      space.setSystemMix(mix.line);
-      const inSystem = mix.line > 0.3;
-      if (inSystem !== wasSystem) {
-        wasSystem = inSystem;
-        setSystemView(inSystem);
-      }
-      // keep the planets moving while the system view is up
-      if (mix.line > 0.01 && p.isVisible && !reduced && !dragging) again = true;
+      camera.position.set(0, 0, distance);
+      camera.lookAt(0, 0, 0);
       maybeLoadHiRes();
       renderer.render(scene, camera);
       running = again;
@@ -432,7 +413,6 @@ export function GlobeView(props: Props) {
       el.removeEventListener('wheel', onWheel);
       earthGeo.dispose();
       space.dispose();
-      solar.dispose();
       gridGeo.dispose();
       day.dispose();
       bump.dispose();
@@ -446,14 +426,6 @@ export function GlobeView(props: Props) {
     api.current?.setRegion(props.regionHexes);
   }, [props.regionHexes]);
 
-  // "remove solar system": pull back in to the normal world view if we're out there
-  useEffect(() => {
-    const a = api.current;
-    if (!a) return;
-    if (props.solarSystem === false && a.distance() > SPACE_FAR) a.zoomTo(FAR);
-    else a.redraw();
-  }, [props.solarSystem]);
-
   useEffect(() => {
     const t = props.target;
     if (!t || !api.current) return;
@@ -466,8 +438,7 @@ export function GlobeView(props: Props) {
     const z = props.zoom;
     if (!z || !api.current) return;
     const d = api.current.distance();
-    const max = props.solarSystem === false ? SPACE_FAR : SYSTEM_FAR;
-    const next = THREE.MathUtils.clamp(z.dir === 'in' ? d * 0.7 : d / 0.7, NEAR, max);
+    const next = THREE.MathUtils.clamp(z.dir === 'in' ? d * 0.7 : d / 0.7, NEAR, MAX_DISTANCE);
     api.current.zoomTo(next);
   }, [props.zoom]);
 
@@ -493,11 +464,6 @@ export function GlobeView(props: Props) {
         align="end"
         style={{ position: 'absolute', insetBlockEnd: 0, insetInlineEnd: 0 }}
       >
-        {systemView && props.isVisible && (
-          <Text color="secondary" display="block" textWrap="pretty">
-            Solar system view (not to scale). Say “remove solar system” to turn it off.
-          </Text>
-        )}
         {props.notice && (
           <Text color="secondary" display="block" textWrap="pretty">
             {props.notice}

@@ -116,8 +116,11 @@ def _cells(poly: Polygon) -> list[str]:
     lons = [p[1] for p in outer]
     lats = [p[0] for p in outer]
     approx = (
-        (max(lons) - min(lons)) * 111.32 * math.cos(math.radians(sum(lats) / len(lats)))
-        * (max(lats) - min(lats)) * 110.57
+        (max(lons) - min(lons))
+        * 111.32
+        * math.cos(math.radians(sum(lats) / len(lats)))
+        * (max(lats) - min(lats))
+        * 110.57
     )
     if approx > MAX_AREA_KM2 * 2:
         raise ValueError(f"area is too large; keep it under about {MAX_AREA_KM2:,} km²")

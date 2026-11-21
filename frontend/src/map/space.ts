@@ -1,18 +1,20 @@
 /**
- * Space around the globe: a starfield with a Milky Way band, the Sun (glow sprite and the
- * scene's light), the Moon, and the other planets far behind, to artistic rather than
- * physical scale. Everything is procedural (no textures to credit or download).
+ * Space around the globe: a starfield with a Milky Way band, Earth's Moon, and the Sun as an
+ * off-screen light (no sprite, no planets). It's decoration you can't fly to: the camera stops
+ * at a comfortable whole-Earth view (MAX_DISTANCE). Everything is procedural (no textures to
+ * credit or download).
  *
- * Coordinates are in the globe's frame (Earth radius 1). The group turns with the globe,
- * so the Sun stays over today's real subsolar point and the night side is where it
- * really is.
+ * Stars and the light are in the globe's frame (Earth radius 1) and turn with it, so the Sun
+ * stays over today's real subsolar point and the night side is where it really is. The Moon
+ * sits in view space, above and to the right of Earth, so it peeks out as you zoom out.
  *
- * Budget: stars are one Points draw; planets are low-poly spheres; no post-processing.
+ * Budget: stars are one Points draw, the Moon one low-poly sphere; no post-processing.
  */
 import * as THREE from 'three';
 
-export const SPACE_FAR = 14; // furthest the camera may pull back
-const STAR_RADIUS = 400; // well beyond the solar-system view's camera
+/** Furthest the camera may pull back: the whole Earth with room around it. */
+export const MAX_DISTANCE = 7;
+const STAR_RADIUS = 60;
 const SUN_DISTANCE = 42;
 
 /** Sub-solar point (where the Sun is overhead) for a date: [lat, lon] in degrees. */
@@ -79,22 +81,13 @@ function surfaceTexture(base: string, spots: string, seed: number, banded = fals
   return t;
 }
 
-const PLANETS = [
-  { name: 'Mercury', r: 0.12, dist: 30, angle: 0.4, base: '#9c968f', spot: '#5e5954' },
-  { name: 'Venus', r: 0.22, dist: 24, angle: 2.2, base: '#d9c28f', spot: '#b89a5e', banded: true },
-  { name: 'Mars', r: 0.16, dist: 20, angle: 4.1, base: '#b5562f', spot: '#7a3218' },
-  { name: 'Jupiter', r: 0.9, dist: 36, angle: 5.3, base: '#c9a77e', spot: '#8f6a48', banded: true },
-  { name: 'Saturn', r: 0.75, dist: 40, angle: 3.2, base: '#d8c18f', spot: '#a68a5c', banded: true, ring: true },
-  { name: 'Uranus', r: 0.4, dist: 44, angle: 1.3, base: '#9fd3da', spot: '#7cb4bd', banded: true },
-  { name: 'Neptune', r: 0.38, dist: 47, angle: 6.0, base: '#4b6fd1', spot: '#2f4ba0', banded: true },
-]; // prettier-ignore
-
 export interface Space {
+  /** Stars and the Sun's light: add to the globe so they turn with it. */
   group: THREE.Group;
-  /** Advance twinkle and orbits by dt seconds (pass 0 under reduced motion). */
+  /** Earth's Moon: add to the scene (view space). */
+  moon: THREE.Mesh;
+  /** Advance twinkle by dt seconds (pass 0 under reduced motion). */
   tick: (dt: number) => void;
-  /** 0–1 as the solar-system view takes over: the backdrop Sun, Moon and planets fade out. */
-  setSystemMix: (mix: number) => void;
   dispose: () => void;
 }
 
@@ -103,23 +96,6 @@ export function buildSpace(sunDir: THREE.Vector3): Space {
   const disposables: { dispose: () => void }[] = [];
   const keep = <T extends { dispose: () => void }>(x: T) => (disposables.push(x), x);
   const r = rng(7);
-
-  // ---- ecliptic plane (tilted 23.44° from the equator), shared by the Sun, Moon and planets
-  const sun = sunDir.clone().normalize();
-  const tilt = new THREE.Quaternion().setFromAxisAngle(
-    new THREE.Vector3(1, 0, 0),
-    THREE.MathUtils.degToRad(23.44),
-  );
-  const normal = new THREE.Vector3(0, 1, 0).applyQuaternion(tilt);
-  const u = sun
-    .clone()
-    .sub(normal.clone().multiplyScalar(sun.dot(normal)))
-    .normalize();
-  const v = new THREE.Vector3().crossVectors(normal, u).normalize();
-  const onEcliptic = (dist: number, angle: number, lift = 0) =>
-    u.clone().multiplyScalar(Math.cos(angle) * dist)
-      .add(v.clone().multiplyScalar(Math.sin(angle) * dist))
-      .add(normal.clone().multiplyScalar(lift)); // prettier-ignore
 
   // ---- stars: one Points draw, denser along a Milky Way band
   const N = 7000;
@@ -190,7 +166,7 @@ export function buildSpace(sunDir: THREE.Vector3): Space {
     hazeGeo,
     keep(
       new THREE.PointsMaterial({
-        size: 60,
+        size: 9,
         map: hazeTex,
         transparent: true,
         opacity: 0.1,
@@ -202,88 +178,35 @@ export function buildSpace(sunDir: THREE.Vector3): Space {
   haze.frustumCulled = false;
   group.add(haze);
 
-  // ---- the Sun: a glow sprite, and the light that sets Earth's day and night
-  const sunPos = sun.clone().multiplyScalar(SUN_DISTANCE);
-  const sunSprite = new THREE.Sprite(
-    keep(
-      new THREE.SpriteMaterial({
-        map: keep(glowTexture('rgba(255,250,235,1)', 'rgba(255,190,90,0.35)')),
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-      }),
-    ),
-  );
-  sunSprite.position.copy(sunPos);
-  sunSprite.scale.setScalar(16);
-  group.add(sunSprite);
+  // ---- the Sun: an off-screen light that sets Earth's day and night
   const light = new THREE.DirectionalLight(0xfff4e6, 2.6);
-  light.position.copy(sunPos);
+  light.position.copy(sunDir.clone().normalize().multiplyScalar(SUN_DISTANCE));
   group.add(light);
   group.add(light.target); // target at the origin (Earth), in the same frame
 
-  const lowPoly = keep(new THREE.SphereGeometry(1, 32, 20));
-
-  // ---- the Moon
-  const moonMat = keep(
-    new THREE.MeshLambertMaterial({ map: keep(surfaceTexture('#b9b6b0', '#6f6c68', 3)) }),
-  );
-  const moon = new THREE.Mesh(lowPoly, moonMat);
-  moon.scale.setScalar(0.27);
-  group.add(moon);
-  let moonAngle = 2.4;
-  const placeMoon = () => moon.position.copy(onEcliptic(3.6, moonAngle, 0.35));
-  placeMoon();
-
-  // ---- planets on rough orbits in the far background
-  const planets = PLANETS.map((p, i) => {
-    const mat = keep(
+  // ---- Earth's Moon, up and to the right; gently self-lit so it never goes fully dark
+  const moon = new THREE.Mesh(
+    keep(new THREE.SphereGeometry(1, 32, 20)),
+    keep(
       new THREE.MeshLambertMaterial({
-        map: keep(surfaceTexture(p.base, p.spot, 11 + i, p.banded)),
+        map: keep(surfaceTexture('#b9b6b0', '#6f6c68', 3)),
+        emissive: new THREE.Color(0x26282c),
       }),
-    );
-    const mesh = new THREE.Mesh(lowPoly, mat);
-    mesh.scale.setScalar(p.r);
-    mesh.position.copy(onEcliptic(p.dist, p.angle, (i % 3) - 1));
-    if (p.ring) {
-      const ring = new THREE.Mesh(
-        keep(new THREE.RingGeometry(1.35, 2.2, 48)),
-        keep(
-          new THREE.MeshBasicMaterial({
-            color: 0xcdb68a,
-            transparent: true,
-            opacity: 0.55,
-            side: THREE.DoubleSide,
-          }),
-        ),
-      );
-      ring.rotation.x = Math.PI / 2.4;
-      mesh.add(ring);
-    }
-    group.add(mesh);
-    return { mesh, ...p, speed: 0.02 / Math.sqrt(p.dist / 20) };
-  });
+    ),
+  );
+  // In the clear area above and right of the globe, between the floating cards.
+  moon.scale.setScalar(0.2);
+  moon.position.set(1.12, 1.46, -1.0);
 
   let time = 0;
   return {
     group,
+    moon,
     tick: (dt) => {
       if (dt <= 0) return;
       time += dt;
       starMat.uniforms.time!.value = time;
-      moonAngle += dt * 0.01;
-      placeMoon();
-      for (const p of planets) {
-        p.angle += dt * p.speed * 0.05;
-        p.mesh.position.copy(onEcliptic(p.dist, p.angle, p.mesh.position.dot(normal)));
-        p.mesh.rotation.y += dt * 0.1;
-      }
-    },
-    setSystemMix: (mix) => {
-      (sunSprite.material as THREE.SpriteMaterial).opacity = 1 - mix;
-      light.intensity = 2.6 * (1 - mix);
-      moon.visible = mix < 0.5;
-      for (const p of planets) p.mesh.visible = mix < 0.5;
+      moon.rotation.y += dt * 0.02;
     },
     dispose: () => disposables.forEach((d) => d.dispose()),
   };

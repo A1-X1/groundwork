@@ -55,6 +55,11 @@ class Profile(BaseModel):
     is_default: bool = Field(
         default=False, description="Shown as a main option on the home screen (else under More)."
     )
+    notes: dict[str, str] = Field(
+        default_factory=dict,
+        description="Per-layer meaning for this profile, e.g. 'Higher crime per 1,000 residents "
+        "gives a worse score (London median 67)'. Empty when the scoring module has none.",
+    )
 
 
 class Layer(BaseModel):

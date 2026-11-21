@@ -82,6 +82,7 @@ ERRORS: dict[int | str, dict[str, Any]] = {
     422: {"model": ErrorResponse, "description": "Invalid parameters or weights."},
 }
 
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Warm ML models in the background so the first click on a model profile is fast."""
@@ -348,13 +349,27 @@ def default_profile_ids() -> list[str]:
     return DEFAULT_PROFILES
 
 
+def profile_notes(profile_id: str) -> dict[str, str]:
+    """Person 1's per-layer notes (``scoring.profile_notes``) when available; never fails."""
+    fn = getattr(scoring, "profile_notes", None)
+    if fn is None:
+        return {}
+    try:
+        return {str(k): str(v) for k, v in (fn(profile_id) or {}).items()}
+    except Exception:  # noqa: BLE001 - notes are optional decoration
+        return {}
+
+
 @app.get("/profiles", response_model=list[Profile], tags=["profiles"], summary="List profiles")
 def list_profiles() -> list[dict[str, Any]]:
     """Every use case Groundwork can score, with default weights and masks. Main use cases come
     first (`is_default`, in display order); the rest follow."""
     defaults = default_profile_ids()
     rank = {pid: i for i, pid in enumerate(defaults)}
-    profiles = [{**p, "is_default": p["id"] in rank} for p in scoring.list_profiles()]
+    profiles = [
+        {**p, "is_default": p["id"] in rank, "notes": profile_notes(p["id"])}
+        for p in scoring.list_profiles()
+    ]
     return sorted(profiles, key=lambda p: (rank.get(p["id"], len(rank)), p["label"]))
 
 
@@ -375,7 +390,7 @@ def list_regions() -> list[dict[str, Any]]:
 )
 def get_profile(profile_id: ProfileId) -> dict[str, Any]:
     """Layers, weights, directions and masks for one use case."""
-    return profile_by_id(profile_id)
+    return {**profile_by_id(profile_id), "notes": profile_notes(profile_id)}
 
 
 @app.get("/layers", response_model=list[Layer], tags=["layers"], summary="List layers")

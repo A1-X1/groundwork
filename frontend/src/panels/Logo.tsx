@@ -14,7 +14,8 @@ export function LogoMark({ size }: { size: string }) {
       width={size}
       height={size}
       aria-hidden
-      style={{ display: 'inline-block', flex: 'none', transform: 'translateY(0.16em)' }}
+      // inline in the text flow, centred on the capitals
+      style={{ display: 'inline-block', verticalAlign: '-0.13em', marginInlineEnd: '0.26em' }}
     >
       <path
         d="M16 2.6 27.6 9.3v13.4L16 29.4 4.4 22.7V9.3z"
@@ -43,15 +44,13 @@ export function Logo({ size = 'inherit' }: { size?: 'inherit' | 'md' }) {
       color="inherit"
       aria-label="Groundwork"
       style={{
-        display: 'inline-flex',
-        alignItems: 'baseline',
-        gap: '0.28em',
+        display: 'inline',
         fontSize: size === 'md' ? 'var(--font-size-lg, 1.25rem)' : 'inherit',
         letterSpacing: '-0.015em',
         whiteSpace: 'nowrap',
       }}
     >
-      <LogoMark size="1.05em" />
+      <LogoMark size="1em" />
       Groundwork
     </Text>
   );

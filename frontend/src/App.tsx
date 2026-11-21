@@ -24,7 +24,15 @@ import { formatRaw, formatScore } from './lib/format';
 import { overlayFor } from './lib/overlays';
 import { kindForProfile, type ModelSpec, type SiteRender } from './map/buildings';
 import { GlobeView, type GlobeTarget, type RegionHex } from './map/GlobeView';
-import { ELEVATION_SCALE, MapView, type HexDatum, type MapFocus } from './map/MapView';
+import {
+  ELEVATION_SCALE,
+  MapView,
+  POI_MIN_ZOOM,
+  type HexDatum,
+  type MapFocus,
+} from './map/MapView';
+import { MapKey } from './panels/MapKey';
+import { TrainingChoiceDialog } from './panels/TrainingChoiceDialog';
 import { CommandBar } from './panels/CommandBar';
 import { ConnectionsDialog } from './panels/ConnectionsDialog';
 import { ApiError } from './api/client';
@@ -57,22 +65,6 @@ export default function App() {
   const [isPlacing, setPlacing] = useState(false);
   const [showMasked, setShowMasked] = useState(true);
   const [terrain, setTerrain] = useState(false);
-  /** The solar-system view when zooming far out on the globe; "remove solar system" turns it off. */
-  const [solarSystem, setSolarSystemState] = useState(() => {
-    try {
-      return window.localStorage.getItem('groundwork.solarSystem') !== 'off';
-    } catch {
-      return true;
-    }
-  });
-  const setSolarSystem = useCallback((on: boolean) => {
-    setSolarSystemState(on);
-    try {
-      window.localStorage.setItem('groundwork.solarSystem', on ? 'on' : 'off');
-    } catch {
-      // storage unavailable: the choice lasts for this session
-    }
-  }, []);
   const [lowPower, setLowPower] = useState(false);
   const [focus, setFocus] = useState<MapFocus | null>(null);
   const [heroSiteId, setHeroSiteId] = useState<string | null>(null);
@@ -86,6 +78,11 @@ export default function App() {
   const [screen, setScreen] = useState<'home' | 'explore'>('home');
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [connectionsReason, setConnectionsReason] = useState<string | null>(null);
+  /** Azure isn't connected and the agent asks how to train: the original prompt and message. */
+  const [trainingChoice, setTrainingChoice] = useState<{
+    prompt: string;
+    message: string | null;
+  } | null>(null);
   const [modelIds, setModelIds] = useState<string[]>([]);
   const [progress, setProgress] = useState<AgentProgressState | null>(null);
   const mapViewRef = useRef<{ center: [number, number]; zoom: number; bbox: BBox } | null>(null);
@@ -138,6 +135,8 @@ export default function App() {
   >(null);
   const [project, setProject] = useState<Project | null>(null);
   const [pois, setPois] = useState<Poi[]>([]);
+  /** The map's last settled view, for the key (which lists only POIs on screen). */
+  const [mapBox, setMapBox] = useState<{ bbox: BBox; zoom: number } | null>(null);
   globeVisibleRef.current = globeVisible;
   // Hexes are fetched for the map's view only; none while the globe is showing.
   const setGwViewport = gw.setViewport;
@@ -282,6 +281,14 @@ export default function App() {
   );
   // The globe marks where data exists (from /regions), never the detailed hexes themselves.
   const regionHexes: RegionHex[] = useMemo(() => regionMarkers(regions), [regions]);
+  const poiKindsInView = useMemo(() => {
+    if (globeVisible || screen !== 'explore' || !mapBox || mapBox.zoom < POI_MIN_ZOOM) return [];
+    const [w, so, e, n] = mapBox.bbox;
+    const kinds = new Set<string>();
+    for (const p of pois)
+      if (p.lon >= w && p.lon <= e && p.lat >= so && p.lat <= n) kinds.add(p.kind);
+    return [...kinds];
+  }, [pois, mapBox, globeVisible, screen]);
   const hasDetail = useCallback(
     (lat: number, lon: number) =>
       scoredIds.has(latLngToCell(lat, lon, 8)) ||
@@ -637,16 +644,6 @@ export default function App() {
           case 'TOGGLE_TERRAIN':
             setTerrain(args.state !== 'off');
             break;
-          case 'TOGGLE_SOLAR_SYSTEM': {
-            const on = args.state !== 'off';
-            setSolarSystem(on);
-            notes.push(
-              on
-                ? 'Solar system is on. Zoom far out on the globe to see the planets line up, then orbit.'
-                : 'Solar system removed. Zooming out now stops at Earth. Say “show solar system” to bring it back.',
-            );
-            break;
-          }
           case 'SHOW_TOP_SITES':
             if (typeof args.profile === 'string') gw.chooseProfile(args.profile);
             gw.setSelection(null);
@@ -774,7 +771,11 @@ export default function App() {
   };
 
   const runPlanningAgent = useCallback(
-    async (text: string, onProgress?: (msg: string) => void): Promise<string> => {
+    async (
+      text: string,
+      onProgress?: (msg: string) => void,
+      extraContext?: Record<string, unknown>,
+    ): Promise<string> => {
       let final = '';
       const notes: string[] = [];
       // UI commands run in order (CREATE_STRUCTURE must finish before what follows it).
@@ -803,7 +804,13 @@ export default function App() {
               const cmds = fromAgent(e.commands as Record<string, unknown>[]);
               uiChain = uiChain.then(() => runCommands(cmds).then((n) => void notes.push(...n)));
             } else if (e.type === 'action_required') {
-              if (e.action === 'connect_azure' || e.action === 'connect_mistral') {
+              if (e.action === 'choose_training') {
+                // Azure isn't connected: let the user pick Azure or the Mistral data aggregator.
+                setTrainingChoice({
+                  prompt: text,
+                  message: typeof e.message === 'string' ? e.message : null,
+                });
+              } else if (e.action === 'connect_azure' || e.action === 'connect_mistral') {
                 setConnectionsReason(typeof e.message === 'string' ? e.message : null);
                 setConnectionsOpen(true);
               } else if (typeof e.message === 'string') {
@@ -828,6 +835,7 @@ export default function App() {
             selected_h3: gw.selection?.h3 ?? null,
             view: screenRef.current === 'home' ? 'home' : globeVisibleRef.current ? 'globe' : 'map',
             structures: projectsRef.current.map((x) => x.name),
+            ...extraContext,
           },
         );
         await uiChain;
@@ -860,8 +868,7 @@ export default function App() {
         .catch(() => null);
       const verdictText = (rv: Review) => [rv.reason, rv.suggestion].filter(Boolean).join(' ');
 
-      const isViewToggle = /\bsolar ?system\b|\bplanets\b/i.test(text); // a UI switch, not planning
-      if (!isViewToggle && (screen === 'home' || looksLikePlanning(text))) {
+      if (screen === 'home' || looksLikePlanning(text)) {
         const rv = await reviewP; // a long agent run should never start on an absurd request
         if (rv?.verdict === 'unsuitable') return verdictText(rv);
         try {
@@ -1039,6 +1046,7 @@ export default function App() {
           onAreaClick={selectArea}
           onView={(v) => {
             mapViewRef.current = v;
+            setMapBox({ bbox: v.bbox, zoom: v.zoom });
             if (!globeVisibleRef.current) gw.setViewport({ bbox: v.bbox, zoom: v.zoom });
             settleCamera();
           }}
@@ -1061,7 +1069,6 @@ export default function App() {
           }}
           onZoomIn={onGlobeZoomIn}
           enterLabel={regions[0] ? `Open ${regions[0].name} map` : undefined}
-          solarSystem={solarSystem}
           onUserInteract={() => setSpinning(false)}
         />
         <VStack
@@ -1342,6 +1349,31 @@ export default function App() {
           />
         </HStack>
       </HStack>
+      {screen === 'explore' && <MapKey kinds={poiKindsInView} />}
+      <TrainingChoiceDialog
+        isOpen={!!trainingChoice}
+        message={trainingChoice?.message ?? null}
+        onOpenChange={(open) => !open && setTrainingChoice(null)}
+        onConnectAzure={() => {
+          setTrainingChoice(null);
+          setConnectionsReason('Connect Azure ML to train the feasibility model.');
+          setConnectionsOpen(true);
+        }}
+        onUseAggregator={() => {
+          const prompt = trainingChoice?.prompt;
+          setTrainingChoice(null);
+          if (!prompt) return;
+          voice.setMessage('Starting the Mistral data aggregator…');
+          void runPlanningAgent(prompt, (m) => voice.setMessage(m), { agent: 'aggregator' })
+            .then((reply) => {
+              voice.setMessage(reply);
+              voice.speak(reply);
+            })
+            .catch((e: unknown) =>
+              voice.setMessage(e instanceof Error ? e.message : 'The aggregator failed.'),
+            );
+        }}
+      />
       <ModelPreviewDialog
         profile={previewProfile}
         label={
