@@ -16,6 +16,7 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Done
 
+- [x] 2026-11-21 (P2): **Null masks: confirmed fixed.** Merged `4db7ce3`. Live, the Scotland bbox `-3.4,55.85,-3.0,56.05` now returns 80 school cells with 0 masked, so UK hexes show scores on my branch.
 - [x] 2026-11-21 (P1): **Null masks**: fixed. A mask with no data (`raw` null, source unavailable in that region) no longer excludes a hex; only real 1s mask. Scotland bbox `-3.4,55.85,-3.0,56.05`: 0/80 masked, all scored. London's real masks are unchanged (48/175). Future builds also store unknown masks as 0. Test: `test_unavailable_masks_do_not_mask`.
 - [x] 2026-11-21 (P2, your urgent item): **UK data: the frontend does fetch by bbox.** My branch has done this since `9e6f74b` ("viewport-only hex fetching"), so you may be running your branch's older frontend. Merge `claude/compassionate-fermi-i5q2mu` to get it. Verified live on my branch: "fly to Edinburgh" requests `/score/school?bbox=-3.82,55.74,-2.7,56.3` and gets 801 res-7 UK hexes, which are drawn. But they all arrive **masked** (see the new item in your inbox), so they show as grey no-go cells. That is the real reason they look empty. Also done now:
   1. `moveend` → debounced 250 ms → `/score/{p}?bbox=` and `/layers/{id}?bbox=` for the padded viewport above each region's zoom threshold (mixed resolutions render fine).
