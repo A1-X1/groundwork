@@ -1,0 +1,22 @@
+id: house
+label: House
+description: >-
+  Safe, well-connected and affordable homes near good schools and parks, with
+  clean air and low flood risk.
+layers:
+  crime_rate:            {weight: 0.15, better: lower}
+  dist_station:          {weight: 0.15, better: lower}
+  school_quality_nearby: {weight: 0.12, better: higher}
+  median_house_price:    {weight: 0.10, better: lower}
+  dist_primary_school:   {weight: 0.10, better: lower}
+  green_space_access:    {weight: 0.10, better: lower}
+  air_quality_no2:       {weight: 0.10, better: lower}
+  flood_risk:            {weight: 0.08, better: lower}
+  summer_max_temp:       {weight: 0.05, better: lower}
+  dist_major_road:       {weight: 0.05, better: higher}
+masks: [flood_zone_3, protected_land]
+model:
+  type: presence
+  positives: osm:landuse=residential
+  # Positives are defined from these layers, so they would leak the label.
+  exclude_features: [land_use_residential, population_density]

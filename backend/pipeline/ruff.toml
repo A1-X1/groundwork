@@ -1,0 +1,10 @@
+# Lint config for Person 1's areas (layers, pipeline, scoring, tests_scoring).
+line-length = 120
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["B008", "E501"]  # long description strings are clearer unwrapped
+
+[lint.isort]
+known-first-party = ["backend"]

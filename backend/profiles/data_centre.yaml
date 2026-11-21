@@ -1,0 +1,20 @@
+id: data_centre
+label: Data centre
+description: >-
+  Low cooling demand, clean grid power, a nearby high-voltage connection and
+  internet exchange, flat ground and few neighbours. Flood Zone 3 and protected
+  land are excluded.
+layers:
+  free_cooling_hours:    {weight: 0.20, better: higher}
+  wet_bulb_p99:          {weight: 0.15, better: lower}
+  grid_carbon_intensity: {weight: 0.15, better: lower}
+  dist_substation:       {weight: 0.15, better: lower}
+  dist_fibre_ix:         {weight: 0.15, better: lower}
+  slope:                 {weight: 0.10, better: lower}
+  population_density:    {weight: 0.10, better: lower}
+masks: [flood_zone_3, protected_land]
+model:
+  type: presence          # presence-only (positives vs background)
+  positives: osm:telecom=data_center
+  # The seeded IXP list doubles as known data-centre sites, so distance to it would leak.
+  exclude_features: [dist_fibre_ix]
