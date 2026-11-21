@@ -21,6 +21,7 @@ class World:
         self.scorers = {rid: Scorer(g, profiles) for rid, g in grids.items()}
         self.default = DEFAULT_REGION if DEFAULT_REGION in grids else next(iter(grids))
         self.visible = self._visibility()
+        self._shapes: dict[str, tuple[int, list[str]]] = {}
 
     def _visibility(self) -> dict[str, np.ndarray]:
         """Hide coarse cells that a finer region covers (London's res-8 hexes replace UK res-7)."""
@@ -61,6 +62,21 @@ class World:
                 return rid, cell
         raise KeyError(f"({lat}, {lon}) is outside every built region ({', '.join(self.grids)})")
 
+    def shape(self, rid: str, max_cells: int = 600) -> tuple[int, list[str]]:
+        """Coarse hexes tracing the region's real land shape (parents of its actual cells),
+        at the finest resolution that stays under ``max_cells``. Never covers open water."""
+        if rid not in self._shapes:
+            cells = self.grids[rid].frame.index
+            res = self.grids[rid].resolution
+            out: list[str] = list(cells)
+            for r in range(res - 1, -1, -1):
+                if len(out) <= max_cells:
+                    break
+                out = sorted({h3.cell_to_parent(c, r) for c in cells})
+                res = r
+            self._shapes[rid] = (res, out)
+        return self._shapes[rid]
+
     def regions(self) -> list[dict[str, Any]]:
         out = []
         for rid, g in self.grids.items():
@@ -74,5 +90,6 @@ class World:
                 "kind": b.get("kind", "city"), "country": b.get("country"),
                 "real_layers": statuses.count("real"), "unavailable_layers": statuses.count("unavailable"),
                 "generated_at": b.get("generated_at"), "directory": str(g.directory),
+                "marker_resolution": self.shape(rid)[0], "marker_cells": self.shape(rid)[1],
             })
         return out

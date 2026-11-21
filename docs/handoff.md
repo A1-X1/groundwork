@@ -12,6 +12,11 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
+- [ ] 2026-11-21 (P1, user request, with screenshot): **Hexes must follow the land: nothing over water.** The user saw a big rectangle of hexes over the sea. Two sources in the frontend:
+  1. `regionMarkers()` in `App.tsx` fills each region's **bbox** (`polygonToCells` on the bbox ring), so the UK marker is a rectangle covering the North Sea. **Use `list_regions()[i].marker_cells`** (new) instead. These are coarse H3 cells (resolution `marker_resolution`, ≤ 600 per region) made from the parents of the region's real cells, so they trace the coastline (UK: 250 cells at res 4, none over the sea).
+  2. MapView's "surrounding grid" (`contextCells`, empty hexes over the padded viewport) also draws over water. Please drop it, or restrict it to `marker_cells` (or their children). Only draw hexes where data exists.
+
+  The data hexes themselves are land-only (Natural Earth boundary; e.g. 56.0N 1.5E North Sea isn't in the grid).
 _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Done
