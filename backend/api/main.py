@@ -25,7 +25,7 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from backend.api import agent_routes, areas, assistant, pois, scoring_source
+from backend.api import agent_routes, areas, assistant, pois, reviewer, scoring_source
 from backend.api.models import (
     CompareEntry,
     CompareResponse,
@@ -658,3 +658,17 @@ def assistant_speak(body: SpeakRequest) -> Response:
     except httpx.HTTPError as exc:
         return _error(502, "upstream_error", f"Voxtral speech failed: {exc}")
     return Response(content=audio, media_type="audio/mpeg", headers={"X-Voice": voice})
+
+
+@app.post(
+    "/assistant/review",
+    response_model=reviewer.Review,
+    tags=["assistant"],
+    summary="Check whether a request makes sense before acting",
+)
+def assistant_review(body: reviewer.ReviewRequest) -> reviewer.Review:
+    """A Mistral reviewer judges whether the request is physically, legally and practically
+    sensible: `ok`, `warning` (possible, with a serious constraint) or `unsuitable` (e.g. a house
+    in the open ocean), with a one-line reason and a workable suggestion. Obvious impossibilities
+    are caught by rules without a model call."""
+    return reviewer.review(body)

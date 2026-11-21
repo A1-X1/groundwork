@@ -136,6 +136,8 @@ export interface AssistantCommand {
 }
 
 export interface AssistantResponse {
+  /** False when it wasn't a map command (then the planning agent may take it). */
+  understood?: boolean;
   commands: AssistantCommand[];
   reply: string;
   source: 'mistral' | 'rules';
@@ -214,4 +216,11 @@ export interface AgentEvent {
   action?: string;
   result?: unknown;
   [k: string]: unknown;
+}
+
+export interface Review {
+  verdict: 'ok' | 'warning' | 'unsuitable';
+  reason: string;
+  suggestion: string | null;
+  source: 'mistral' | 'rules';
 }

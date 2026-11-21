@@ -174,3 +174,16 @@ def test_speak_returns_mp3(client, monkeypatch) -> None:
     assert r.headers["x-voice"].endswith("_cheerful")
     assert seen["body"]["voice_id"] == r.headers["x-voice"]
     assert seen["url"].endswith("/audio/speech")
+
+
+def test_rules_compound_request_keeps_order(client) -> None:
+    body = ask(client, "first fly to Paris then show the thermal view, and then reset the weights")
+    assert types(body) == ["PAN_CITY", "SET_OVERLAY", "RESET_WEIGHTS"]
+    body = ask(client, "show me the best house sites after that zoom in")
+    assert types(body)[-1] == "ZOOM"
+
+
+def test_clean_sorts_by_seq() -> None:
+    raw = [{"type": "ZOOM", "seq": 1, "args": {"direction": "in"}},
+           {"type": "RESET_VIEW", "seq": 0}]
+    assert [c.type for c in assistant.clean(raw, [], [])] == ["RESET_VIEW", "ZOOM"]

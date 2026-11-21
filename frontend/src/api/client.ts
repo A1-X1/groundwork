@@ -2,6 +2,7 @@ import type {
   ApiErrorBody,
   AgentEvent,
   Region,
+  Review,
   AssistantResponse,
   AzureConfig,
   Connections,
@@ -71,6 +72,11 @@ function fixtureOnly(): never {
 // ---------------------------------------------------------------- endpoints
 
 export const api = {
+  review: (text: string, context: Record<string, unknown>): Promise<Review> =>
+    fixtures
+      ? Promise.resolve({ verdict: 'ok', reason: '', suggestion: null, source: 'rules' })
+      : request('/assistant/review', { method: 'POST', body: JSON.stringify({ text, context }) }),
+
   /** Voxtral TTS: MP3 for a reply, plus the voice slug used (e.g. gb_oliver_cheerful). */
   speak: async (text: string, speaker?: string): Promise<{ audio: Blob; voice: string }> => {
     let res: Response;

@@ -5,7 +5,7 @@ import { HStack } from '@astryxdesign/core/HStack';
 import { cellToLatLng, cellToParent, latLngToCell } from 'h3-js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api/client';
-import type { AssistantCommand, Poi } from './api/types';
+import type { AssistantCommand, Poi, Review } from './api/types';
 import {
   loadProjects,
   projectWeights,
@@ -73,6 +73,31 @@ export default function App() {
   const [regions, setRegions] = useState<Region[]>([]);
   const [progress, setProgress] = useState<AgentProgressState | null>(null);
   const mapViewRef = useRef<{ center: [number, number]; zoom: number } | null>(null);
+  // Live values for callbacks memoised earlier (the command queue).
+  const globeVisibleRef = useRef(true);
+  const screenRef = useRef<'home' | 'explore'>('home');
+  // ---- command queue: wait for each step's effect before running the next
+  const cameraWaiters = useRef<(() => void)[]>([]);
+  const settleCamera = () => {
+    const ws = cameraWaiters.current;
+    cameraWaiters.current = [];
+    ws.forEach((w) => w());
+  };
+  const waitFor = (check: () => boolean, ms: number) =>
+    new Promise<void>((resolve) => {
+      const t0 = performance.now();
+      const tick = () =>
+        check() || performance.now() - t0 > ms ? resolve() : setTimeout(tick, 120);
+      tick();
+    });
+  const waitForCamera = (ms = 6000) =>
+    new Promise<void>((resolve) => {
+      const t = setTimeout(resolve, ms);
+      cameraWaiters.current.push(() => {
+        clearTimeout(t);
+        resolve();
+      });
+    });
   const lastPlaceRef = useRef<string | null>(null);
   const [previewProfile, setPreviewProfile] = useState<string | null>(null);
   const [createNonce, setCreateNonce] = useState(0);
@@ -97,6 +122,8 @@ export default function App() {
   >(null);
   const [project, setProject] = useState<Project | null>(null);
   const [pois, setPois] = useState<Poi[]>([]);
+  globeVisibleRef.current = globeVisible;
+  screenRef.current = screen;
   projectsRef.current = projects;
 
   useEffect(() => {
@@ -401,13 +428,14 @@ export default function App() {
 
   const onArrive = useCallback(
     (t: GlobeTarget) => {
-      if (t.level === 'world') return;
+      if (t.level === 'world') return settleCamera();
       if (hasDetail(t.lat, t.lon)) {
-        if (t.level !== 'city') return;
+        if (t.level !== 'city') return settleCamera();
         setGlobeVisible(false);
         setArrival({ lat: t.lat, lon: t.lon, nonce: Date.now() });
       } else {
         setGlobeNotice('Detailed hexes aren’t built here yet. London is the demo region.');
+        settleCamera();
       }
     },
     [hasDetail],
@@ -428,6 +456,10 @@ export default function App() {
   );
 
   // ---- assistant commands
+  const scoreRef = useRef(gw.score);
+  scoreRef.current = gw.score;
+  const layerValuesRef = useRef(gw.layerValues);
+  layerValuesRef.current = gw.layerValues;
   const pointRef = useRef(gw.point);
   pointRef.current = gw.point;
 
@@ -475,7 +507,7 @@ export default function App() {
   /** Camera: the map's after each move; on the globe, the last fly-to target. */
   const isAlreadyThere = (place: { lat: number; lon: number; bbox?: number[]; kind: string }) => {
     const v = mapViewRef.current;
-    if (globeVisible || screen !== 'explore' || !v) return false;
+    if (globeVisibleRef.current || screenRef.current !== 'explore' || !v) return false;
     const [lon, lat] = v.center;
     const bbox = place.bbox ?? [
       place.lon - 0.35,
@@ -516,7 +548,11 @@ export default function App() {
               break;
             }
             lastPlaceRef.current = place.name;
-            goTo(place.lat, place.lon, place.kind !== 'country');
+            {
+              const landed = waitForCamera();
+              goTo(place.lat, place.lon, place.kind !== 'country');
+              await landed;
+            }
             break;
           }
           case 'ZOOM':
@@ -537,6 +573,10 @@ export default function App() {
               break;
             }
             gw.chooseProfile(str('id'));
+            await waitFor(() => {
+              const sc = scoreRef.current;
+              return sc.status === 'ready' && sc.data.profile === str('id');
+            }, 10000);
             break;
           case 'SET_OVERLAY': {
             const id = str('layer');
@@ -548,6 +588,10 @@ export default function App() {
               break;
             }
             gw.setOverlayId(next);
+            const layer = overlayFor(next).layer;
+            if (layer) {
+              await waitFor(() => layerValuesRef.current[layer]?.status === 'ready', 8000);
+            }
             break;
           }
           case 'SET_WEIGHT':
@@ -672,7 +716,9 @@ export default function App() {
 
   /** Agent UI commands are flat ({command, ...args}); the executor takes {type, args}. */
   const fromAgent = (cmds: Record<string, unknown>[]): AssistantCommand[] =>
-    cmds.map(({ command, ...args }) => ({ type: String(command), args }));
+    [...cmds]
+      .sort((a, b) => (Number(a.seq) || 0) - (Number(b.seq) || 0))
+      .map(({ command, seq: _seq, ...args }) => ({ type: String(command), args }));
 
   const TOOL_LABELS: Record<string, string> = {
     get_catalog: 'Checking what Groundwork already knows…',
@@ -739,7 +785,7 @@ export default function App() {
             profile: gw.profile?.id ?? null,
             overlay: gw.overlayId,
             selected_h3: gw.selection?.h3 ?? null,
-            view: screen === 'home' ? 'home' : globeVisible ? 'globe' : 'map',
+            view: screenRef.current === 'home' ? 'home' : globeVisibleRef.current ? 'globe' : 'map',
             structures: projectsRef.current.map((x) => x.name),
           },
         );
@@ -766,32 +812,47 @@ export default function App() {
 
   const ask = useCallback(
     async (text: string, onProgress?: (msg: string) => void): Promise<string> => {
+      // Suitability reviewer (Mistral): "build a house in the ocean" is stopped before anything
+      // runs. It starts alongside the command call so it adds no wait to normal requests.
+      const reviewP = api
+        .review(text, { profile: gw.profile?.id ?? null, place: lastPlaceRef.current, screen })
+        .catch(() => null);
+      const verdictText = (rv: Review) => [rv.reason, rv.suggestion].filter(Boolean).join(' ');
+
       if (screen === 'home' || looksLikePlanning(text)) {
+        const rv = await reviewP; // a long agent run should never start on an absurd request
+        if (rv?.verdict === 'unsuitable') return verdictText(rv);
         try {
-          return await runPlanningAgent(text, onProgress);
+          const out = await runPlanningAgent(text, onProgress);
+          return rv?.verdict === 'warning' ? `${rv.reason} ${out}` : out;
         } catch (e) {
           if (!(e instanceof ApiError && e.status === 503)) throw e;
         }
       }
-      const res = await api.assistant(text, {
-        screen,
-        profile: gw.profile?.id ?? null,
-        overlay: gw.overlayId,
-        center: globeVisible ? null : (mapViewRef.current?.center ?? null),
-        zoom: globeVisible ? null : (mapViewRef.current?.zoom ?? null),
-        place: lastPlaceRef.current,
-        selected_h3: gw.selection?.h3 ?? null,
-        site_ids: gw.sites.map((x) => x.id),
-      });
-      if (res.commands.length === 0) {
+      const [res, rv] = await Promise.all([
+        api.assistant(text, {
+          screen,
+          profile: gw.profile?.id ?? null,
+          overlay: gw.overlayId,
+          center: globeVisibleRef.current ? null : (mapViewRef.current?.center ?? null),
+          zoom: globeVisibleRef.current ? null : (mapViewRef.current?.zoom ?? null),
+          place: lastPlaceRef.current,
+          selected_h3: gw.selection?.h3 ?? null,
+          site_ids: gw.sites.map((x) => x.id),
+        }),
+        reviewP,
+      ]);
+      if (rv?.verdict === 'unsuitable') return verdictText(rv);
+      const warn = rv?.verdict === 'warning' ? `${rv.reason} ` : '';
+      if (res.commands.length === 0 && res.understood === false) {
         try {
-          return await runPlanningAgent(text, onProgress);
+          return warn + (await runPlanningAgent(text, onProgress));
         } catch (e) {
           if (!(e instanceof ApiError && e.status === 503)) throw e;
         }
       }
       const notes = await runCommands(res.commands);
-      return notes.length ? notes.join(' ') : res.reply;
+      return warn + (notes.length ? notes.join(' ') : res.reply);
     },
     [gw, runCommands, runPlanningAgent, screen], // eslint-disable-line react-hooks/exhaustive-deps
   );
@@ -934,6 +995,10 @@ export default function App() {
           onDrawPoint={(lon, lat) => setDraft((d) => [...d, [lon, lat]])}
           onDrawFinish={finishDraw}
           onAreaClick={selectArea}
+          onView={(v) => {
+            mapViewRef.current = v;
+            settleCamera();
+          }}
         />
         <GlobeView
           isVisible={globeVisible}
