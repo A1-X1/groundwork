@@ -71,6 +71,29 @@ function fixtureOnly(): never {
 // ---------------------------------------------------------------- endpoints
 
 export const api = {
+  /** Voxtral TTS: MP3 for a reply, plus the voice slug used (e.g. gb_oliver_cheerful). */
+  speak: async (text: string): Promise<{ audio: Blob; voice: string }> => {
+    let res: Response;
+    try {
+      res = await fetch(`${API_URL}/assistant/speak`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+    } catch {
+      throw new ApiError(0, 'network', `Can't reach the API at ${API_URL}.`);
+    }
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as ApiErrorBody | null;
+      throw new ApiError(
+        res.status,
+        body?.error.code ?? 'http_error',
+        body?.error.message ?? res.statusText,
+      );
+    }
+    return { audio: await res.blob(), voice: res.headers.get('X-Voice') ?? 'voxtral' };
+  },
+
   regions: (): Promise<Region[]> => (fixtures ? Promise.resolve([]) : request('/regions')),
 
   models3d: (): Promise<string[]> => (fixtures ? Promise.resolve([]) : request('/models3d')),

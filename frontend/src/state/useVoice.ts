@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
+import { speakReply, stopSpeaking } from '../lib/speech';
 
 export type VoiceState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -36,6 +37,9 @@ export function useVoice(
   const [state, setState] = useState<VoiceState>('idle');
   const [message, setMessage] = useState<string | null>(null);
   const [engine, setEngine] = useState<'voxtral' | 'browser' | null>(null);
+  const [muted, setMuted] = useState(false);
+  const mutedRef = useRef(false);
+  mutedRef.current = muted;
   const level = useRef(0);
   const stopRef = useRef<(() => void) | null>(null);
   const handleRef = useRef(handle);
@@ -51,35 +55,27 @@ export function useVoice(
       .catch(() => setEngine(recognitionCtor() ? 'browser' : null));
   }, []);
 
+  const engineRef = useRef(engine);
+  engineRef.current = engine;
   const speak = useCallback((text: string) => {
-    if (!('speechSynthesis' in window) || !text) {
+    if (!text || mutedRef.current) {
       setState('idle');
       return;
     }
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'en-GB';
-    let raf = 0;
-    const t0 = performance.now();
-    // speechSynthesis exposes no amplitude: approximate a syllable envelope, bumped on word boundaries
-    const tick = () => {
-      const t = (performance.now() - t0) / 1000;
-      level.current = Math.max(level.current * 0.9, 0.35 + 0.25 * Math.abs(Math.sin(t * 9)));
-      raf = requestAnimationFrame(tick);
-    };
-    u.onstart = () => {
-      setState('speaking');
-      raf = requestAnimationFrame(tick);
-    };
-    u.onboundary = () => {
-      level.current = 0.9;
-    };
-    u.onend = u.onerror = () => {
-      cancelAnimationFrame(raf);
-      level.current = 0;
-      setState('idle');
-    };
-    window.speechSynthesis.speak(u);
+    void speakReply(
+      text,
+      {
+        onStart: () => setState('speaking'),
+        onLevel: (l) => {
+          level.current = l;
+        },
+        onEnd: () => {
+          level.current = 0;
+          setState('idle');
+        },
+      },
+      engineRef.current === 'voxtral',
+    );
   }, []);
 
   const process = useCallback(
@@ -184,7 +180,7 @@ export function useVoice(
   }, [process]);
 
   const start = useCallback(() => {
-    if (state === 'speaking') window.speechSynthesis.cancel();
+    if (state === 'speaking') stopSpeaking();
     if (state === 'listening' || state === 'thinking') return;
     setMessage(null);
     if (engine === 'voxtral') void startVoxtral();
@@ -195,5 +191,12 @@ export function useVoice(
 
   const stop = useCallback(() => stopRef.current?.(), []);
 
-  return { state, level, message, engine, start, stop, speak, setMessage };
+  const toggleMute = useCallback(() => {
+    setMuted((m) => {
+      if (!m) stopSpeaking();
+      return !m;
+    });
+  }, []);
+
+  return { state, level, message, engine, start, stop, speak, setMessage, muted, toggleMute };
 }

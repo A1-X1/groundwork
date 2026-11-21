@@ -28,6 +28,19 @@ MISTRAL_MODEL = os.environ.get("MISTRAL_MODEL", "mistral-small-latest")
 VOXTRAL_URL = os.environ.get("VOXTRAL_URL", "https://api.mistral.ai/v1/audio/transcriptions")
 VOXTRAL_MODEL = os.environ.get("VOXTRAL_MODEL", "voxtral-mini-latest")
 MAX_AUDIO_BYTES = 10 * 1024 * 1024
+
+# Voxtral text-to-speech. Speakers come in tone variants (`<speaker>_<tone>` voice slugs);
+# replies pick a tone from their wording. Default speaker: Paul (en_paul, chosen by the user);
+# GROUNDWORK_VOICE switches speaker (gb_oliver, gb_jane).
+SPEECH_URL = os.environ.get("VOXTRAL_SPEECH_URL", "https://api.mistral.ai/v1/audio/speech")
+TTS_MODEL = os.environ.get("VOXTRAL_TTS_MODEL", "voxtral-mini-tts-latest")
+SPEAKER = os.environ.get("GROUNDWORK_VOICE", "en_paul")
+SPEAKER_TONES: dict[str, set[str]] = {
+    "gb_oliver": {"neutral", "curious", "cheerful", "confident", "excited", "sad", "angry"},
+    "gb_jane": {"neutral", "curious", "confident", "sad", "frustrated", "confused", "sarcasm"},
+    "en_paul": {"neutral", "happy", "cheerful", "confident", "excited", "sad", "frustrated"},
+}
+Tone = Literal["neutral", "curious", "cheerful", "confident", "excited"]
 TIMEOUT_S = 12.0
 
 # Command set agreed with Person 1 (shared/handoff/p1-to-p2.md): name → argument names.
@@ -53,6 +66,13 @@ COMMANDS: dict[str, list[str]] = {
     "TOGGLE_MASKS": ["state"],
     "TOGGLE_TERRAIN": ["state"],
     "HELP": [],
+    # creation flow (home screen; Person 1's agent emits these too)
+    "OPEN_CREATE": [],
+    "CREATE_STRUCTURE": ["profile", "name"],
+    "OPEN_STRUCTURE": ["name"],
+    "SHOW_MODEL": ["profile"],
+    "SHOW_PROGRESS": ["title", "step"],
+    "GO_HOME": [],
 }
 
 CommandType = Literal[
@@ -60,6 +80,7 @@ CommandType = Literal[
     "SET_PROFILE", "SET_OVERLAY", "SET_WEIGHT", "RESET_WEIGHTS", "SHOW_TOP_SITES",
     "SELECT_PLACE", "PLACE_SITE", "REMOVE_SITE", "RENAME_SITE", "COMPARE_SITES",
     "COMPARE_USE_CASES", "EXPLAIN", "TOGGLE_MASKS", "TOGGLE_TERRAIN", "HELP",
+    "OPEN_CREATE", "CREATE_STRUCTURE", "OPEN_STRUCTURE", "SHOW_MODEL", "SHOW_PROGRESS", "GO_HOME",
 ]  # fmt: skip
 
 OVERLAY_VIEWS = ["suitability", "thermal", "height", "flood", "crime", "air"]
@@ -394,3 +415,58 @@ def transcribe(audio: bytes, filename: str, content_type: str, language: str | N
     r.raise_for_status()
     body = r.json()
     return Transcript(text=str(body.get("text", "")).strip(), model=VOXTRAL_MODEL)
+
+
+# --------------------------------------------------------------------------- text-to-speech
+
+
+def pick_tone(text: str) -> str:
+    """A light heuristic so replies sound like they mean it."""
+    t = text.lower()
+    if re.search(r"\b(sorry|couldn.t|can.t|failed|no data|not available|blocked)\b", t):
+        return "neutral"
+    if text.rstrip().endswith("?") or re.search(r"\b(want me to|shall i|would you like)\b", t):
+        return "curious"
+    if re.search(r"\b(found|done|ready|great|good news|best|created|built|placed)\b", t):
+        return "cheerful"
+    if re.search(r"\b(recommend|should|i.d suggest|strongest|clear winner)\b", t):
+        return "confident"
+    return "neutral"
+
+
+# Nearest available tone when a speaker lacks the one asked for (e.g. Paul has no "curious").
+TONE_FALLBACKS: dict[str, list[str]] = {
+    "curious": ["curious", "happy", "neutral"],
+    "cheerful": ["cheerful", "happy", "neutral"],
+    "excited": ["excited", "cheerful", "happy", "neutral"],
+    "confident": ["confident", "neutral"],
+    "neutral": ["neutral"],
+}
+
+
+def voice_for(tone: str, speaker: str | None = None) -> str:
+    sp = speaker if speaker in SPEAKER_TONES else SPEAKER
+    tones = SPEAKER_TONES.get(sp, {"neutral"})
+    chosen = next((t for t in TONE_FALLBACKS.get(tone, [tone]) if t in tones), "neutral")
+    return f"{sp}_{chosen}"
+
+
+def speak(text: str, tone: str | None = None, speaker: str | None = None) -> tuple[bytes, str]:
+    """Synthesise `text` with Voxtral. Returns (mp3 bytes, voice slug). ValueError without a key."""
+    key = mistral_key()
+    if not key:
+        raise ValueError("Spoken replies need MISTRAL_API_KEY on the server")
+    text = text.strip()[:1500]
+    if not text:
+        raise ValueError("Nothing to say")
+    voice = voice_for(tone or pick_tone(text), speaker)
+    r = httpx.post(
+        SPEECH_URL,
+        headers={"Authorization": f"Bearer {key}"},
+        json={"model": TTS_MODEL, "input": text, "voice_id": voice, "response_format": "mp3"},
+        timeout=60.0,
+    )
+    r.raise_for_status()
+    import base64
+
+    return base64.b64decode(r.json()["audio_data"]), voice

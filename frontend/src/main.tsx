@@ -4,13 +4,16 @@ import { Theme } from '@astryxdesign/core/theme';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { VoiceLab } from './panels/VoiceLab';
 import { defaultThemeSlug, themes } from './astryx-themes';
 import './global.css';
+
+window.addEventListener('hashchange', () => window.location.reload());
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Theme theme={themes[defaultThemeSlug]} mode="dark">
-      <App />
+      {window.location.hash === '#voice-lab' ? <VoiceLab /> : <App />}
     </Theme>
   </StrictMode>,
 );

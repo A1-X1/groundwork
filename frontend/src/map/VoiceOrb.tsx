@@ -10,7 +10,8 @@ import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import * as THREE from 'three';
 import type { VoiceState } from '../state/useVoice';
 
-const SIZE = 96;
+/** Canvas size; the sphere fills the middle ~55 %, leaving room for ripples. */
+const SIZE = 168;
 const HOLD_MS = 320;
 
 const NOISE = /* glsl */ `
@@ -118,7 +119,7 @@ export function VoiceOrb({ state, level, message, isAvailable, onStart, onStop }
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 10);
-    camera.position.z = 4.4;
+    camera.position.z = 7.2;
     const uniforms = {
       uTime: { value: 0 },
       uAmp: { value: 0.012 },
@@ -136,6 +137,24 @@ export function VoiceOrb({ state, level, message, isAvailable, onStart, onStop }
       new THREE.ShaderMaterial({ uniforms, vertexShader: VERT, fragmentShader: FRAG }),
     );
     scene.add(mesh);
+
+    // Audio ripples: rings that expand from the orb and fade, driven by the live level.
+    const RINGS = 3;
+    const ringGeo = new THREE.RingGeometry(1, 1.06, 96);
+    const rings = Array.from({ length: RINGS }, (_, i) => {
+      const m = new THREE.Mesh(
+        ringGeo,
+        new THREE.MeshBasicMaterial({
+          color: i % 2 ? 0xb7a8ff : 0x8fb8ff,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+        }),
+      );
+      m.position.z = -0.6;
+      scene.add(m);
+      return { mesh: m, t: i / RINGS };
+    });
 
     let raf = 0;
     let last = performance.now();
@@ -160,6 +179,15 @@ export function VoiceOrb({ state, level, message, isAvailable, onStart, onStop }
       const breathe = s === 'idle' && !reduced ? Math.sin(time * 1.3) * 0.025 : 0;
       scale += (tgt.scale + lv * 0.12 + breathe - scale) * k;
       mesh.scale.setScalar(scale);
+      const audible = s === 'listening' || s === 'speaking';
+      for (const r of rings) {
+        r.t += dt * (0.35 + lv * 1.6) * motion;
+        if (r.t > 1) r.t -= 1;
+        const mat = r.mesh.material as THREE.MeshBasicMaterial;
+        const target = audible ? (1 - r.t) ** 1.4 * (0.28 + lv * 0.9) : 0;
+        mat.opacity += (target - mat.opacity) * k;
+        r.mesh.scale.setScalar(scale * (1.02 + r.t * (0.55 + lv * 0.35)));
+      }
       spinX *= 0.92;
       spinY *= 0.92;
       mesh.rotation.x += spinX;
@@ -223,6 +251,7 @@ export function VoiceOrb({ state, level, message, isAvailable, onStart, onStop }
       el.removeEventListener('pointerup', onUp);
       el.removeEventListener('pointercancel', onUp);
       geo.dispose();
+      ringGeo.dispose();
       renderer.dispose();
       el.remove();
     };

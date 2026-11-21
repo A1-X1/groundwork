@@ -4,7 +4,7 @@ import { Icon } from '@astryxdesign/core/Icon';
 import { IconButton } from '@astryxdesign/core/IconButton';
 import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
-import { ChevronDown, Mic } from 'lucide-react';
+import { ChevronDown, FlaskConical, Mic, Square, Volume2, VolumeX } from 'lucide-react';
 import { useState, type ComponentProps } from 'react';
 import { VoiceOrb } from '../map/VoiceOrb';
 
@@ -18,8 +18,10 @@ function readHidden(): boolean {
   }
 }
 
+type Props = ComponentProps<typeof VoiceOrb> & { muted: boolean; onToggleMute: () => void };
+
 /** The voice assistant in its own small card, with a hide control that collapses to a pill. */
-export function VoiceDock(props: ComponentProps<typeof VoiceOrb>) {
+export function VoiceDock({ muted, onToggleMute, ...props }: Props) {
   const [hidden, setHidden] = useState(readHidden);
   const set = (v: boolean) => {
     setHidden(v);
@@ -32,9 +34,11 @@ export function VoiceDock(props: ComponentProps<typeof VoiceOrb>) {
   const surface = {
     pointerEvents: 'auto' as const,
     background: 'var(--color-background-card)',
-    borderRadius: 'var(--radius-container)',
-    boxShadow: 'var(--shadow-med)',
+    border: '1px solid var(--color-border)',
+    borderRadius: 'var(--radius-element)',
+    boxShadow: 'var(--shadow-high)',
   };
+  const listening = props.state === 'listening';
 
   if (hidden) {
     return (
@@ -50,7 +54,7 @@ export function VoiceDock(props: ComponentProps<typeof VoiceOrb>) {
     );
   }
   return (
-    <VStack gap={1} paddingInline={3} paddingBlock={2} width={200} style={surface}>
+    <VStack gap={2} padding={4} width={260} style={surface}>
       <HStack justify="between" align="center">
         <Text type="supporting" weight="medium" color="secondary">
           Assistant
@@ -64,6 +68,33 @@ export function VoiceDock(props: ComponentProps<typeof VoiceOrb>) {
         />
       </HStack>
       <VoiceOrb {...props} />
+      <HStack gap={2} align="center">
+        <Button
+          label={listening ? 'Stop' : 'Talk'}
+          variant={listening ? 'secondary' : 'primary'}
+          size="sm"
+          icon={<Icon icon={listening ? Square : Mic} size="sm" />}
+          isDisabled={!props.isAvailable || props.state === 'thinking'}
+          onClick={listening ? props.onStop : props.onStart}
+          width="100%"
+        />
+        <IconButton
+          label={muted ? 'Unmute spoken replies' : 'Mute spoken replies'}
+          tooltip={muted ? 'Replies are silent' : 'Replies are spoken'}
+          icon={<Icon icon={muted ? VolumeX : Volume2} size="sm" />}
+          variant="ghost"
+          size="sm"
+          onClick={onToggleMute}
+        />
+        <IconButton
+          label="Open the Voice Lab"
+          tooltip="Voice Lab: test Voxtral with timings and raw output"
+          icon={<Icon icon={FlaskConical} size="sm" />}
+          variant="ghost"
+          size="sm"
+          href="#voice-lab"
+        />
+      </HStack>
     </VStack>
   );
 }

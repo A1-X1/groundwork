@@ -106,6 +106,17 @@ To run the two halves separately, use `make install`, then `make api` and `make 
 The app needs no data download: the API scores the committed sample grid in `data/sample/`. The basemap and terrain tiles are fetched online. Offline,
 the map falls back to a plain background and the hexagons still render.
 
+### Voice (Mistral Voxtral)
+
+1. Put your key in `.env` at the repo root (`cp .env.example .env`, then set `MISTRAL_API_KEY=…`),
+   or paste it in the app under **Connections → Connect with Mistral**.
+2. Run `make dev` and open **http://localhost:5173/#voice-lab**. Allow the microphone, then tap the
+   orb (or hold it while you talk). The page shows Voxtral's transcript, timings, the parser used
+   (Mistral or offline rules) and the exact map commands as JSON. You can also upload a recording.
+3. In the main app, the same orb sits in the **Assistant** box at the bottom of the map: tap to
+   talk, mute spoken replies, or open the Voice Lab. Anything that isn't a map command goes to the
+   planning agent.
+
 Frontend-only work without the API:
 
 ```bash
