@@ -159,7 +159,7 @@ def _read_previous(out: Path) -> dict[str, Any]:
     if (out / "grid.parquet").exists():
         prev["grid"] = pd.read_parquet(out / "grid.parquet").set_index("h3")
     if (out / "build.json").exists():
-        prev["layers"] = json.loads((out / "build.json").read_text())["layers"]
+        prev["layers"] = json.loads((out / "build.json").read_text(encoding="utf-8"))["layers"]
     return prev
 
 
@@ -183,7 +183,7 @@ def _write(grid: pd.DataFrame, statuses: dict[str, Any], out: Path) -> pd.DataFr
             table[col] = grid[col].astype("float32")
     table = table.reset_index().rename(columns={"index": "h3"})
     table.to_parquet(out / "grid.parquet", index=False, compression="zstd", compression_level=9)
-    (out / "layers.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False) + "\n")
+    (out / "layers.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     build = {
         "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "region": grid.attrs.get("region", "london"),
@@ -197,7 +197,7 @@ def _write(grid: pd.DataFrame, statuses: dict[str, Any], out: Path) -> pd.DataFr
         "cells": len(table),
         "layers": {k: statuses[k] for k in layers.LAYER_IDS if k in statuses},
     }
-    (out / "build.json").write_text(json.dumps(build, indent=2, ensure_ascii=False) + "\n")
+    (out / "build.json").write_text(json.dumps(build, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     real = sorted(k for k, v in build["layers"].items() if v["status"] == "real")
     synth = sorted(k for k, v in build["layers"].items() if v["status"] == "synthetic")
     unav = sorted(k for k, v in build["layers"].items() if v["status"] == "unavailable")

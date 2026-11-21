@@ -26,7 +26,7 @@ def plan(profile_id: str) -> list[tuple[Path, Path]]:
     if not src.exists():
         raise SystemExit(f"no local profile {profile_id!r} in {local_profiles_dir()}")
     moves = [(src, PROFILES_DIR / src.name)]
-    doc = yaml.safe_load(src.read_text().split("\n", 1)[1] if src.read_text().startswith("#") else src.read_text())
+    doc = yaml.safe_load(src.read_text(encoding="utf-8").split("\n", 1)[1] if src.read_text(encoding="utf-8").startswith("#") else src.read_text(encoding="utf-8"))
     used = set(doc.get("layers", {})) | set(doc.get("masks", []))
     for lid in sorted(used):
         layer = _generic.local_dir() / f"{lid}.yaml"

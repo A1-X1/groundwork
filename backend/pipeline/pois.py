@@ -58,7 +58,7 @@ def _row(kind: str, source: str, pid: str, name: str, lat: float, lon: float, de
 
 def collect() -> pd.DataFrame:
     rows: list[dict] = []
-    for s in json.loads(open(_file("uk_stations.json")).read()):
+    for s in json.loads(open(_file("uk_stations.json"), encoding="utf-8").read()):
         rows.append(_row("station", "nr", s.get("crsCode") or s["stationName"], s["stationName"], s["lat"], s["long"]))
     gp = pd.read_csv(_file("gppd.csv"), usecols=["gppd_idnr", "name", "latitude", "longitude", "primary_fuel", "capacity_mw"])
     for r in gp.itertuples():
@@ -85,8 +85,8 @@ def collect() -> pd.DataFrame:
                 lon, lat = (x0 + x1) / 2, (y0 + y1) / 2
             detail = str(rec.get("featurecla", "")).lower() if kind == "water" else ""
             rows.append(_row(kind, src, i, name, lat, lon, detail))
-    facs = json.loads(open(_file("peeringdb_fac.json")).read()).get("data", [])
-    ix_facs = {r["fac_id"] for r in json.loads(open(_file("peeringdb_ixfac.json")).read()).get("data", [])}
+    facs = json.loads(open(_file("peeringdb_fac.json"), encoding="utf-8").read()).get("data", [])
+    ix_facs = {r["fac_id"] for r in json.loads(open(_file("peeringdb_ixfac.json"), encoding="utf-8").read()).get("data", [])}
     for f in facs:
         if f.get("latitude") is None or f.get("longitude") is None:
             continue

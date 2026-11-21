@@ -60,7 +60,7 @@ def _api_setting() -> dict[str, str]:
 
 def config() -> dict[str, str]:
     """Env vars > API Connections settings > data/processed/connections.json."""
-    saved = json.loads(CONNECTIONS.read_text()).get("azure_ml", {}) if CONNECTIONS.exists() else {}
+    saved = json.loads(CONNECTIONS.read_text(encoding="utf-8")).get("azure_ml", {}) if CONNECTIONS.exists() else {}
     saved = {**saved, **{k: v for k, v in _api_setting().items() if v}}
     out = {k: os.environ.get(env) or saved.get(k, "") for k, env in ENV_KEYS.items()}
     return {k: v for k, v in out.items() if v}
@@ -117,10 +117,10 @@ def connect(subscription_id: str, resource_group: str, workspace: str, compute: 
             interactive: bool = True) -> dict[str, Any]:
     """Save workspace settings (no secrets) and verify that we can sign in to them."""
     CONNECTIONS.parent.mkdir(parents=True, exist_ok=True)
-    saved = json.loads(CONNECTIONS.read_text()) if CONNECTIONS.exists() else {}
+    saved = json.loads(CONNECTIONS.read_text(encoding="utf-8")) if CONNECTIONS.exists() else {}
     saved["azure_ml"] = {k: v for k, v in {"subscription_id": subscription_id, "resource_group": resource_group,
                                            "workspace": workspace, "compute": compute}.items() if v}
-    CONNECTIONS.write_text(json.dumps(saved, indent=2) + "\n")
+    CONNECTIONS.write_text(json.dumps(saved, indent=2) + "\n", encoding="utf-8")
     ws = client(interactive).workspaces.get(workspace)
     return {"connected": True, "workspace": ws.name, "location": getattr(ws, "location", None)}
 
@@ -140,7 +140,7 @@ def export_training_set(grid: _data.GridData, profile: Profile, out_dir: Path) -
     meta = {"profile": profile.id, "features": features, "rounds": 150,
             "params": ml._params(info["n_positives"], info["n_background"]),
             "grid_fingerprint": grid.fingerprint(), **info}
-    (out_dir / "meta.json").write_text(json.dumps(meta, indent=2))
+    (out_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     return meta
 
 
@@ -150,8 +150,8 @@ def install_model(grid: _data.GridData, profile: Profile, job_out: Path, meta: d
     models = ml.model_dir(grid)
     models.mkdir(parents=True, exist_ok=True)
     target = models / f"{profile.id}.txt"
-    target.write_text((job_out / "model.txt").read_text())
-    metrics = json.loads((job_out / "metrics.json").read_text())
+    target.write_text((job_out / "model.txt").read_text(encoding="utf-8"))
+    metrics = json.loads((job_out / "metrics.json").read_text(encoding="utf-8"))
     sidecar = {
         "auc_spatial_cv": metrics.get("auc_spatial_cv"), "n_positives": meta["n_positives"],
         "n_background": meta["n_background"], "positives_synthetic": meta["positives_synthetic"],
@@ -160,7 +160,7 @@ def install_model(grid: _data.GridData, profile: Profile, job_out: Path, meta: d
         "grid_fingerprint": meta["grid_fingerprint"], "features": meta["features"],
         "trained_on": backend, "azure_job": job,
     }
-    (models / f"{profile.id}.json").write_text(json.dumps(sidecar, indent=2) + "\n")
+    (models / f"{profile.id}.json").write_text(json.dumps(sidecar, indent=2) + "\n", encoding="utf-8")
     return target
 
 
@@ -171,7 +171,7 @@ def run_local(grid: _data.GridData, profile: Profile) -> dict[str, Any]:
     subprocess.run([sys.executable, str(JOB_DIR / "train.py"), "--data", str(work / "data"),
                     "--out", str(work / "out")], check=True, capture_output=True, text=True)
     path = install_model(grid, profile, work / "out", meta, backend="local")
-    return {"backend": "local", "model": str(path), **json.loads((work / "out" / "metrics.json").read_text())}
+    return {"backend": "local", "model": str(path), **json.loads((work / "out" / "metrics.json").read_text(encoding="utf-8"))}
 
 
 def submit(grid: _data.GridData, profile: Profile, wait: bool = True, timeout_s: int = 3600) -> dict[str, Any]:
@@ -223,6 +223,6 @@ def wait_and_install(grid: _data.GridData, profile: Profile, job_name: str,
     dl = _data.PROCESSED_DIR / "jobs" / profile.id / "azure_out"
     ml_client.jobs.download(job_name, download_path=str(dl), output_name="model")
     out = next(p.parent for p in dl.rglob("model.txt"))
-    meta = meta or json.loads((_data.PROCESSED_DIR / "jobs" / profile.id / "data" / "meta.json").read_text())
+    meta = meta or json.loads((_data.PROCESSED_DIR / "jobs" / profile.id / "data" / "meta.json").read_text(encoding="utf-8"))
     path = install_model(grid, profile, out, meta, backend="azure_ml", job=job_name)
-    return {"status": "Completed", "model": str(path), **json.loads((out / "metrics.json").read_text())}
+    return {"status": "Completed", "model": str(path), **json.loads((out / "metrics.json").read_text(encoding="utf-8"))}

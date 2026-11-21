@@ -23,7 +23,7 @@ def _region_dirs(root: Path) -> dict[str, Path]:
     found: dict[str, Path] = {}
     if (root / "grid.parquet").exists() and (root / "layers.json").exists():
         build = root / "build.json"
-        rid = json.loads(build.read_text()).get("region", "london") if build.exists() else "london"
+        rid = json.loads(build.read_text(encoding="utf-8")).get("region", "london") if build.exists() else "london"
         found[rid] = root
     for d in sorted((root / "regions").glob("*")) if (root / "regions").exists() else []:
         if (d / "grid.parquet").exists() and (d / "layers.json").exists():
@@ -92,12 +92,12 @@ def load(directory: Path | None = None) -> GridData:
     centres = [h3.cell_to_latlng(c) for c in frame.index]
     frame["lat"] = [c[0] for c in centres]
     frame["lon"] = [c[1] for c in centres]
-    layers = json.loads(meta_path.read_text())
+    layers = json.loads(meta_path.read_text(encoding="utf-8"))
     missing = [m["id"] for m in layers if m["id"] not in frame or f"raw_{m['id']}" not in frame]
     if missing:
         raise ValueError(f"{grid_path} is missing columns for layers {missing}")
     build_path = directory / "build.json"
-    build = json.loads(build_path.read_text()) if build_path.exists() else {}
+    build = json.loads(build_path.read_text(encoding="utf-8")) if build_path.exists() else {}
     frame.attrs["synthetic"] = {k: v.get("status") == "synthetic" for k, v in build.get("layers", {}).items()}
     frame.attrs["region"] = build.get("region", "london")
     frame.attrs["country"] = build.get("country", "GBR")

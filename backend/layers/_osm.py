@@ -38,7 +38,7 @@ def _recently_down() -> str | None:
 
     f = _down_file()
     if f.exists():
-        d = json.loads(f.read_text())
+        d = json.loads(f.read_text(encoding="utf-8"))
         if time.time() - d.get("at", 0) < DOWN_TTL_S:
             return d.get("reason", "recently unreachable")
     return None
@@ -61,7 +61,7 @@ def _run(ql: str, timeout: int) -> list[dict[str, Any]]:
     _down_reason = " | ".join(errors)
     f = _down_file()
     f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text(json.dumps({"at": time.time(), "reason": _down_reason}))
+    f.write_text(json.dumps({"at": time.time(), "reason": _down_reason}), encoding="utf-8")
     raise RuntimeError("all Overpass mirrors failed: " + _down_reason)
 
 
@@ -117,7 +117,7 @@ def cached_elements(name: str) -> list[dict[str, Any]]:
 
     seen: dict[tuple[str, int], dict[str, Any]] = {}
     for path in sorted((RAW_DIR / "osm" / name).glob("*.json")):
-        for el in json.loads(path.read_text()):
+        for el in json.loads(path.read_text(encoding="utf-8")):
             seen[(el.get("type", ""), el.get("id", 0))] = el
     return list(seen.values())
 

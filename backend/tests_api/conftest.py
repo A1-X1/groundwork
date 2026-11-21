@@ -37,4 +37,4 @@ def _fresh_cache() -> None:
 def schema() -> dict:
     import json
 
-    return json.loads((CONTRACTS / "score_response.schema.json").read_text())
+    return json.loads((CONTRACTS / "score_response.schema.json").read_text(encoding="utf-8"))

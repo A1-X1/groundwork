@@ -28,7 +28,7 @@ def sandbox(tmp_path, monkeypatch):
     prof = tmp_path / "profiles"
     prof.mkdir()
     for p in tools.PROFILES_DIR.glob("*.yaml"):
-        (prof / p.name).write_text(p.read_text())
+        (prof / p.name).write_text(p.read_text(encoding="utf-8"))
     monkeypatch.setattr(tools, "PROFILES_DIR", prof)
     import backend.scoring.profiles as profiles_mod
 
@@ -61,7 +61,7 @@ def test_add_layer_validates_and_registers(sandbox):
 def test_add_layer_does_not_overwrite_human_layers(sandbox):
     (_generic.GENERATED_DIR / "seismic_x.yaml").write_text(
         "id: seismic_x\nlabel: Seismic\nunit: n\nkind: aggregate\ndescription: d\n"
-        "template: usgs_earthquakes\nparams: {min_magnitude: 4}\nadded_by: human\n")
+        "template: usgs_earthquakes\nparams: {min_magnitude: 4}\nadded_by: human\n", encoding="utf-8")
     r = tools.call("add_layer", {"id": "seismic_x", "label": "Seismic", "unit": "n", "kind": "aggregate",
                                  "description": "d", "template": "usgs_earthquakes", "params": {"min_magnitude": 3}})
     assert "already exists" in r["error"]
@@ -117,7 +117,7 @@ def test_train_model_runs_azure_job_script_locally(sandbox):
         pytest.skip("lightgbm unavailable")
     r = tools.call("train_model", {"profile_id": "data_centre", "backend": "local"})
     assert r["trained"] and r["backend"] == "local"
-    meta = json.loads((sandbox / "processed" / "jobs" / "data_centre" / "data" / "meta.json").read_text())
+    meta = json.loads((sandbox / "processed" / "jobs" / "data_centre" / "data" / "meta.json").read_text(encoding="utf-8"))
     from backend.scoring import data as _data
     from backend.scoring import ml
     from backend.scoring.profiles import load_profiles
@@ -255,11 +255,11 @@ def test_text_drops_reasoning_chunks():
 def test_generated_profile_with_unbuilt_layer_is_skipped(tmp_path):
     from backend.scoring.profiles import ProfileError, load_profiles
 
-    (tmp_path / "ok.yaml").write_text("id: ok\nlabel: OK\ndescription: d\nlayers:\n  slope: {weight: 1, better: lower}\n")
+    (tmp_path / "ok.yaml").write_text("id: ok\nlabel: OK\ndescription: d\nlayers:\n  slope: {weight: 1, better: lower}\n", encoding="utf-8")
     (tmp_path / "gen.yaml").write_text(tools.GENERATED_HEADER + "id: gen\nlabel: G\ndescription: d\n"
-                                       "layers:\n  not_built: {weight: 1, better: lower}\n")
+                                       "layers:\n  not_built: {weight: 1, better: lower}\n", encoding="utf-8")
     assert set(load_profiles({"slope"}, tmp_path)) == {"ok"}
-    (tmp_path / "bad.yaml").write_text("id: bad\nlabel: B\ndescription: d\nlayers:\n  nope: {weight: 1, better: lower}\n")
+    (tmp_path / "bad.yaml").write_text("id: bad\nlabel: B\ndescription: d\nlayers:\n  nope: {weight: 1, better: lower}\n", encoding="utf-8")
     with pytest.raises(ProfileError):
         load_profiles({"slope"}, tmp_path)
 

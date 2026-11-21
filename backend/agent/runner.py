@@ -22,8 +22,8 @@ from . import tools
 
 DELEGATION_NOTE = ("\n\nWhen Azure ML is not connected and the user chooses aggregation (or asks for it), hand the task "
                    "to the `groundwork-data-aggregator` subagent with the user's original request and region.")
-INSTRUCTIONS = (Path(__file__).parent / "instructions.md").read_text() + DELEGATION_NOTE
-AGGREGATOR_INSTRUCTIONS = (Path(__file__).parent / "aggregator.md").read_text()
+INSTRUCTIONS = (Path(__file__).parent / "instructions.md").read_text(encoding="utf-8") + DELEGATION_NOTE
+AGGREGATOR_INSTRUCTIONS = (Path(__file__).parent / "aggregator.md").read_text(encoding="utf-8")
 AGENTS = {"planner": INSTRUCTIONS, "aggregator": AGGREGATOR_INSTRUCTIONS}
 DEFAULT_MODEL = os.environ.get("GROUNDWORK_AGENT_MODEL", "mistral-large-latest")
 # Routine steps (reading results, calling the next obvious tool, map commands) go to a faster

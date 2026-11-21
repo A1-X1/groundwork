@@ -52,7 +52,7 @@ class Region:
 
 
 def definitions() -> list[dict[str, Any]]:
-    return sorted(yaml.safe_load(REGIONS_FILE.read_text()), key=lambda r: r.get("order", 99))
+    return sorted(yaml.safe_load(REGIONS_FILE.read_text(encoding="utf-8")), key=lambda r: r.get("order", 99))
 
 
 def region_ids() -> list[str]:
@@ -84,7 +84,7 @@ def london(resolution: int = 8) -> Region:
 def _london_geometry() -> tuple[dict[str, Any], str]:
     path = RAW_DIR / "london_boundary.geojson"
     if path.exists():
-        gj = json.loads(path.read_text())
+        gj = json.loads(path.read_text(encoding="utf-8"))
         geom = gj["features"][0]["geometry"] if "features" in gj else gj
         return geom, f"boundary file {path.name}"
     return {"type": "Polygon", "coordinates": [[list(p) for p in LONDON_OUTLINE]]}, "simplified built-in outline"

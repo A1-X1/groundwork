@@ -95,7 +95,7 @@ def load_specs(directory: Path | None = None) -> list[LayerSpec]:
     seen: dict[str, LayerSpec] = {}
     for d in dirs:
         for p in sorted(d.glob("*.yaml")) if d.exists() else []:
-            spec = LayerSpec.model_validate(yaml.safe_load(p.read_text()))
+            spec = LayerSpec.model_validate(yaml.safe_load(p.read_text(encoding="utf-8")))
             seen.setdefault(spec.id, spec)
     return list(seen.values())
 

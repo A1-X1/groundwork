@@ -115,7 +115,7 @@ def save(model: TrainedModel, directory: Path) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{model.profile_id}.txt"
     model.booster.save_model(str(path))
-    (directory / f"{model.profile_id}.json").write_text(json.dumps(model.metrics, indent=2) + "\n")
+    (directory / f"{model.profile_id}.json").write_text(json.dumps(model.metrics, indent=2) + "\n", encoding="utf-8")
     return path
 
 
@@ -126,7 +126,7 @@ def load_saved(data: GridData, profile: Profile, directory: Path) -> TrainedMode
     path, meta_path = directory / f"{profile.id}.txt", directory / f"{profile.id}.json"
     if not path.exists() or not meta_path.exists():
         return None
-    metrics = json.loads(meta_path.read_text())
+    metrics = json.loads(meta_path.read_text(encoding="utf-8"))
     if metrics.get("grid_fingerprint") != data.fingerprint() or metrics.get("features") != feature_columns(data, profile):
         log.info("saved model for %s is stale; retraining in memory", profile.id)
         return None

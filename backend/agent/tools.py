@@ -70,7 +70,7 @@ def _scoring():
 
 
 def _sources() -> list[dict[str, Any]]:
-    return yaml.safe_load((AGENT_DIR / "sources.yaml").read_text())
+    return yaml.safe_load((AGENT_DIR / "sources.yaml").read_text(encoding="utf-8"))
 
 
 # ---- read-only ---------------------------------------------------------------
@@ -117,12 +117,12 @@ def add_layer(id: str, label: str, unit: str, kind: str, description: str, templ
     except Exception as exc:
         raise ToolError(f"invalid layer spec: {exc}") from exc
     committed = _generic.GENERATED_DIR / f"{spec.id}.yaml"
-    if committed.exists() and yaml.safe_load(committed.read_text()).get("added_by") != "agent":
+    if committed.exists() and yaml.safe_load(committed.read_text(encoding="utf-8")).get("added_by") != "agent":
         raise ToolError(f"layer {spec.id!r} already exists (added by a person); reuse it or choose a new id")
     path = _generic.local_dir() / f"{spec.id}.yaml"  # agent output stays local (gitignored)
     path.parent.mkdir(parents=True, exist_ok=True)
     existed = path.exists() or committed.exists()
-    path.write_text(yaml.safe_dump(spec.model_dump(), sort_keys=False, allow_unicode=True))
+    path.write_text(yaml.safe_dump(spec.model_dump(), sort_keys=False, allow_unicode=True), encoding="utf-8")
     _layers.refresh()
     return {"layer": spec.id, "file": _rel(path), "replaced": existed,
             "next": "call build_layers with this id before using it in a profile"}
@@ -134,7 +134,7 @@ def create_profile(id: str, label: str, description: str, layers: dict[str, dict
     from backend.scoring.profiles import ProfileError
 
     existing = PROFILES_DIR / f"{id}.yaml"
-    if id in BUILTIN_PROFILES or (existing.exists() and not existing.read_text().startswith(GENERATED_HEADER)):
+    if id in BUILTIN_PROFILES or (existing.exists() and not existing.read_text(encoding="utf-8").startswith(GENERATED_HEADER)):
         raise ToolError(f"{id!r} is a built-in (hand-written) profile; choose a new id")
     doc: dict[str, Any] = {"id": id, "label": label, "description": description, "layers": layers,
                            "masks": masks or []}
@@ -146,7 +146,7 @@ def create_profile(id: str, label: str, description: str, layers: dict[str, dict
     path = local_profiles_dir() / f"{id}.yaml"  # agent output stays local (gitignored)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".yaml.tmp")
-    tmp.write_text(GENERATED_HEADER + yaml.safe_dump(doc, sort_keys=False, allow_unicode=True))
+    tmp.write_text(GENERATED_HEADER + yaml.safe_dump(doc, sort_keys=False, allow_unicode=True), encoding="utf-8")
     try:
         prof = _validate_profile(tmp, id, known)
     except ProfileError as exc:
@@ -227,7 +227,7 @@ def build_layers(layer_ids: list[str], region: str = "london") -> dict[str, Any]
     import pandas as pd
 
     have = set(pd.read_parquet(out / "grid.parquet").columns)
-    prev = json.loads((out / "build.json").read_text()).get("layers", {}) if (out / "build.json").exists() else {}
+    prev = json.loads((out / "build.json").read_text(encoding="utf-8")).get("layers", {}) if (out / "build.json").exists() else {}
     reuse = [i for i in layer_ids if i in have and prev.get(i, {}).get("status") in ("real", "synthetic")]
     todo = [i for i in layer_ids if i not in reuse]
     if reuse:
@@ -235,7 +235,7 @@ def build_layers(layer_ids: list[str], region: str = "london") -> dict[str, Any]
     if todo:
         run(todo, out=out, region=region, progress=on_layer)
     _scoring().reload()
-    build = json.loads((out / "build.json").read_text())["layers"]
+    build = json.loads((out / "build.json").read_text(encoding="utf-8"))["layers"]
     return {"region": region, "built": {i: build.get(i, {}).get("status") for i in layer_ids},
             "reused": reuse,
             "reasons": {i: build[i].get("reason") for i in layer_ids if build.get(i, {}).get("reason")}}

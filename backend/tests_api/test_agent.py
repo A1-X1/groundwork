@@ -143,7 +143,7 @@ def test_clean_content_drops_thinking() -> None:
 
 def test_mistral_key_save_and_forget(client, monkeypatch, tmp_path) -> None:
     env = tmp_path / ".env"
-    env.write_text("OTHER=1\n")
+    env.write_text("OTHER=1\n", encoding="utf-8")
     monkeypatch.setattr(assistant, "_dotenv_path", lambda: env)
     monkeypatch.setattr(
         assistant,
@@ -151,7 +151,7 @@ def test_mistral_key_save_and_forget(client, monkeypatch, tmp_path) -> None:
         lambda: {
             k: v
             for k, v in (
-                ln.split("=", 1) for ln in env.read_text().splitlines() if "=" in ln
+                ln.split("=", 1) for ln in env.read_text(encoding="utf-8").splitlines() if "=" in ln
             )
         },
     )
@@ -167,8 +167,8 @@ def test_mistral_key_save_and_forget(client, monkeypatch, tmp_path) -> None:
     assert r.status_code == 200 and r.json()["configured"] is True
     assert "good-key-123" not in r.text
     assert (
-        "MISTRAL_API_KEY=good-key-123" in env.read_text()
-        and "OTHER=1" in env.read_text()
+        "MISTRAL_API_KEY=good-key-123" in env.read_text(encoding="utf-8")
+        and "OTHER=1" in env.read_text(encoding="utf-8")
     )
     assert client.delete("/connections/mistral").json()["configured"] is False
-    assert "MISTRAL_API_KEY" not in env.read_text()
+    assert "MISTRAL_API_KEY" not in env.read_text(encoding="utf-8")

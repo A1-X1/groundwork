@@ -21,7 +21,7 @@ def test_schema_is_valid(schema: dict) -> None:
 
 def test_example_fixture_validates(schema: dict) -> None:
     validate(
-        json.loads((CONTRACTS / "score_response.example.json").read_text()), schema
+        json.loads((CONTRACTS / "score_response.example.json").read_text(encoding="utf-8")), schema
     )
 
 
@@ -29,7 +29,7 @@ def test_frontend_fixture_validates(schema: dict) -> None:
     fixture = ROOT / "frontend" / "src" / "fixtures" / "score_response.json"
     if not fixture.exists():
         pytest.skip("frontend fixture not present")
-    validate(json.loads(fixture.read_text()), schema)
+    validate(json.loads(fixture.read_text(encoding="utf-8")), schema)
 
 
 @pytest.mark.parametrize("profile", ["data_centre", "house", "school", "mine"])

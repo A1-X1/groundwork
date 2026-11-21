@@ -116,13 +116,13 @@ def cached_json(name: str, producer: Callable[[], Any], max_age: float | None = 
         age = time.time() - path.stat().st_mtime
         fresh = (max_age is None or age <= max_age) and not refresh_requested()
         if fresh or is_offline():
-            with path.open() as fh:
+            with path.open(encoding="utf-8") as fh:
                 return json.load(fh)
         try:
             return _store(path, producer())
         except Exception as exc:  # noqa: BLE001 — stale beats nothing
             log.warning("refresh of %s failed (%s); using cached copy", name, exc)
-            with path.open() as fh:
+            with path.open(encoding="utf-8") as fh:
                 return json.load(fh)
     if is_offline():
         raise OfflineError(f"offline and no cache at {path}")
@@ -131,7 +131,7 @@ def cached_json(name: str, producer: Callable[[], Any], max_age: float | None = 
 
 def _store(path: Path, data: Any) -> Any:
     tmp = path.with_suffix(path.suffix + ".tmp")
-    with tmp.open("w") as fh:
+    with tmp.open("w", encoding="utf-8", newline="") as fh:
         json.dump(data, fh)
     tmp.replace(path)
     return data

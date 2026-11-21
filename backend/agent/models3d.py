@@ -131,7 +131,7 @@ def save(spec: ModelSpec, directory: Path | None = None) -> Path:
     path = directory / f"{spec.id}.json"
     payload = spec.model_dump(mode="json")
     payload["triangles"] = spec.triangles()
-    path.write_text(json.dumps(payload, indent=2) + "\n")
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return path
 
 
@@ -141,7 +141,7 @@ def load(model_id: str, directory: Path | None = None) -> dict:
     for d in dirs:
         path = d / f"{model_id}.json"
         if path.exists():
-            return json.loads(path.read_text())
+            return json.loads(path.read_text(encoding="utf-8"))
     raise KeyError(f"no 3D model {model_id!r}")
 
 

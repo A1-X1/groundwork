@@ -46,7 +46,7 @@ def _query_tile(dataset: str, bbox: tuple[float, float, float, float], depth: in
 def features(dataset: str) -> list[dict[str, Any]]:
     local = RAW_DIR / "planning" / f"{dataset}.geojson"
     if local.exists():
-        with local.open() as fh:
+        with local.open(encoding="utf-8") as fh:
             return json.load(fh)["features"]
 
     def produce() -> list[dict[str, Any]]:

@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> None:
     data, out = Path(args.data), Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    meta = json.loads((data / "meta.json").read_text())
+    meta = json.loads((data / "meta.json").read_text(encoding="utf-8"))
     df = pd.read_parquet(data / "train.parquet")
     features, params, rounds = meta["features"], meta["params"], int(meta.get("rounds", 150))
     X, y, groups = df[features].to_numpy(dtype=float), df["label"].to_numpy(), df["group"].to_numpy()
@@ -44,7 +44,7 @@ def main(argv: list[str] | None = None) -> None:
     booster.save_model(str(out / "model.txt"))
     metrics = {"auc_spatial_cv": round(float(np.mean(aucs)), 4) if aucs else None,
                "n_rows": int(len(df)), "n_positives": int(y.sum()), "folds_scored": len(aucs)}
-    (out / "metrics.json").write_text(json.dumps(metrics, indent=2))
+    (out / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     print(json.dumps(metrics))
 
 

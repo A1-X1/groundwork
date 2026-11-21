@@ -144,7 +144,7 @@ def _read_dotenv() -> dict[str, str]:
     if not path.is_file():
         return {}
     out: dict[str, str] = {}
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
@@ -159,14 +159,14 @@ def _dotenv_path() -> Path:
 def save_mistral_key(key: str | None) -> None:
     """Write (or remove) MISTRAL_API_KEY in the repo's gitignored .env and this process's env."""
     path = _dotenv_path()
-    lines = path.read_text().splitlines() if path.is_file() else []
+    lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
     lines = [ln for ln in lines if not ln.strip().startswith("MISTRAL_API_KEY=")]
     if key:
         lines.append(f"MISTRAL_API_KEY={key}")
         os.environ["MISTRAL_API_KEY"] = key
     else:
         os.environ.pop("MISTRAL_API_KEY", None)
-    path.write_text("\n".join(lines) + ("\n" if lines else ""))
+    path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
     with contextlib.suppress(OSError):
         path.chmod(0o600)
 

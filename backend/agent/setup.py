@@ -33,7 +33,7 @@ AGENT_DEFS = {
 
 def main() -> None:
     client = _client()
-    saved = json.loads(AGENT_FILE.read_text()) if AGENT_FILE.exists() else {}
+    saved = json.loads(AGENT_FILE.read_text(encoding="utf-8")) if AGENT_FILE.exists() else {}
     if "id" in saved:  # older single-agent file
         saved = {"planner": saved}
     for key, (name, desc, instructions, schemas) in AGENT_DEFS.items():
@@ -49,7 +49,7 @@ def main() -> None:
                       "version": getattr(agent, "version", None)}
         print(f"{verb} Mistral agent {agent.name!r} ({agent.id}) on {agent.model}")
     AGENT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    AGENT_FILE.write_text(json.dumps(saved, indent=2) + "\n")
+    AGENT_FILE.write_text(json.dumps(saved, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":
