@@ -271,7 +271,7 @@ export function useGroundwork() {
       setProfileId(id);
       setWeights(w);
     },
-    [profileList],
+    [], // reads the latest profiles from profilesRef
   );
 
   /** Switch profile and apply a full set of slider weights in one go (from a structure). */
@@ -284,7 +284,7 @@ export function useGroundwork() {
       setProfileId(id);
       setWeights(w);
     },
-    [profileList],
+    [], // reads the latest profiles from profilesRef
   );
 
   const setWeight = useCallback((layerId: string, value: number) => {

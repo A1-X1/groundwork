@@ -67,3 +67,30 @@ def test_structures_crud(client) -> None:
     assert client.delete(f"/structures/{st['id']}").status_code == 204
     bad = {**body, "profile": "nope", "area_id": None}
     assert client.post("/structures", json=bad).status_code == 404
+
+
+def test_area_summary_in_coarse_regions(client) -> None:
+    """Areas drawn where hexes are res 5-7 (rural UK, USA...) must still count scored cells,
+    including an area smaller than one coarse hexagon."""
+    regions = {r["id"] for r in client.get("/regions").json()}
+    if "uk" not in regions:
+        return  # stub scoring: London only
+    for ring in (
+        [
+            [-4.7, 56.9],
+            [-4.3, 56.9],
+            [-4.3, 57.1],
+            [-4.7, 57.1],
+        ],  # rural Highlands, res 7
+        [
+            [-4.52, 57.0],
+            [-4.51, 57.0],
+            [-4.51, 57.01],
+            [-4.52, 57.01],
+        ],  # smaller than one hex
+    ):
+        geometry = {"type": "Polygon", "coordinates": [[*ring, ring[0]]]}
+        a = client.post("/areas", json={"name": "coarse", "geometry": geometry}).json()
+        s = client.get(f"/areas/{a['id']}/summary", params={"profile": "house"}).json()
+        client.delete(f"/areas/{a['id']}")
+        assert s["scored_cells"] >= 1 and s["best_h3"] is not None

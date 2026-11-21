@@ -188,7 +188,25 @@ def area_summary(
     lons = [p[0] for p in poly.coordinates[0]]
     lats = [p[1] for p in poly.coordinates[0]]
     bbox = (min(lons) - 0.01, min(lats) - 0.01, max(lons) + 0.01, max(lats) + 0.01)
-    scored = [c for c in scoring.score(profile, bbox=bbox) if c["h3"] in cells]
+    in_box = scoring.score(profile, bbox=bbox)
+
+    # Regions mix resolutions (res 8 in cities, 5-7 elsewhere), so match by the cell's centre
+    # rather than by id: a scored cell belongs to the area when its centre lies inside it.
+    def inside(c: dict[str, Any]) -> bool:
+        if c["h3"] in cells:
+            return True
+        lat, lon = h3.cell_to_latlng(c["h3"])
+        return h3.latlng_to_cell(lat, lon, RESOLUTION) in cells
+
+    scored = [c for c in in_box if inside(c)]
+    if not scored and in_box:
+        # An area smaller than one coarse hexagon: use the hexagon under its centre.
+        clat, clon = sum(lats) / len(lats), sum(lons) / len(lons)
+        scored = [
+            c
+            for c in in_box
+            if h3.latlng_to_cell(clat, clon, h3.get_resolution(c["h3"])) == c["h3"]
+        ]
     ok = [c for c in scored if c["score"] is not None]
     best = max(ok, key=lambda c: c["score"], default=None)
     return AreaSummary(

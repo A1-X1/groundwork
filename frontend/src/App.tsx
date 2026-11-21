@@ -337,10 +337,21 @@ export default function App() {
       if (p.lon >= w && p.lon <= e && p.lat >= so && p.lat <= n) kinds.add(p.kind);
     return [...kinds];
   }, [pois, mapBox, globeVisible, screen]);
+  /** The loaded data hexagon under a point, whatever its resolution (res 8 in cities, 5-7
+   *  elsewhere); falls back to res 8 when nothing is loaded there yet. */
+  const scoredIdsRef = useRef(scoredIds);
+  scoredIdsRef.current = scoredIds;
+  const cellAt = useCallback((lat: number, lon: number): string => {
+    for (const res of [8, 7, 6, 5]) {
+      const id = latLngToCell(lat, lon, res);
+      if (scoredIdsRef.current.has(id)) return id;
+    }
+    return latLngToCell(lat, lon, 8);
+  }, []);
   const hasDetail = useCallback(
     (lat: number, lon: number) =>
-      scoredIds.has(latLngToCell(lat, lon, 8)) || regionsAt(lat, lon, regions).length > 0,
-    [scoredIds, regions],
+      scoredIds.has(cellAt(lat, lon)) || regionsAt(lat, lon, regions).length > 0,
+    [scoredIds, regions, cellAt],
   );
 
   // ---- hexes for the map
@@ -383,7 +394,7 @@ export default function App() {
       neutral: c.raw === null,
       tooltip: `${layerMeta?.label ?? overlay.label}: ${formatRaw(c.raw, layerMeta?.unit ?? '')}`,
     }));
-  }, [scoreData, overlay.layer, overlay.label, layerAsync, layerMeta, ranks]);
+  }, [scoreData, overlay.layer, overlay.label, layerAsync, layerMeta, ranks, coverage]);
 
   const legend: LegendSpec | null =
     !overlay.layer && !gw.profile
@@ -731,7 +742,7 @@ export default function App() {
             if (screenRef.current !== 'explore') setScreen('explore');
             setGlobeVisible(false);
             setAddressPin({ lat, lon, label, nonce: Date.now() });
-            select({ h3: latLngToCell(lat, lon, 8), lat, lon });
+            select({ h3: cellAt(lat, lon), lat, lon });
             setFocus({ lat, lon, nonce: Date.now(), zoom: 16 });
             lastPlaceRef.current = label;
             await waitForCamera(4000);
@@ -844,7 +855,7 @@ export default function App() {
               notes.push('There are no detailed hexes there yet.');
               break;
             }
-            const sel = { h3: latLngToCell(pt.lat, pt.lon, 8), ...pt };
+            const sel = { h3: cellAt(pt.lat, pt.lon), ...pt };
             if (typeof args.profile === 'string') gw.chooseProfile(args.profile);
             if (type === 'PLACE_SITE') gw.placeSite(sel);
             select(sel);
@@ -925,7 +936,18 @@ export default function App() {
       }
       return notes;
     },
-    [gw, globeVisible, goTo, flyGlobe, explain, resolvePoint, hasDetail, select],
+    [
+      gw,
+      globeVisible,
+      goTo,
+      flyGlobe,
+      explain,
+      resolvePoint,
+      hasDetail,
+      select,
+      createProject,
+      cellAt,
+    ],
   );
 
   /** Agent UI commands are flat ({command, ...args}); the executor takes {type, args}. */
@@ -933,18 +955,6 @@ export default function App() {
     [...cmds]
       .sort((a, b) => (Number(a.seq) || 0) - (Number(b.seq) || 0))
       .map(({ command, seq: _seq, ...args }) => ({ type: String(command), args }));
-
-  const TOOL_LABELS: Record<string, string> = {
-    get_catalog: 'Checking what Groundwork already knows…',
-    add_layer: 'Adding a data source…',
-    add_source_layer: 'Adding a data source…',
-    write_profile: 'Writing the scoring profile…',
-    validate_profile: 'Checking the profile…',
-    write_model3d: 'Designing the 3D building…',
-    build_layers: 'Building the new layers…',
-    train_model: 'Training the feasibility model…',
-    ui_command: 'Updating the map…',
-  };
 
   const runPlanningAgent = useCallback(
     async (
@@ -1665,3 +1675,16 @@ const MAP_COMMANDS = new Set([
   'EXPLAIN',
   'COMPARE_USE_CASES',
 ]);
+
+/** Friendly progress lines for the agent's tool calls. */
+const TOOL_LABELS: Record<string, string> = {
+  get_catalog: 'Checking what Groundwork already knows…',
+  add_layer: 'Adding a data source…',
+  add_source_layer: 'Adding a data source…',
+  write_profile: 'Writing the scoring profile…',
+  validate_profile: 'Checking the profile…',
+  write_model3d: 'Designing the 3D building…',
+  build_layers: 'Building the new layers…',
+  train_model: 'Training the feasibility model…',
+  ui_command: 'Updating the map…',
+};
