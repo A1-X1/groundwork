@@ -116,15 +116,30 @@ logged in [docs/handoff.md](docs/handoff.md).
 - **macOS:** `brew install node uv libomp` (`libomp` is needed by LightGBM; `make dev` installs it if missing). Xcode command-line tools supply `make`.
 - **Linux:** use your package manager for Python 3.11+ and Node 20+, then
   `curl -LsSf https://astral.sh/uv/install.sh | sh`.
-- **Windows (PowerShell):** `winget install Python.Python.3.12 OpenJS.NodeJS.LTS astral-sh.uv`.
-  Without `make`, run the commands under each target by hand, for example:
+- **Windows (PowerShell):** `winget install Git.Git Python.Python.3.12 OpenJS.NodeJS.LTS astral-sh.uv`,
+  then close and reopen PowerShell. There is no `make`, so run the steps by hand. Once, from the
+  repo folder:
 
   ```powershell
+  Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   # lets npm run in PowerShell
+  Copy-Item .env.example .env                           # then put your Mistral key in .env
   uv venv .venv --python 3.11
-  uv pip install --python .venv\Scripts\python.exe -r backend\api\requirements.txt -r backend\pipeline\requirements.txt
-  Start-Process .venv\Scripts\python.exe -ArgumentList '-m','uvicorn','backend.api.main:app','--port','8000'
-  cd frontend; npm ci; npm run dev
+  uv pip install --python .venv\Scripts\python.exe -r backend\api\requirements.txt -r backend\pipeline\requirements.txt -r backend\agent\requirements.txt
+  cd frontend; npm ci; cd ..
   ```
+
+  Then each time, in two PowerShell windows (Ctrl+C stops each):
+
+  ```powershell
+  .venv\Scripts\python.exe -m uvicorn backend.api.main:app --port 8000
+  ```
+
+  ```powershell
+  cd frontend; npm run dev
+  ```
+
+  If the API fails with `DLL load failed` for LightGBM, install the Visual C++ runtime:
+  `winget install Microsoft.VCRedist.2015+.x64`.
 
 ## Quick start (offline data, about 2 minutes)
 
