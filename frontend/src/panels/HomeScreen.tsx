@@ -33,7 +33,7 @@ import {
   Wind,
   type LucideIcon,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { LayerMeta, Profile } from '../api/types';
 import {
   COOLING,
@@ -73,6 +73,10 @@ interface Props {
   onCreate: (p: Project) => void;
   onOpen: (p: Project) => void;
   onRemove: (id: string) => void;
+  /** Bumped by the agent's OPEN_CREATE command. */
+  openCreateNonce: number;
+  /** Command bar for the planning agent ("describe what you want to build"). */
+  assistant: ReactNode;
 }
 
 type Step = { kind: 'home' } | { kind: 'type' } | { kind: 'details'; type: StructureType };
@@ -229,6 +233,9 @@ function DataCentreForm({
 
 export function HomeScreen(props: Props) {
   const [step, setStep] = useState<Step>({ kind: 'home' });
+  useEffect(() => {
+    if (props.openCreateNonce) setStep({ kind: 'type' });
+  }, [props.openCreateNonce]);
   const [name, setName] = useState('');
   const [spec, setSpec] = useState<DataCentreSpec>(DEFAULT_DC_SPEC);
   const [priorities, setPriorities] = useState<string[]>([]);
@@ -312,6 +319,10 @@ export function HomeScreen(props: Props) {
                   </Text>
                 </HStack>
               </ClickableCard>
+              <VStack gap={2} width="100%" maxWidth={560} align="center">
+                <Text color="secondary">or describe anything you want to build</Text>
+                {props.assistant}
+              </VStack>
             </VStack>
 
             {props.projects.length > 0 && (

@@ -28,6 +28,8 @@ import { CommandBar } from './panels/CommandBar';
 import { ConnectionsDialog } from './panels/ConnectionsDialog';
 import { ApiError } from './api/client';
 import { VoiceDock } from './panels/VoiceDock';
+import { AgentProgress, stepIndex, type AgentProgressState } from './panels/AgentProgress';
+import { ModelPreviewDialog } from './panels/ModelPreviewDialog';
 import { FloatingPanel, SURFACE } from './panels/FloatingPanel';
 import { PanelRight, SlidersHorizontal } from 'lucide-react';
 import { useVoice } from './state/useVoice';
@@ -69,6 +71,11 @@ export default function App() {
   const [connectionsReason, setConnectionsReason] = useState<string | null>(null);
   const [modelIds, setModelIds] = useState<string[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
+  const [progress, setProgress] = useState<AgentProgressState | null>(null);
+  const [previewProfile, setPreviewProfile] = useState<string | null>(null);
+  const [createNonce, setCreateNonce] = useState(0);
+  const openProjectRef = useRef<(p: Project) => void>(() => undefined);
+  const projectsRef = useRef<Project[]>([]);
   const [modelSpecs, setModelSpecs] = useState<Record<string, ModelSpec>>({});
   const [projects, setProjects] = useState<Project[]>([]);
   /** Structures live in the API's database; browser storage is the fallback when it's down. */
@@ -88,6 +95,7 @@ export default function App() {
   >(null);
   const [project, setProject] = useState<Project | null>(null);
   const [pois, setPois] = useState<Poi[]>([]);
+  projectsRef.current = projects;
 
   useEffect(() => {
     api
@@ -566,6 +574,55 @@ export default function App() {
             if (gw.sites.length >= 2) setView('compare-sites');
             else notes.push('Place at least two sites to compare them.');
             break;
+          case 'OPEN_CREATE':
+            setScreen('home');
+            setCreateNonce((n) => n + 1);
+            break;
+          case 'GO_HOME':
+            setScreen('home');
+            break;
+          case 'CREATE_STRUCTURE': {
+            const pid = str('profile');
+            await gw.reload().catch(() => undefined); // the agent may have just made this profile
+            const prof = gw.latestProfiles().find((x) => x.id === pid);
+            if (!prof) {
+              notes.push(`I couldn't find the ${pid.replace(/_/g, ' ')} profile.`);
+              break;
+            }
+            const saved = await createProject({
+              id: `p-${Date.now()}`,
+              name: str('name') || `New ${prof.label.toLowerCase()}`,
+              type: pid,
+              profile: pid,
+              createdAt: Date.now(),
+              priorities: [],
+            });
+            openProjectRef.current(saved);
+            break;
+          }
+          case 'OPEN_STRUCTURE': {
+            const q = str('name').toLowerCase();
+            const proj = projectsRef.current.find(
+              (x) => x.name.toLowerCase() === q || x.name.toLowerCase().includes(q),
+            );
+            if (proj) openProjectRef.current(proj);
+            else notes.push(`There's no saved structure called “${str('name')}”.`);
+            break;
+          }
+          case 'SHOW_MODEL':
+            api
+              .models3d()
+              .then(setModelIds)
+              .catch(() => undefined);
+            setPreviewProfile(str('profile'));
+            break;
+          case 'SHOW_PROGRESS':
+            setProgress((cur) => ({
+              title: str('title') || cur?.title || 'Working on it',
+              step: typeof args.step === 'number' ? Math.min(4, args.step) : stepIndex(args.step),
+              message: cur?.message ?? null,
+            }));
+            break;
           case 'HELP':
             notes.push(
               'Try: “fly to Tokyo”, “best house sites”, “thermal view”, “set crime rate to 80”, ' +
@@ -599,47 +656,63 @@ export default function App() {
     async (text: string, onProgress?: (msg: string) => void): Promise<string> => {
       let final = '';
       const notes: string[] = [];
-      await api.runAgent(
-        text,
-        (e) => {
-          if (e.type === 'thinking') return; // private reasoning: not shown
-          if (e.type === 'tool_call' && typeof e.name === 'string') {
-            onProgress?.(
-              TOOL_LABELS[e.name] ??
-                (typeof e.message === 'string'
-                  ? e.message
-                  : `Running ${e.name.replace(/_/g, ' ')}…`),
-            );
-          } else if (e.type === 'ui' && Array.isArray(e.commands)) {
-            void runCommands(fromAgent(e.commands as Record<string, unknown>[])).then((n) =>
-              notes.push(...n),
-            );
-          } else if (e.type === 'action_required') {
-            if (e.action === 'connect_azure' || e.action === 'connect_mistral') {
-              setConnectionsReason(typeof e.message === 'string' ? e.message : null);
-              setConnectionsOpen(true);
-            } else if (typeof e.message === 'string') {
-              notes.push(e.message);
+      // UI commands run in order (CREATE_STRUCTURE must finish before what follows it).
+      let uiChain: Promise<void> = Promise.resolve();
+      const say = (msg: string) => {
+        onProgress?.(msg);
+        setProgress((cur) => (cur ? { ...cur, message: msg } : cur));
+      };
+      try {
+        await api.runAgent(
+          text,
+          (e) => {
+            if (e.type === 'thinking') return; // private reasoning: not shown
+            if (e.type === 'tool_call' && typeof e.name === 'string') {
+              const name = e.name;
+              say(
+                TOOL_LABELS[name] ??
+                  (typeof e.message === 'string'
+                    ? e.message
+                    : `Running ${name.replace(/_/g, ' ')}…`),
+              );
+              setProgress((cur) =>
+                cur ? { ...cur, step: Math.max(cur.step, stepIndex(name)) } : cur,
+              );
+            } else if (e.type === 'ui' && Array.isArray(e.commands)) {
+              const cmds = fromAgent(e.commands as Record<string, unknown>[]);
+              uiChain = uiChain.then(() => runCommands(cmds).then((n) => void notes.push(...n)));
+            } else if (e.type === 'action_required') {
+              if (e.action === 'connect_azure' || e.action === 'connect_mistral') {
+                setConnectionsReason(typeof e.message === 'string' ? e.message : null);
+                setConnectionsOpen(true);
+              } else if (typeof e.message === 'string') {
+                notes.push(e.message);
+              }
+            } else if (e.type === 'message' && typeof e.content === 'string' && e.content) {
+              say(e.content);
+            } else if (
+              (e.type === 'answer' || e.type === 'done' || e.type === 'end') &&
+              typeof e.content === 'string' &&
+              e.content
+            ) {
+              final = e.content;
+            } else if (e.type === 'error' && typeof e.message === 'string') {
+              final = `The planning agent stopped: ${e.message}`;
             }
-          } else if (e.type === 'message' && typeof e.content === 'string' && e.content) {
-            onProgress?.(e.content);
-          } else if (
-            (e.type === 'answer' || e.type === 'done' || e.type === 'end') &&
-            typeof e.content === 'string' &&
-            e.content
-          ) {
-            final = e.content;
-          } else if (e.type === 'error' && typeof e.message === 'string') {
-            final = `The planning agent stopped: ${e.message}`;
-          }
-        },
-        {
-          profile: gw.profile?.id ?? null,
-          overlay: gw.overlayId,
-          selected_h3: gw.selection?.h3 ?? null,
-          view: globeVisible ? 'globe' : 'map',
-        },
-      );
+          },
+          {
+            screen,
+            profile: gw.profile?.id ?? null,
+            overlay: gw.overlayId,
+            selected_h3: gw.selection?.h3 ?? null,
+            view: screen === 'home' ? 'home' : globeVisible ? 'globe' : 'map',
+            structures: projectsRef.current.map((x) => x.name),
+          },
+        );
+        await uiChain;
+      } finally {
+        setProgress(null);
+      }
       // New profiles, layers or 3D models may exist now.
       await gw.reload().catch(() => undefined);
       api
@@ -648,7 +721,7 @@ export default function App() {
         .catch(() => undefined);
       return [final || 'Done.', ...notes].join(' ');
     },
-    [gw, runCommands, globeVisible],
+    [gw, runCommands, globeVisible, screen],
   );
 
   /** "I want to build a nuclear plant" → planning agent; "thermal view" → fast commands. */
@@ -659,7 +732,7 @@ export default function App() {
 
   const ask = useCallback(
     async (text: string, onProgress?: (msg: string) => void): Promise<string> => {
-      if (looksLikePlanning(text)) {
+      if (screen === 'home' || looksLikePlanning(text)) {
         try {
           return await runPlanningAgent(text, onProgress);
         } catch (e) {
@@ -682,13 +755,13 @@ export default function App() {
       const notes = await runCommands(res.commands);
       return notes.length ? notes.join(' ') : res.reply;
     },
-    [gw, runCommands, runPlanningAgent], // eslint-disable-line react-hooks/exhaustive-deps
+    [gw, runCommands, runPlanningAgent, screen], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // ---- structures (home screen)
   const openProject = useCallback(
     (p: Project) => {
-      const prof = gw.profileList.find((x) => x.id === p.profile);
+      const prof = gw.latestProfiles().find((x) => x.id === p.profile);
       if (!prof) return;
       gw.applyProfileWeights(p.profile, projectWeights(p, prof.layers));
       gw.setSelection(null);
@@ -767,6 +840,8 @@ export default function App() {
   }, []);
 
   const voice = useVoice(ask);
+
+  openProjectRef.current = openProject;
 
   const selectedSite = gw.sites.find(
     (s) => s.h3 === gw.selection?.h3 && s.profile === gw.profile?.id,
@@ -870,8 +945,48 @@ export default function App() {
             }}
             onOpen={openProject}
             onRemove={removeProject}
+            openCreateNonce={createNonce}
+            assistant={<CommandBar onSubmit={ask} />}
           />
         </VStack>
+      )}
+
+      {screen === 'home' && (
+        <HStack
+          style={{
+            position: 'absolute',
+            right: 'max(var(--spacing-4), env(safe-area-inset-right))',
+            bottom: 'max(var(--spacing-4), env(safe-area-inset-bottom))',
+            zIndex: 3,
+            pointerEvents: 'none',
+          }}
+        >
+          <VoiceDock
+            state={voice.state}
+            level={voice.level}
+            message={voice.message}
+            isAvailable={voice.engine !== null}
+            onStart={voice.start}
+            onStop={voice.stop}
+            muted={voice.muted}
+            onToggleMute={voice.toggleMute}
+          />
+        </HStack>
+      )}
+
+      {progress && (
+        <HStack
+          justify="center"
+          style={{
+            position: 'absolute',
+            top: 140,
+            insetInline: 0,
+            zIndex: 6,
+            pointerEvents: 'none',
+          }}
+        >
+          <AgentProgress state={progress} />
+        </HStack>
       )}
 
       {screen === 'explore' && (
@@ -1067,6 +1182,14 @@ export default function App() {
           />
         </HStack>
       </HStack>
+      <ModelPreviewDialog
+        profile={previewProfile}
+        label={
+          gw.profileList.find((x) => x.id === previewProfile)?.label ??
+          (previewProfile ?? '').replace(/_/g, ' ')
+        }
+        onClose={() => setPreviewProfile(null)}
+      />
       <ConnectionsDialog
         isOpen={connectionsOpen}
         onOpenChange={setConnectionsOpen}

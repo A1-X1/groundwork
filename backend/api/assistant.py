@@ -53,6 +53,13 @@ COMMANDS: dict[str, list[str]] = {
     "TOGGLE_MASKS": ["state"],
     "TOGGLE_TERRAIN": ["state"],
     "HELP": [],
+    # creation flow (home screen; Person 1's agent emits these too)
+    "OPEN_CREATE": [],
+    "CREATE_STRUCTURE": ["profile", "name"],
+    "OPEN_STRUCTURE": ["name"],
+    "SHOW_MODEL": ["profile"],
+    "SHOW_PROGRESS": ["title", "step"],
+    "GO_HOME": [],
 }
 
 CommandType = Literal[
@@ -60,6 +67,7 @@ CommandType = Literal[
     "SET_PROFILE", "SET_OVERLAY", "SET_WEIGHT", "RESET_WEIGHTS", "SHOW_TOP_SITES",
     "SELECT_PLACE", "PLACE_SITE", "REMOVE_SITE", "RENAME_SITE", "COMPARE_SITES",
     "COMPARE_USE_CASES", "EXPLAIN", "TOGGLE_MASKS", "TOGGLE_TERRAIN", "HELP",
+    "OPEN_CREATE", "CREATE_STRUCTURE", "OPEN_STRUCTURE", "SHOW_MODEL", "SHOW_PROGRESS", "GO_HOME",
 ]  # fmt: skip
 
 OVERLAY_VIEWS = ["suitability", "thermal", "height", "flood", "crime", "air"]

@@ -12,18 +12,11 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
-- [ ] 2026-11-21 (P1, user request): **Voice agent from the very start: create absolutely any building.** Please show the assistant orb (and the command bar) on the **home screen** too, sending prompts to `POST /agent/run` with `context: {"screen": "home"}`. The agent now accepts any building type and drives the UI with these new `ui` commands (alongside the existing PAN_*, SET_*, PLACE_SITE…):
-  - `OPEN_CREATE`: go to "What are you building?"
-  - `CREATE_STRUCTURE {profile, name}`: same as submitting the Create form for that profile (new agent profiles appear in `/profiles` once created; refetch on this command), then open the map.
-  - `OPEN_STRUCTURE {name}`: reopen a saved structure.
-  - `SHOW_MODEL {profile}`: preview the 3D spec (`/models3d/{profile}`).
-  - `SHOW_PROGRESS {title, step}`: a progress card while the agent works (steps: choosing data → profile → 3D model → training → results). Hide it on `answer`/`done`.
-  - `GO_HOME`.
-
-  A run that creates a new type takes ~1–3 minutes (data builds), so keep the stream open and show `message` updates.
 _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Done
+
+- [x] 2026-11-21 (P2): **Voice agent from the very start.** The home screen now has the command bar ("or describe anything you want to build") and the voice assistant box. On the home screen every prompt goes straight to `POST /agent/run` with `context: {screen: "home", view: "home", structures: [names], profile, overlay, selected_h3}`. On the map, planning-like prompts still go to the agent and simple ones to the fast assistant. New `ui` commands are handled: `OPEN_CREATE`, `GO_HOME`, `CREATE_STRUCTURE {profile, name}` (refetches `/profiles` first, saves the structure in SQLite and opens the map with that profile), `OPEN_STRUCTURE {name}`, `SHOW_MODEL {profile}` (a dialog with a turning three.js preview of `/models3d/{profile}` or the built-in model) and `SHOW_PROGRESS {title, step}` (a floating card with a 5-step stepper: choosing data → profile → 3D model → training → results; `step` may be an index or a name; your `tool_call` names also advance it). The card hides when the run ends. `ui` commands from one run execute in order, so `CREATE_STRUCTURE` completes before later commands. The stream stays open for long runs and shows each `message`. Verified live: "show me the 3D model for a wind farm" from the home screen led to `get_catalog` and `SHOW_MODEL wind_farm`, and the preview opened (~20 s). `/assistant/command` also accepts the six new command types.
 
 - [x] 2026-11-21 (P1): **`answer` content**: fixed in `runner._text()`. `answer.content` and the returned `content` are always a plain string with reasoning chunks dropped (if there's only reasoning, its text is used). Covered by `test_text_drops_reasoning_chunks`.
 - [x] 2026-11-21 (P1): **`default_profiles()` / `wind_farm`**: both on my branch. Defaults are `data_centre, house, school, solar_farm, wind_farm`. `wind_farm` uses real hub-height wind (`wind_speed_100m`, `wind_power_density`) and its 3D spec uses `rotation_z` for blades.

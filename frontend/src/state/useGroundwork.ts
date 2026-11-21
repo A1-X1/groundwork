@@ -63,11 +63,15 @@ export function useGroundwork() {
     [profiles, profileId],
   );
   const profileList = profiles.status === 'ready' ? profiles.data : [];
+  // Latest list for callbacks that run after a reload (e.g. agent-created profiles).
+  const profilesRef = useRef<Profile[]>([]);
+  profilesRef.current = profileList;
   const layersById = useMemo(() => new Map(layers.map((l) => [l.id, l])), [layers]);
 
   /** Re-read profiles and layers (the planning agent can add both). */
   const reload = useCallback(async () => {
     const [ps, ls] = await Promise.all([api.profiles(), api.layers()]);
+    profilesRef.current = ps;
     setProfiles({ status: 'ready', data: ps });
     setLayers(ls);
     setLayerValues({});
@@ -197,7 +201,7 @@ export function useGroundwork() {
   // ---- actions
   const chooseProfile = useCallback(
     (id: string) => {
-      const p = profileList.find((x) => x.id === id);
+      const p = profilesRef.current.find((x) => x.id === id);
       if (!p) return;
       const w = defaultWeights(p);
       lastGoodWeights.current = w;
@@ -211,7 +215,7 @@ export function useGroundwork() {
   /** Switch profile and apply a full set of slider weights in one go (from a structure). */
   const applyProfileWeights = useCallback(
     (id: string, w: Record<string, number>) => {
-      const p = profileList.find((x) => x.id === id);
+      const p = profilesRef.current.find((x) => x.id === id);
       if (!p) return;
       lastGoodWeights.current = defaultWeights(p);
       setWeightsError(null);
@@ -278,6 +282,7 @@ export function useGroundwork() {
     chooseProfile,
     applyProfileWeights,
     reload,
+    latestProfiles: () => profilesRef.current,
     setWeight,
     resetWeights,
     setOverlayId,
