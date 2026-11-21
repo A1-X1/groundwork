@@ -77,9 +77,10 @@ def test_score_point_agrees_with_score():
     assert p["h3"] in cells and p["score"] == cells[p["h3"]]["score"]
     assert p["breakdown"] == pytest.approx(cells[p["h3"]]["breakdown"], abs=1e-4)
     assert set(p["raw"]) == set(LAYER_IDS)
-    assert p["shap"] is not None and 0 < len(p["shap"]) <= 10
-    assert all(isinstance(v, float) for v in p["shap"].values())
-    assert len(p["shap_detail"]["positive"]) <= 5 and p["feasibility"] == p["feasibility_score"]
+    assert p["shap"] is not None and set(p["shap"]) == {"base_value", "positive", "negative"}
+    assert len(p["shap"]["positive"]) <= 5 and len(p["shap"]["negative"]) <= 5
+    assert all(isinstance(v, float) for v in p["shap_flat"].values())
+    assert p["feasibility"] == p["feasibility_score"]
 
 
 def test_score_point_without_model_has_no_shap():

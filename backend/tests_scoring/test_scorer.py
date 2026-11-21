@@ -58,8 +58,8 @@ def test_unknown_profile_raises_keyerror(tiny_scorer):
         tiny_scorer.compute("nope")
 
 
-def test_unknown_layer_in_weights_raises_keyerror(tiny_scorer):
-    with pytest.raises(KeyError):
+def test_unknown_layer_in_weights_raises_valueerror(tiny_scorer):
+    with pytest.raises(ValueError):
         tiny_scorer.compute("t", {"zzz": 1})
 
 

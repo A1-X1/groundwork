@@ -55,7 +55,7 @@ class Scorer:
         weights = {k: v.weight for k, v in profile.layers.items()}
         for layer_id, w in (overrides or {}).items():
             if layer_id not in self.data.layer_ids:
-                raise KeyError(f"unknown layer {layer_id!r}")
+                raise ValueError(f"unknown layer {layer_id!r} in weights")
             if isinstance(w, bool) or not isinstance(w, (int, float)) or not math.isfinite(w) or w < 0:
                 raise ValueError(f"weight for {layer_id!r} must be a finite number ≥ 0, got {w!r}")
             if layer_id not in weights:
