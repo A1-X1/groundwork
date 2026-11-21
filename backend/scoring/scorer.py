@@ -109,7 +109,10 @@ class Scorer:
         sustainability = directed @ w
         contributions = w * (directed - directed.mean(axis=0))
 
-        mask_hits = {m: frame[m].to_numpy(dtype=float) >= MASK_THRESHOLD for m in profile.masks}
+        # A mask with no data (raw NaN: source unavailable in this region) is "unknown", not
+        # "excluded": only real 1s mask a hex.
+        mask_hits = {m: (frame[m].to_numpy(dtype=float) >= MASK_THRESHOLD)
+                     & ~np.isnan(frame[f"raw_{m}"].to_numpy(dtype=float)) for m in profile.masks}
         masked = np.zeros(len(frame), dtype=bool)
         for hit in mask_hits.values():
             masked |= hit

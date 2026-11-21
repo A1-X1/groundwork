@@ -131,6 +131,13 @@ def test_list_regions():
     assert regions["uk"]["resolution"] == 7 and regions["uk"]["cells"] > 40000
 
 
+def test_unavailable_masks_do_not_mask():
+    # Scotland: flood_zone_3 / protected_land have no data (England-only sources) → not masked
+    cells = scoring.score("house", bbox=(-3.4, 55.85, -3.0, 56.05))
+    assert cells and sum(c["masked"] for c in cells) == 0
+    assert all(c["score"] is not None for c in cells)
+
+
 def test_multi_region_routing():
     # Edinburgh is in the UK grid only; central London resolves to the finer London grid
     edinburgh = scoring.score_point("wind_farm", 55.95, -3.19)
