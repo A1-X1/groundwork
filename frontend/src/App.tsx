@@ -33,7 +33,7 @@ import {
   type HexDatum,
   type MapFocus,
 } from './map/MapView';
-import { MapKey } from './panels/MapKey';
+import { keyRows, MapKey } from './panels/MapKey';
 import { TrainingChoiceDialog } from './panels/TrainingChoiceDialog';
 import { CommandBar } from './panels/CommandBar';
 import { ConnectionsDialog } from './panels/ConnectionsDialog';
@@ -1263,7 +1263,12 @@ export default function App() {
             icon={PanelRight}
             width={380}
             top={PANEL_TOP}
-            bottom={PANEL_BOTTOM}
+            // leave room for the map key (bottom right) when it is showing
+            bottom={
+              poiKindsInView.length
+                ? PANEL_BOTTOM + 40 * (keyRowCount(poiKindsInView) + 1)
+                : PANEL_BOTTOM
+            }
           >
             {view === 'area' && selectedArea ? (
               <AreaDetail
@@ -1468,3 +1473,5 @@ function regionMarkers(regions: Region[]): RegionHex[] {
   }
   return out;
 } // prettier-ignore
+
+const keyRowCount = (kinds: string[]) => keyRows(kinds).length;
