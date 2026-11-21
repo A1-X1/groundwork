@@ -16,26 +16,45 @@ OVERPASS_URLS = (
 BBOX = (51.26, -0.56, 51.72, 0.37)  # south, west, north, east (Overpass order)
 
 
-def query(name: str, selectors: list[str], *, geometry: bool = True, timeout: int = 180) -> list[dict[str, Any]]:
+_down_reason: str | None = None  # circuit breaker: once every mirror fails, stop trying this run
+
+
+def _run(ql: str, timeout: int) -> list[dict[str, Any]]:
+    global _down_reason
+    if _down_reason:
+        raise RuntimeError(f"Overpass unavailable this run ({_down_reason})")
+    errors = []
+    for url in OVERPASS_URLS:
+        try:
+            return http_get(url, data={"data": ql}, timeout=min(timeout + 30, 90), retries=1)["elements"]
+        except Exception as exc:  # noqa: BLE001 — try the next mirror
+            errors.append(f"{url.split('/')[2]}: {str(exc)[:120]}")
+    _down_reason = " | ".join(errors)
+    raise RuntimeError("all Overpass mirrors failed: " + _down_reason)
+
+
+def query(name: str, selectors: list[str], *, geometry: bool = True, timeout: int = 120,
+          tiles: int = 3) -> list[dict[str, Any]]:
     """Run an Overpass query (union of ``selectors``) and return its elements.
 
     ``selectors`` are Overpass statements without bbox, e.g. ``'nwr["railway"="station"]'``.
+    The bbox is split into ``tiles``×``tiles`` sub-queries (each cached) so heavy
+    geometry requests stay under public-server limits; elements are de-duplicated.
     """
     s, w, n, e = BBOX
-    body = "".join(f"{sel}({s},{w},{n},{e});" for sel in selectors)
     out = "out geom;" if geometry else "out center;"
-    ql = f"[out:json][timeout:{timeout}];({body});{out}"
-
-    def produce() -> Any:
-        errors = []
-        for url in OVERPASS_URLS:
-            try:
-                return http_get(url, data={"data": ql}, timeout=timeout + 30, retries=2)["elements"]
-            except Exception as exc:  # noqa: BLE001 — try the next mirror
-                errors.append(f"{url}: {exc}")
-        raise RuntimeError("all Overpass mirrors failed: " + " | ".join(errors))
-
-    return cached_json(f"osm/{name}.json", produce, MONTHLY)
+    lats = [s + (n - s) * i / tiles for i in range(tiles + 1)]
+    lons = [w + (e - w) * j / tiles for j in range(tiles + 1)]
+    seen: dict[tuple[str, int], dict[str, Any]] = {}
+    for i in range(tiles):
+        for j in range(tiles):
+            bb = f"{lats[i]:.4f},{lons[j]:.4f},{lats[i + 1]:.4f},{lons[j + 1]:.4f}"
+            body = "".join(f"{sel}({bb});" for sel in selectors)
+            ql = f"[out:json][timeout:{timeout}];({body});{out}"
+            part = cached_json(f"osm/{name}/{i}_{j}.json", lambda ql=ql: _run(ql, timeout), MONTHLY)
+            for el in part:
+                seen[(el.get("type", ""), el.get("id", 0))] = el
+    return list(seen.values())
 
 
 def element_points(elements: list[dict[str, Any]]) -> list[tuple[float, float]]:

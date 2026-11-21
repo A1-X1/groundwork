@@ -1,0 +1,6 @@
+# Planning agent (Person 1). Install on top of backend/pipeline/requirements.txt:
+#   uv pip install -r backend/agent/requirements.txt
+mistralai>=1.9
+# Azure ML training (optional until you connect a workspace)
+azure-ai-ml>=1.20
+azure-identity>=1.17

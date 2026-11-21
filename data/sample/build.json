@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-21T10:52:20Z",
+  "generated_at": "2026-11-21T11:22:59Z",
   "region": "london",
   "resolution": 8,
   "boundary": "simplified built-in outline",
@@ -7,15 +7,15 @@
   "layers": {
     "elevation": {
       "status": "real",
-      "seconds": 0.0
+      "seconds": 0.01
     },
     "slope": {
       "status": "real",
-      "seconds": 0.08
+      "seconds": 0.11
     },
     "mean_temp_annual": {
       "status": "real",
-      "seconds": 0.27
+      "seconds": 0.32
     },
     "summer_max_temp": {
       "status": "real",
@@ -49,7 +49,7 @@
     "soil_moisture_mean": {
       "status": "synthetic",
       "reason": "offline and no cache at data/raw/open_meteo/normals_2016_2025_00.json",
-      "seconds": 0.19
+      "seconds": 0.22
     },
     "evapotranspiration_annual": {
       "status": "synthetic",
@@ -64,16 +64,16 @@
     "population_density": {
       "status": "synthetic",
       "reason": "missing data/raw/ons/lsoa_population.csv. Download Census 2021 TS001 (usual residents) by LSOA from Nomis and save as data/raw/ons/lsoa_population.csv",
-      "seconds": 0.02
+      "seconds": 0.03
     },
     "land_use_residential": {
       "status": "synthetic",
-      "reason": "offline and no cache at data/raw/osm/landuse_residential.json",
+      "reason": "offline and no cache at data/raw/osm/landuse_residential/0_0.json",
       "seconds": 0.02
     },
     "crime_rate": {
       "status": "synthetic",
-      "reason": "no cached police data",
+      "reason": "offline: refusing to fetch https://data.police.uk/api/crime-last-updated",
       "seconds": 0.02
     },
     "deprivation_index": {
@@ -113,17 +113,17 @@
     },
     "dist_station": {
       "status": "synthetic",
-      "reason": "offline and no cache at data/raw/osm/stations.json",
-      "seconds": 0.0
+      "reason": "offline and no cache at data/raw/osm/stations/0_1.json",
+      "seconds": 0.01
     },
     "dist_substation": {
       "status": "synthetic",
-      "reason": "offline and no cache at data/raw/osm/substations.json",
+      "reason": "offline and no cache at data/raw/osm/substations/0_0.json",
       "seconds": 0.0
     },
     "dist_hv_line": {
       "status": "synthetic",
-      "reason": "offline and no cache at data/raw/osm/hv_lines.json",
+      "reason": "offline and no cache at data/raw/osm/hv_lines/0_0.json",
       "seconds": 0.0
     },
     "dist_fibre_ix": {
@@ -132,37 +132,41 @@
     },
     "dist_water_body": {
       "status": "synthetic",
-      "reason": "offline and no cache at data/raw/osm/water.json",
+      "reason": "offline and no cache at data/raw/osm/water/0_0.json",
       "seconds": 0.01
     },
     "green_space_access": {
       "status": "synthetic",
-      "reason": "offline and no cache at data/raw/osm/parks.json",
+      "reason": "offline and no cache at data/raw/osm/parks/0_0.json",
       "seconds": 0.0
     },
     "dist_major_road": {
       "status": "synthetic",
-      "reason": "offline and no cache at data/raw/osm/major_roads.json",
+      "reason": "offline and no cache at data/raw/osm/major_roads/0_0.json",
       "seconds": 0.03
     },
     "dist_primary_school": {
       "status": "synthetic",
-      "reason": "offline and no cache at data/raw/osm/schools.json",
-      "seconds": 0.0
+      "reason": "offline and no cache at data/raw/osm/schools/0_0.json",
+      "seconds": 0.04
     },
     "dist_secondary_school": {
       "status": "synthetic",
-      "reason": "offline and no cache at data/raw/osm/schools.json",
+      "reason": "offline and no cache at data/raw/osm/schools/0_0.json",
       "seconds": 0.0
     },
     "school_quality_nearby": {
       "status": "synthetic",
-      "reason": "offline and no cache at data/raw/osm/schools.json",
-      "seconds": 0.01
+      "reason": "offline and no cache at data/raw/osm/schools/0_0.json",
+      "seconds": 0.02
     },
     "protected_land": {
       "status": "synthetic",
       "reason": "offline and no cached protected-land sources",
+      "seconds": 0.0
+    },
+    "seismic_activity": {
+      "status": "real",
       "seconds": 0.0
     }
   }

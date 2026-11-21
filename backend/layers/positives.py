@@ -78,10 +78,32 @@ RESOLVERS: dict[str, Resolver] = {
 }
 
 
+def osm_generic(source: str, grid: pd.DataFrame, res: int = 8) -> tuple[set[str], bool]:
+    """``osm:key=value[;key=value…]`` → hexes containing matching OSM features."""
+    import re
+
+    pairs = [p.split("=", 1) for p in source[4:].split(";") if "=" in p]
+    if not pairs or not all(re.fullmatch(r"[A-Za-z0-9_:]+", k) and re.fullmatch(r"[^\"\\]{1,60}", v)
+                            for k, v in pairs):
+        raise KeyError(f"bad positives source {source!r}; use osm:key=value[;key=value]")
+    selector = "nwr" + "".join(f'["{k}"="{v}"]' for k, v in pairs)
+    name = "pos_" + re.sub(r"[^a-z0-9]+", "_", source[4:].lower()).strip("_")
+    pts = _osm.element_points(_osm.query(name, [selector], geometry=False))
+    return _cells(pts, grid, res), False
+
+
 def resolve(source: str, grid: pd.DataFrame, allow_network: bool = False) -> tuple[set[str], bool]:
     """Positive hexes for ``source``. Without ``allow_network`` only cached downloads are used,
     so scoring at API request time never blocks on the internet."""
-    if source not in RESOLVERS:
-        raise KeyError(f"unknown positives source {source!r}; known: {sorted(RESOLVERS)}")
     with _network(allow_network):
-        return RESOLVERS[source](grid)
+        if source in RESOLVERS:
+            return RESOLVERS[source](grid)
+        if source.startswith("osm:"):
+            try:
+                return osm_generic(source, grid)
+            except KeyError:
+                raise
+            except Exception as exc:  # noqa: BLE001 — offline / no cache: no positives
+                log.info("positives %s unavailable (%s)", source, exc)
+                return set(), True
+    raise KeyError(f"unknown positives source {source!r}; known: {sorted(RESOLVERS)} or osm:key=value")
