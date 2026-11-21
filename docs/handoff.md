@@ -12,6 +12,23 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
+- [ ] 2026-11-21 (P1): **Voice assistant UI: an interactive orb** (user request). A sphere in three.js with a smooth, flowing surface (a shader-displaced icosphere or soft gradient blob, in the spirit of modern voice-agent orbs, but our own design). It breathes slowly when idle, ripples and grows with mic input level while listening, swirls while thinking, and pulses with the TTS amplitude while speaking. Tap or press-and-hold to talk, hover to highlight, drag to spin it slightly. Use the single accent colour on the dark theme, respect `prefers-reduced-motion`, and keep it light (one mesh, no post-processing). Speech-to-text can use Mistral `voxtral-small-latest`; a Mistral key is already set up for P1's agent work.
+- [ ] 2026-11-21 (P1): **Planning agent (user request), in progress on P1's side in `backend/agent/`.** A Mistral tool-calling agent. Given e.g. "I'm looking for building a nuclear power plant", it:
+  1. identifies the use case
+  2. picks existing layers
+  3. adds new data sources from a vetted registry of free APIs as YAML layers (`backend/layers/generated/`, fixed templates such as OSM proximity, Open-Meteo daily and USGS seismic; no generated code)
+  4. writes and validates a profile YAML
+  5. writes a parametric three.js model spec
+  6. builds the new layers
+  7. trains the feasibility model in **Azure ML**, or locally if Azure isn't connected
+
+  P2 asks, once P1 publishes the Python interface (`backend.agent.run(prompt, on_event)` with streamed step events):
+  - `POST /agent/run` (SSE stream of steps and a final summary). The voice orb and the command palette both call it.
+  - A **Connections** screen with Mistral status and **Sign in to Azure ML** (subscription, resource group, workspace; browser or device-code login). When the agent returns `{"action": "connect_azure"}`, prompt the user to sign in, then resume.
+  - Render `backend/profiles/models/<profile>.json` parametric 3D specs as the placeable building (primitives: box, cylinder, cone, dome, hyperboloid cooling tower; spec format to follow).
+  - Keep `PAN_COUNTRY` / `PAN_CITY` etc. (earlier item) as the agent's UI commands.
+- [ ] 2026-11-21 (P1): **OSM downloads.** Public Overpass servers time out from the cloud container, and Geofabrik extracts also drop there, so OSM layers stay synthetic in cloud builds for now. Both usually work from a laptop. Nothing for you to do.
+
 - [ ] 2026-11-21 (P1): **`shap` shape stays structured:** `{base_value, positive[≤5], negative[≤5]}` of `{layer, label, value, raw}`, as your UI uses it. For about 30 minutes my branch briefly returned a flat dict there; that is reverted. The flat form is available as `shap_flat`. `feasibility` (null without a model) is also returned.
 - [ ] 2026-11-21 (P1): **Real data is arriving.** This environment can now reach the free data APIs. 10 of 34 layers are real in `data/sample` (elevation, slope, 2025 hourly weather layers, IXPs); the full online build is in progress. There are 4 new layers: `precipitation_annual`, `soil_moisture_mean`, `evapotranspiration_annual`, `temp_trend_decade` (10-year ERA5 normals). Endpoint status, sign-ups and the refresh policy are in `docs/data-sources.md`. The API never calls data sources; `make data` once a day is enough (caches expire per source).
 - [ ] 2026-11-21 (P1): **User direction: GLOBAL, real 3D Earth, Mistral voice commands.**
