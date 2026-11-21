@@ -29,16 +29,12 @@ export function TopBar({
 }) {
   return (
     <HStack
-      justify="between"
+      justify="center"
       align="center"
       gap={4}
-      paddingInline={4}
-      paddingBlock={2}
-      wrap="wrap"
-      style={{
-        paddingInlineStart: 'max(var(--spacing-4), env(safe-area-inset-left))',
-        paddingInlineEnd: 'max(var(--spacing-4), env(safe-area-inset-right))',
-      }}
+      paddingInlineStart={2}
+      paddingInlineEnd={4}
+      paddingBlock={1}
     >
       <HStack gap={2} align="center">
         <Button label="Groundwork home" variant="ghost" onClick={onHome} icon={undefined}>
@@ -47,7 +43,7 @@ export function TopBar({
       </HStack>
 
       {legend && (
-        <VStack gap={1} width={280} aria-label={`Legend: ${legend.title}`} role="group">
+        <VStack gap={0.5} width={200} aria-label={`Legend: ${legend.title}`} role="group">
           <HStack justify="between">
             <Text type="supporting" weight="medium">
               {legend.title}

@@ -177,12 +177,12 @@ def run_agent(body: AgentRequest) -> Any:
 
     def worker() -> None:
         try:
-            result = mod.run(body.prompt, events.put) or {}
-            # The agent already emitted its own "done"; add a compact summary without the
-            # full message history.
+            kwargs = {"context": body.context} if body.context else {}
+            result = mod.run(body.prompt, events.put, **kwargs) or {}
+            # The agent ends with an "answer" event; this route sends the single final "done".
             events.put(
                 {
-                    "type": "end",
+                    "type": "done",
                     "content": result.get("content"),
                     "ui": result.get("ui", []),
                     "actions": result.get("actions", []),
@@ -358,6 +358,12 @@ def azure_login() -> AzureStatus | JSONResponse:
         try:
             cred = identity.DeviceCodeCredential(prompt_callback=prompt)
             record = cred.authenticate(scopes=[AZURE_SCOPE])
+            try:  # hand the signed-in credential to the agent's Azure ML training
+                azure_ml = importlib.import_module("backend.agent.azure_ml")
+                if hasattr(azure_ml, "set_credential"):
+                    azure_ml.set_credential(cred)
+            except ImportError:
+                pass
             with _azure_lock:
                 _azure.update(
                     status="signed_in",

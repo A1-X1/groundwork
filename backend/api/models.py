@@ -52,6 +52,9 @@ class Profile(BaseModel):
     layers: list[ProfileLayer]
     masks: list[str] = Field(description="Layer ids used as hard no-go masks.")
     has_model: bool = Field(description="Whether an ML feasibility model multiplies the score.")
+    is_default: bool = Field(
+        default=False, description="Shown as a main option on the home screen (else under More)."
+    )
 
 
 class Layer(BaseModel):
@@ -218,3 +221,13 @@ class Health(BaseModel):
     )
     real_layers: int
     synthetic_layers: int
+
+
+class Region(BaseModel):
+    id: str = Field(examples=["london"])
+    name: str
+    bbox: tuple[float, float, float, float] = Field(description="min_lon,min_lat,max_lon,max_lat")
+    resolution: int
+    cells: int
+    is_sample: bool | None = None
+    generated_at: str | None = None

@@ -21,9 +21,8 @@ def test_agent_streams_events(client, monkeypatch) -> None:
         on_event({"type": "tool_call", "name": "get_catalog", "args": {}})
         on_event({"type": "ui", "commands": [{"command": "SET_PROFILE", "id": "school"}]})
         on_event({"type": "action_required", "action": "connect_azure", "message": "Sign in"})
-        on_event({"type": "done", "content": f"Planned {prompt}", "steps": 3})
-        return {"content": f"Planned {prompt}", "steps": 3, "messages": ["huge"], "ui": [],
-                "actions": []}
+        on_event({"type": "answer", "content": f"Planned {prompt}", "steps": 3})
+        return {"content": f"Planned {prompt}", "steps": 3, "ui": [], "actions": []}
 
     fake.run = run  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "backend.agent", fake)
@@ -33,7 +32,7 @@ def test_agent_streams_events(client, monkeypatch) -> None:
         body = "".join(r.iter_text())
     events = [json.loads(line[6:]) for line in body.splitlines() if line.startswith("data: ")]
     types_ = [e["type"] for e in events]
-    assert types_ == ["tool_call", "ui", "action_required", "done", "end"]
+    assert types_ == ["tool_call", "ui", "action_required", "answer", "done"]
     assert events[2]["action"] == "connect_azure"
     assert events[-1]["content"] == "Planned nuclear" and "messages" not in events[-1]
     assert "event: action_required" in body

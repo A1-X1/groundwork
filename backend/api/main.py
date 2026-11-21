@@ -35,6 +35,7 @@ from backend.api.models import (
     LayerValues,
     PointScore,
     Profile,
+    Region,
     ScoreResponse,
 )
 
@@ -337,10 +338,31 @@ def health() -> Health:
     )
 
 
+DEFAULT_PROFILES = ["data_centre", "house", "school", "solar_farm", "wind_farm"]
+
+
+def default_profile_ids() -> list[str]:
+    if hasattr(scoring, "default_profiles"):
+        return list(scoring.default_profiles())
+    return DEFAULT_PROFILES
+
+
 @app.get("/profiles", response_model=list[Profile], tags=["profiles"], summary="List profiles")
 def list_profiles() -> list[dict[str, Any]]:
-    """Every use case Groundwork can score, with default weights and masks."""
-    return scoring.list_profiles()
+    """Every use case Groundwork can score, with default weights and masks. Main use cases come
+    first (`is_default`, in display order); the rest follow."""
+    defaults = default_profile_ids()
+    rank = {pid: i for i, pid in enumerate(defaults)}
+    profiles = [{**p, "is_default": p["id"] in rank} for p in scoring.list_profiles()]
+    return sorted(profiles, key=lambda p: (rank.get(p["id"], len(rank)), p["label"]))
+
+
+@app.get("/regions", response_model=list[Region], tags=["meta"], summary="Regions with data")
+def list_regions() -> list[dict[str, Any]]:
+    """Where detailed hexagons exist. The globe uses this to mark built regions."""
+    if hasattr(scoring, "list_regions"):
+        return scoring.list_regions()  # type: ignore[no-any-return]
+    return []
 
 
 @app.get(

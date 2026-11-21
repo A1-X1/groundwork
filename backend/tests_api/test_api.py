@@ -157,3 +157,17 @@ def test_point_model_explanation(client) -> None:
         assert {"base_value", "positive", "negative"} <= set(body["shap"])
         assert all(d["value"] > 0 for d in body["shap"]["positive"])
         assert body["model"]["type"]
+
+
+def test_profiles_defaults_first(client) -> None:
+    profiles = client.get("/profiles").json()
+    flags = [p["is_default"] for p in profiles]
+    assert flags == sorted(flags, reverse=True), "default use cases come first"
+    assert any(flags)
+
+
+def test_regions(client) -> None:
+    regions = client.get("/regions").json()
+    for r in regions:
+        w, s, e, n = r["bbox"]
+        assert w < e and s < n and r["cells"] > 0

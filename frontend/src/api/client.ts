@@ -1,6 +1,7 @@
 import type {
   ApiErrorBody,
   AgentEvent,
+  Region,
   AssistantResponse,
   AzureConfig,
   Connections,
@@ -70,6 +71,8 @@ function fixtureOnly(): never {
 // ---------------------------------------------------------------- endpoints
 
 export const api = {
+  regions: (): Promise<Region[]> => (fixtures ? Promise.resolve([]) : request('/regions')),
+
   models3d: (): Promise<string[]> => (fixtures ? Promise.resolve([]) : request('/models3d')),
   model3d: (id: string): Promise<unknown> => request(`/models3d/${encodeURIComponent(id)}`),
 
@@ -87,13 +90,17 @@ export const api = {
 
   /** Streams the planning agent. Resolves when the stream ends; rejects with ApiError(503) when
    *  the agent isn't installed. */
-  runAgent: async (prompt: string, onEvent: (e: AgentEvent) => void): Promise<void> => {
+  runAgent: async (
+    prompt: string,
+    onEvent: (e: AgentEvent) => void,
+    context?: Record<string, unknown>,
+  ): Promise<void> => {
     let res: Response;
     try {
       res = await fetch(`${API_URL}/agent/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, context: context ?? {} }),
       });
     } catch {
       throw new ApiError(0, 'network', `Can't reach the API at ${API_URL}.`);

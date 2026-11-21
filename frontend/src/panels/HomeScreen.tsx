@@ -1,4 +1,5 @@
 import { Button } from '@astryxdesign/core/Button';
+import { Collapsible } from '@astryxdesign/core/Collapsible';
 import { CheckboxList, CheckboxListItem } from '@astryxdesign/core/CheckboxList';
 import { ClickableCard } from '@astryxdesign/core/ClickableCard';
 import { Grid } from '@astryxdesign/core/Grid';
@@ -18,6 +19,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { VStack } from '@astryxdesign/core/VStack';
 import {
   ArrowLeft,
+  Atom,
   Building2,
   Hospital,
   House,
@@ -28,6 +30,7 @@ import {
   Sun,
   Trash2,
   Warehouse,
+  Wind,
   type LucideIcon,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -38,6 +41,7 @@ import {
   estimate,
   GPUS,
   STRUCTURE_TYPES,
+  structureTypesFrom,
   type Cooling,
   type DataCentreSpec,
   type Project,
@@ -55,6 +59,8 @@ const TYPE_ICONS: Record<string, LucideIcon> = {
   warehouse: Warehouse,
   office: Building2,
   solar_farm: Sun,
+  wind_farm: Wind,
+  nuclear_power_plant: Atom,
 };
 
 const n0 = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 0 });
@@ -226,7 +232,27 @@ export function HomeScreen(props: Props) {
   const [name, setName] = useState('');
   const [spec, setSpec] = useState<DataCentreSpec>(DEFAULT_DC_SPEC);
   const [priorities, setPriorities] = useState<string[]>([]);
-  const available = useMemo(() => new Set(props.profiles.map((p) => p.id)), [props.profiles]);
+  const typeGroups = useMemo(() => structureTypesFrom(props.profiles), [props.profiles]);
+  const typeCard = (t: StructureType, i: number) => (
+    <ClickableCard
+      key={t.id}
+      label={t.label}
+      onClick={() => start(t)}
+      padding={4}
+      className="gw-stagger"
+      style={{ animationDelay: `${i * 30}ms` }}
+    >
+      <VStack gap={3}>
+        <Icon icon={TYPE_ICONS[t.id] ?? Building2} size="lg" />
+        <VStack gap={1}>
+          <Text weight="semibold">{t.label}</Text>
+          <Text type="supporting" color="secondary" maxLines={2}>
+            {t.blurb}
+          </Text>
+        </VStack>
+      </VStack>
+    </ClickableCard>
+  );
 
   const start = (type: StructureType) => {
     setName('');
@@ -293,7 +319,9 @@ export function HomeScreen(props: Props) {
                 <Heading level={2}>Your structures</Heading>
                 <List hasDividers edge="outset">
                   {props.projects.map((p) => {
-                    const t = STRUCTURE_TYPES.find((x) => x.id === p.type);
+                    const t =
+                      STRUCTURE_TYPES.find((x) => x.id === p.type) ??
+                      props.profiles.find((x) => x.id === p.profile);
                     const e = p.spec ? estimate(p.spec) : null;
                     return (
                       <ListItem
@@ -341,31 +369,18 @@ export function HomeScreen(props: Props) {
               </Heading>
             </HStack>
             <Grid columns={{ minWidth: 190, max: 4 }} gap={3}>
-              {STRUCTURE_TYPES.map((t, i) => {
-                const ready = !!t.profile && available.has(t.profile);
-                return (
-                  <ClickableCard
-                    key={t.id}
-                    label={t.label}
-                    isDisabled={!ready}
-                    onClick={() => start(t)}
-                    padding={4}
-                    className="gw-stagger"
-                    style={{ animationDelay: `${i * 30}ms` }}
-                  >
-                    <VStack gap={3}>
-                      <Icon icon={TYPE_ICONS[t.id] ?? Building2} size="lg" />
-                      <VStack gap={1}>
-                        <Text weight="semibold">{t.label}</Text>
-                        <Text type="supporting" color="secondary">
-                          {ready ? t.blurb : 'Needs a profile: one YAML file'}
-                        </Text>
-                      </VStack>
-                    </VStack>
-                  </ClickableCard>
-                );
-              })}
+              {typeGroups.main.map((t, i) => typeCard(t, i))}
             </Grid>
+            {typeGroups.more.length > 0 && (
+              <Collapsible
+                trigger={<Text weight="medium">More ({typeGroups.more.length})</Text>}
+                defaultIsOpen={false}
+              >
+                <Grid columns={{ minWidth: 190, max: 4 }} gap={3}>
+                  {typeGroups.more.map((t, i) => typeCard(t, i))}
+                </Grid>
+              </Collapsible>
+            )}
           </VStack>
         )}
 

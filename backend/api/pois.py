@@ -76,11 +76,13 @@ def list_pois(
     unknown = wanted - set(KINDS)
     if unknown:
         raise ValueError(f"unknown POI kind(s): {', '.join(sorted(unknown))}")
-    if hasattr(scoring, "list_pois"):
-        items = scoring.list_pois(sorted(wanted), bbox)
-    else:
-        items = seed_pois()
-    out = [p for p in items if p["kind"] in wanted]
+    seeds = seed_pois()
+    items: list[dict[str, Any]] = []
+    for kind in sorted(wanted):
+        real = scoring.list_pois([kind], bbox) if hasattr(scoring, "list_pois") else []
+        # Prefer real points; fall back to the labelled seed list for kinds with none cached.
+        items.extend(real or [p for p in seeds if p["kind"] == kind])
+    out = items
     if bbox:
         w, s, e, n = bbox
         out = [p for p in out if w <= p["lon"] <= e and s <= p["lat"] <= n]

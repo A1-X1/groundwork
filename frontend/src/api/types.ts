@@ -15,6 +15,16 @@ export interface Profile {
   layers: ProfileLayer[];
   masks: string[];
   has_model: boolean;
+  /** Main option on the home screen; others go under "More". */
+  is_default?: boolean;
+}
+
+export interface Region {
+  id: string;
+  name: string;
+  bbox: [number, number, number, number];
+  resolution: number;
+  cells: number;
 }
 
 export interface LayerMeta {

@@ -16,6 +16,8 @@ import { Check, MapPin, Pencil, Trash2 } from 'lucide-react';
 import { useState, type MouseEvent, type ReactNode } from 'react';
 import type { LayerMeta, ProfileLayer } from '../api/types';
 import { VIEWS } from '../lib/overlays';
+import type { Basemap } from '../map/MapView';
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import type { GroundworkState, PlacedSite } from '../state/useGroundwork';
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList';
 import { estimate, GPUS, STRUCTURE_TYPES, type Project } from '../lib/structures';
@@ -60,6 +62,8 @@ function ProjectSummary({ project, onEdit }: { project: Project; onEdit: () => v
 const VISIBLE_SLIDERS = 4;
 
 interface Props {
+  basemap: Basemap;
+  onBasemap: (b: Basemap) => void;
   areas: ReactNode;
   project: Project | null;
   onEditProject: () => void;
@@ -276,6 +280,17 @@ export function ControlPanel(props: Props) {
 
       <VStack gap={3}>
         <Heading level={2}>Map</Heading>
+        <SegmentedControl
+          label="Base map"
+          value={props.basemap}
+          onChange={(v) => props.onBasemap(v as Basemap)}
+          layout="fill"
+          size="sm"
+        >
+          <SegmentedControlItem value="map" label="Map" />
+          <SegmentedControlItem value="satellite" label="Satellite" />
+          <SegmentedControlItem value="grid" label="Grid" />
+        </SegmentedControl>
         <Selector
           label="Overlay"
           options={overlayOptions}

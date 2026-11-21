@@ -64,3 +64,40 @@ p {
   min-width: 44px;
   min-height: 44px;
 }
+
+/* Floating cards: pop from their own edge; still under reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .gw-pop {
+    animation: gw-pop 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .gw-pop-start {
+    transform-origin: top left;
+  }
+  .gw-pop-end {
+    transform-origin: top right;
+  }
+}
+
+@keyframes gw-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/* MapLibre controls on the dark theme */
+.maplibregl-ctrl-group {
+  background: var(--color-background-card) !important;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-container) !important;
+  box-shadow: var(--shadow-high) !important;
+}
+.maplibregl-ctrl-group button + button {
+  border-top-color: var(--color-border) !important;
+}
+.maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  filter: invert(1) brightness(0.9);
+}
+.maplibregl-ctrl-bottom-right {
+  margin: 0 max(var(--spacing-4), env(safe-area-inset-right)) max(var(--spacing-4), env(safe-area-inset-bottom)) 0;
+}

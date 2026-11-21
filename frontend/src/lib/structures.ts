@@ -13,6 +13,7 @@ export interface StructureType {
   blurb: string;
 }
 
+/** Fallback blurbs; the list itself comes from the API's profiles (defaults first). */
 export const STRUCTURE_TYPES: StructureType[] = [
   { id: 'data_centre', label: 'Data centre', profile: 'data_centre', blurb: 'Power, cooling and fibre' },
   { id: 'house', label: 'Home', profile: 'house', blurb: 'Safe, connected, affordable' },
@@ -21,7 +22,8 @@ export const STRUCTURE_TYPES: StructureType[] = [
   { id: 'hospital', label: 'Hospital', profile: null, blurb: 'Reachable, quiet, out of flood risk' },
   { id: 'warehouse', label: 'Warehouse', profile: null, blurb: 'Roads, flat land, low cost' },
   { id: 'office', label: 'Office', profile: null, blurb: 'Transit, amenities' },
-  { id: 'solar_farm', label: 'Solar farm', profile: null, blurb: 'Irradiance, grid connection' },
+  { id: 'solar_farm', label: 'Solar farm', profile: 'solar_farm', blurb: 'Irradiance, grid connection' },
+  { id: 'wind_farm', label: 'Wind farm', profile: 'wind_farm', blurb: 'Wind, space, grid connection' },
 ]; // prettier-ignore
 
 // ---------------------------------------------------------------- data centres
@@ -173,4 +175,20 @@ export function projectWeights(
       : Object.fromEntries((p.priorities ?? []).map((id) => [id, 35]));
   for (const [k, v] of Object.entries(wanted)) if (k in base) base[k] = v;
   return base;
+}
+
+/** Structure types for the home screen: one per profile, main use cases first. */
+export function structureTypesFrom(
+  profiles: { id: string; label: string; description: string; is_default?: boolean }[],
+): { main: StructureType[]; more: StructureType[] } {
+  const types = profiles.map((p) => ({
+    id: p.id,
+    label: p.label,
+    profile: p.id,
+    blurb: STRUCTURE_TYPES.find((t) => t.id === p.id)?.blurb ?? p.description,
+  }));
+  const anyDefault = profiles.some((p) => p.is_default);
+  const isMain = (id: string) =>
+    anyDefault ? !!profiles.find((p) => p.id === id)?.is_default : true;
+  return { main: types.filter((t) => isMain(t.id)), more: types.filter((t) => !isMain(t.id)) };
 }

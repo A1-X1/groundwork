@@ -1,5 +1,4 @@
 import { Banner } from '@astryxdesign/core/Banner';
-import { Layout, LayoutContent, LayoutHeader, LayoutPanel } from '@astryxdesign/core/Layout';
 import { ProgressBar } from '@astryxdesign/core/ProgressBar';
 import { VStack } from '@astryxdesign/core/VStack';
 import { HStack } from '@astryxdesign/core/HStack';
@@ -15,8 +14,7 @@ import {
   type Project,
 } from './lib/structures';
 import { AreaDetail, AreasPanel } from './panels/AreasPanel';
-import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
-import type { Area, AreaSummary, StructureRecord } from './api/types';
+import type { Area, AreaSummary, Region, StructureRecord } from './api/types';
 import type { Basemap, MapArea } from './map/MapView';
 import { HomeScreen } from './panels/HomeScreen';
 import { findPlace } from './lib/places';
@@ -30,6 +28,8 @@ import { CommandBar } from './panels/CommandBar';
 import { ConnectionsDialog } from './panels/ConnectionsDialog';
 import { ApiError } from './api/client';
 import { VoiceDock } from './panels/VoiceDock';
+import { FloatingPanel, SURFACE } from './panels/FloatingPanel';
+import { PanelRight, SlidersHorizontal } from 'lucide-react';
 import { useVoice } from './state/useVoice';
 import { ControlPanel } from './panels/ControlPanel';
 import { CellDetail, SiteCompare, TopSites } from './panels/DetailPanel';
@@ -68,6 +68,7 @@ export default function App() {
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [connectionsReason, setConnectionsReason] = useState<string | null>(null);
   const [modelIds, setModelIds] = useState<string[]>([]);
+  const [regions, setRegions] = useState<Region[]>([]);
   const [modelSpecs, setModelSpecs] = useState<Record<string, ModelSpec>>({});
   const [projects, setProjects] = useState<Project[]>([]);
   /** Structures live in the API's database; browser storage is the fallback when it's down. */
@@ -93,6 +94,14 @@ export default function App() {
       .pois()
       .then(setPois)
       .catch(() => setPois([]));
+    api
+      .models3d()
+      .then(setModelIds)
+      .catch(() => setModelIds([]));
+    api
+      .regions()
+      .then(setRegions)
+      .catch(() => setRegions([]));
   }, []);
   useEffect(() => {
     api
@@ -227,8 +236,10 @@ export default function App() {
     return avgs.map((x) => ({ h3: x.h3, t: (x.v - lo) / span }));
   }, [scoreData, coverage]);
   const hasDetail = useCallback(
-    (lat: number, lon: number) => scoredIds.has(latLngToCell(lat, lon, 8)),
-    [scoredIds],
+    (lat: number, lon: number) =>
+      scoredIds.has(latLngToCell(lat, lon, 8)) ||
+      regions.some(({ bbox: [w, so, e, n] }) => lon >= w && lon <= e && lat >= so && lat <= n),
+    [scoredIds, regions],
   );
 
   // ---- hexes for the map
@@ -438,6 +449,10 @@ export default function App() {
       if (typeof args.lat === 'number' && typeof args.lon === 'number') {
         return { lat: args.lat, lon: args.lon };
       }
+      if (typeof args.h3 === 'string') {
+        const [lat, lon] = cellToLatLng(args.h3);
+        return { lat, lon };
+      }
       if (typeof args.name === 'string') {
         const place = await findPlace(args.name);
         if (place) return { lat: place.lat, lon: place.lon };
@@ -584,28 +599,47 @@ export default function App() {
     async (text: string, onProgress?: (msg: string) => void): Promise<string> => {
       let final = '';
       const notes: string[] = [];
-      await api.runAgent(text, (e) => {
-        if (e.type === 'tool_call' && typeof e.name === 'string') {
-          onProgress?.(TOOL_LABELS[e.name] ?? `Running ${e.name.replace(/_/g, ' ')}…`);
-        } else if (e.type === 'ui' && Array.isArray(e.commands)) {
-          void runCommands(fromAgent(e.commands as Record<string, unknown>[])).then((n) =>
-            notes.push(...n),
-          );
-        } else if (e.type === 'action_required') {
-          if (e.action === 'connect_azure' || e.action === 'connect_mistral') {
-            setConnectionsReason(typeof e.message === 'string' ? e.message : null);
-            setConnectionsOpen(true);
-          } else if (typeof e.message === 'string') {
-            notes.push(e.message);
+      await api.runAgent(
+        text,
+        (e) => {
+          if (e.type === 'thinking') return; // private reasoning: not shown
+          if (e.type === 'tool_call' && typeof e.name === 'string') {
+            onProgress?.(
+              TOOL_LABELS[e.name] ??
+                (typeof e.message === 'string'
+                  ? e.message
+                  : `Running ${e.name.replace(/_/g, ' ')}…`),
+            );
+          } else if (e.type === 'ui' && Array.isArray(e.commands)) {
+            void runCommands(fromAgent(e.commands as Record<string, unknown>[])).then((n) =>
+              notes.push(...n),
+            );
+          } else if (e.type === 'action_required') {
+            if (e.action === 'connect_azure' || e.action === 'connect_mistral') {
+              setConnectionsReason(typeof e.message === 'string' ? e.message : null);
+              setConnectionsOpen(true);
+            } else if (typeof e.message === 'string') {
+              notes.push(e.message);
+            }
+          } else if (e.type === 'message' && typeof e.content === 'string' && e.content) {
+            onProgress?.(e.content);
+          } else if (
+            (e.type === 'answer' || e.type === 'done' || e.type === 'end') &&
+            typeof e.content === 'string' &&
+            e.content
+          ) {
+            final = e.content;
+          } else if (e.type === 'error' && typeof e.message === 'string') {
+            final = `The planning agent stopped: ${e.message}`;
           }
-        } else if (e.type === 'message' && typeof e.content === 'string' && e.content) {
-          onProgress?.(e.content);
-        } else if ((e.type === 'done' || e.type === 'end') && typeof e.content === 'string') {
-          final = e.content;
-        } else if (e.type === 'error' && typeof e.message === 'string') {
-          final = `The planning agent stopped: ${e.message}`;
-        }
-      });
+        },
+        {
+          profile: gw.profile?.id ?? null,
+          overlay: gw.overlayId,
+          selected_h3: gw.selection?.h3 ?? null,
+          view: globeVisible ? 'globe' : 'map',
+        },
+      );
       // New profiles, layers or 3D models may exist now.
       await gw.reload().catch(() => undefined);
       api
@@ -614,7 +648,7 @@ export default function App() {
         .catch(() => undefined);
       return [final || 'Done.', ...notes].join(' ');
     },
-    [gw, runCommands],
+    [gw, runCommands, globeVisible],
   );
 
   /** "I want to build a nuclear plant" → planning agent; "thermal view" → fast commands. */
@@ -743,33 +777,116 @@ export default function App() {
 
   const bootError = gw.profiles.status === 'error' ? gw.profiles.message : null;
 
+  const NAV_TOP = 12;
+  const PANEL_TOP = 80;
+  const PANEL_BOTTOM = 96;
+
   return (
-    <Layout
-      header={
-        <LayoutHeader hasDivider padding={0}>
-          <TopBar
-            legend={screen === 'explore' ? legend : null}
-            onGlobe={() => {
-              setScreen('explore');
-              flyGlobe(51.5, -0.11, 'country');
+    <VStack
+      height="100%"
+      style={{
+        position: 'relative',
+        overflow: 'hidden',
+        background: 'var(--color-background-body)',
+      }}
+    >
+      {/* Full-bleed map and globe; everything else floats above. */}
+      <VStack
+        aria-label="Map"
+        role="region"
+        style={{ position: 'absolute', inset: 0, display: screen === 'home' ? 'none' : undefined }}
+      >
+        <MapView
+          cells={cells}
+          ramp={overlay.layer ? overlay.ramp : 'suitability'}
+          showMasked={showMasked}
+          selectedH3={gw.selection?.h3 ?? null}
+          sites={siteRenders}
+          relief={!!overlay.relief}
+          terrain={terrain}
+          lowPower={lowPower}
+          isPlacing={isPlacing}
+          focus={focus}
+          onHexClick={onHexClick}
+          onLowPower={() => setLowPower(true)}
+          arrival={arrival}
+          zoomCmd={mapZoom}
+          pois={pois}
+          isActive={screen === 'explore'}
+          basemap={basemap}
+          isDrawing={isDrawing}
+          draft={draft}
+          areas={mapAreas}
+          selectedAreaId={selectedAreaId}
+          onDrawPoint={(lon, lat) => setDraft((d) => [...d, [lon, lat]])}
+          onDrawFinish={finishDraw}
+          onAreaClick={selectArea}
+        />
+        <GlobeView
+          isVisible={globeVisible}
+          isSpinning={spinning}
+          target={globeTarget}
+          zoom={globeZoom}
+          regionHexes={regionHexes}
+          notice={globeNotice}
+          onArrive={onArrive}
+          onEnterRegion={() => flyGlobe(51.5, -0.11, 'city')}
+          onUserInteract={() => setSpinning(false)}
+        />
+        <VStack
+          style={{
+            position: 'absolute',
+            insetInline: 0,
+            insetBlockStart: 0,
+            opacity: isMapLoading ? 1 : 0,
+            transition: 'opacity 200ms',
+            pointerEvents: 'none',
+          }}
+        >
+          <ProgressBar label="Updating map" isLabelHidden isIndeterminate />
+        </VStack>
+        {(bootError || (gw.score.status === 'error' && !scoreData)) && (
+          <VStack padding={4} style={{ position: 'absolute', insetInline: 0, insetBlockStart: 0 }}>
+            <Banner
+              status="error"
+              title="The map has no data yet"
+              description={
+                bootError ?? (gw.score.status === 'error' ? gw.score.message : 'Unknown error')
+              }
+              collapsible={false}
+            />
+          </VStack>
+        )}
+      </VStack>
+
+      {screen === 'home' && (
+        <VStack style={{ position: 'absolute', inset: 0, paddingTop: PANEL_TOP - 8 }}>
+          <HomeScreen
+            profiles={gw.profileList}
+            layersById={gw.layersById}
+            projects={projects}
+            onCreate={(p) => {
+              void createProject(p).then(openProject);
             }}
-            onHome={() => setScreen('home')}
-            onConnections={() => {
-              setConnectionsReason(null);
-              setConnectionsOpen(true);
-            }}
+            onOpen={openProject}
+            onRemove={removeProject}
           />
-          <ConnectionsDialog
-            isOpen={connectionsOpen}
-            onOpenChange={setConnectionsOpen}
-            reason={connectionsReason}
-          />
-        </LayoutHeader>
-      }
-      start={
-        screen === 'explore' && (
-          <LayoutPanel width={340} hasDivider padding={4} label="Controls">
+        </VStack>
+      )}
+
+      {screen === 'explore' && (
+        <>
+          <FloatingPanel
+            side="start"
+            label="Controls"
+            icon={SlidersHorizontal}
+            width={340}
+            top={PANEL_TOP}
+            bottom={PANEL_BOTTOM}
+          >
             <ControlPanel
+              basemap={basemap}
+              onBasemap={setBasemap}
               project={project}
               onEditProject={() => setScreen('home')}
               gw={gw}
@@ -804,168 +921,15 @@ export default function App() {
                 />
               }
             />
-          </LayoutPanel>
-        )
-      }
-      content={
-        <LayoutContent padding={0} isScrollable={false} label={screen === 'home' ? 'Home' : 'Map'}>
-          {screen === 'home' && (
-            <HomeScreen
-              profiles={gw.profileList}
-              layersById={gw.layersById}
-              projects={projects}
-              onCreate={(p) => {
-                void createProject(p).then(openProject);
-              }}
-              onOpen={openProject}
-              onRemove={removeProject}
-            />
-          )}
-          <VStack
-            height="100%"
-            style={{ position: 'relative', display: screen === 'home' ? 'none' : undefined }}
+          </FloatingPanel>
+          <FloatingPanel
+            side="end"
+            label="Details"
+            icon={PanelRight}
+            width={380}
+            top={PANEL_TOP}
+            bottom={PANEL_BOTTOM}
           >
-            <MapView
-              cells={cells}
-              ramp={overlay.layer ? overlay.ramp : 'suitability'}
-              showMasked={showMasked}
-              selectedH3={gw.selection?.h3 ?? null}
-              sites={siteRenders}
-              relief={!!overlay.relief}
-              terrain={terrain}
-              lowPower={lowPower}
-              isPlacing={isPlacing}
-              focus={focus}
-              onHexClick={onHexClick}
-              onLowPower={() => setLowPower(true)}
-              arrival={arrival}
-              zoomCmd={mapZoom}
-              pois={pois}
-              isActive={screen === 'explore'}
-              basemap={basemap}
-              isDrawing={isDrawing}
-              draft={draft}
-              areas={mapAreas}
-              selectedAreaId={selectedAreaId}
-              onDrawPoint={(lon, lat) => setDraft((d) => [...d, [lon, lat]])}
-              onDrawFinish={finishDraw}
-              onAreaClick={selectArea}
-            />
-            {!globeVisible && (
-              <HStack
-                padding={4}
-                style={{ position: 'absolute', insetInlineStart: 0, insetBlockEnd: 0, zIndex: 3 }}
-              >
-                <HStack
-                  padding={1}
-                  style={{
-                    background: 'var(--color-background-card)',
-                    borderRadius: 'var(--radius-container)',
-                    boxShadow: 'var(--shadow-med)',
-                  }}
-                >
-                  <SegmentedControl
-                    label="Base map"
-                    value={basemap}
-                    onChange={(v) => setBasemap(v as Basemap)}
-                    size="sm"
-                  >
-                    <SegmentedControlItem value="map" label="Map" />
-                    <SegmentedControlItem value="satellite" label="Satellite" />
-                    <SegmentedControlItem value="grid" label="Grid" />
-                  </SegmentedControl>
-                </HStack>
-              </HStack>
-            )}
-            <GlobeView
-              isVisible={globeVisible}
-              isSpinning={spinning}
-              target={globeTarget}
-              zoom={globeZoom}
-              regionHexes={regionHexes}
-              notice={globeNotice}
-              onArrive={onArrive}
-              onEnterRegion={() => flyGlobe(51.5, -0.11, 'city')}
-              onUserInteract={() => setSpinning(false)}
-            />
-            <HStack
-              padding={4}
-              justify="center"
-              style={{
-                position: 'absolute',
-                insetInline: 0,
-                insetBlockStart: 'var(--spacing-2)',
-                zIndex: 3,
-                pointerEvents: 'none',
-              }}
-            >
-              <HStack
-                padding={2}
-                width="100%"
-                maxWidth={600}
-                style={{
-                  pointerEvents: 'auto',
-                  background: 'var(--color-background-card)',
-                  borderRadius: 'var(--radius-container)',
-                  boxShadow: 'var(--shadow-med)',
-                }}
-              >
-                <CommandBar onSubmit={ask} />
-              </HStack>
-            </HStack>
-            <HStack
-              justify="center"
-              paddingBlockEnd={4}
-              style={{
-                position: 'absolute',
-                insetInline: 0,
-                insetBlockEnd: 0,
-                zIndex: 3,
-                pointerEvents: 'none',
-              }}
-            >
-              <VoiceDock
-                state={voice.state}
-                level={voice.level}
-                message={voice.message}
-                isAvailable={voice.engine !== null}
-                onStart={voice.start}
-                onStop={voice.stop}
-              />
-            </HStack>
-            <VStack
-              style={{
-                position: 'absolute',
-                insetInline: 0,
-                insetBlockStart: 0,
-                opacity: isMapLoading ? 1 : 0,
-                transition: 'opacity 200ms',
-                pointerEvents: 'none',
-              }}
-            >
-              <ProgressBar label="Updating map" isLabelHidden isIndeterminate />
-            </VStack>
-            {(bootError || (gw.score.status === 'error' && !scoreData)) && (
-              <VStack
-                padding={4}
-                style={{ position: 'absolute', insetInline: 0, insetBlockStart: 0 }}
-              >
-                <Banner
-                  status="error"
-                  title="The map has no data yet"
-                  description={
-                    bootError ?? (gw.score.status === 'error' ? gw.score.message : 'Unknown error')
-                  }
-                  collapsible={false}
-                />
-              </VStack>
-            )}
-          </VStack>
-        </LayoutContent>
-      }
-      end={
-        screen === 'explore' && (
-          <LayoutPanel width={380} hasDivider padding={4} label="Details">
             {view === 'area' && selectedArea ? (
               <AreaDetail
                 area={selectedArea}
@@ -1022,9 +986,89 @@ export default function App() {
                 }}
               />
             )}
-          </LayoutPanel>
-        )
-      }
-    />
+          </FloatingPanel>
+
+          {/* Command bar between the cards */}
+          <HStack
+            justify="center"
+            style={{
+              position: 'absolute',
+              top: PANEL_TOP,
+              insetInline: 400,
+              zIndex: 3,
+              pointerEvents: 'none',
+            }}
+          >
+            <HStack
+              padding={2}
+              width="100%"
+              maxWidth={560}
+              style={{ pointerEvents: 'auto', borderRadius: 'var(--radius-container)', ...SURFACE }}
+            >
+              <CommandBar onSubmit={ask} />
+            </HStack>
+          </HStack>
+
+          {/* Voice assistant, bottom centre */}
+          <HStack
+            justify="center"
+            style={{
+              position: 'absolute',
+              insetInline: 0,
+              bottom: 'max(var(--spacing-4), env(safe-area-inset-bottom))',
+              zIndex: 3,
+              pointerEvents: 'none',
+            }}
+          >
+            <VoiceDock
+              state={voice.state}
+              level={voice.level}
+              message={voice.message}
+              isAvailable={voice.engine !== null}
+              onStart={voice.start}
+              onStop={voice.stop}
+            />
+          </HStack>
+        </>
+      )}
+
+      {/* Detached navbar: a pill floating at the top centre */}
+      <HStack
+        justify="center"
+        style={{
+          position: 'absolute',
+          top: NAV_TOP,
+          insetInline: 0,
+          zIndex: 5,
+          pointerEvents: 'none',
+        }}
+      >
+        <HStack
+          style={{
+            pointerEvents: 'auto',
+            borderRadius: 'var(--radius-full)',
+            ...SURFACE,
+          }}
+        >
+          <TopBar
+            legend={screen === 'explore' ? legend : null}
+            onGlobe={() => {
+              setScreen('explore');
+              flyGlobe(51.5, -0.11, 'country');
+            }}
+            onHome={() => setScreen('home')}
+            onConnections={() => {
+              setConnectionsReason(null);
+              setConnectionsOpen(true);
+            }}
+          />
+        </HStack>
+      </HStack>
+      <ConnectionsDialog
+        isOpen={connectionsOpen}
+        onOpenChange={setConnectionsOpen}
+        reason={connectionsReason}
+      />
+    </VStack>
   );
 }
