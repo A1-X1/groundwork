@@ -86,7 +86,41 @@ function fixtureOnly(): never {
 
 // ---------------------------------------------------------------- endpoints
 
+export interface StreetViewConfig {
+  provider: 'google' | 'mapillary' | null;
+  browser_key?: string | null;
+  credit?: string | null;
+}
+
 export const api = {
+  streetViewConfig: (): Promise<StreetViewConfig> =>
+    fixtures ? Promise.resolve({ provider: null }) : request('/streetview/config'),
+  /** The preview JPEG near a point, or null when there's no imagery within 200 m. */
+  streetViewPreview: async (
+    lat: number,
+    lon: number,
+  ): Promise<{ blob: Blob; panoId: string | null; credit: string } | null> => {
+    const res = await fetch(`${API_URL}/streetview/preview?lat=${lat}&lon=${lon}`);
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as ApiErrorBody | null;
+      throw new ApiError(
+        res.status,
+        body?.error.code ?? 'http_error',
+        body?.error.message ?? res.statusText,
+      );
+    }
+    return {
+      blob: await res.blob(),
+      panoId: res.headers.get('X-Pano-Id'),
+      credit: res.headers.get('X-Streetview-Credit') ?? '',
+    };
+  },
+  saveStreetViewKey: (provider: 'google' | 'mapillary', key: string): Promise<StreetViewConfig> =>
+    request(`/streetview/keys/${provider}`, { method: 'PUT', body: JSON.stringify({ key }) }),
+  deleteStreetViewKey: (provider: 'google' | 'mapillary'): Promise<StreetViewConfig> =>
+    request(`/streetview/keys/${provider}`, { method: 'DELETE' }),
+
   review: (text: string, context: Record<string, unknown>): Promise<Review> =>
     fixtures
       ? Promise.resolve({ verdict: 'ok', reason: '', suggestion: null, source: 'rules' })

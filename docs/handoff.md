@@ -18,15 +18,17 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
-- [ ] 2026-11-21 (P1, user request): **Street View-style preview on hex click.** Clicking a hex shows a small **preview image** of that place in the detail panel; clicking the preview opens a **full-screen street-level viewer** you can move around in (arrows / drag, like Google Street View), with a close button back to the map.
-  - **Google Street View** (what the user named) needs a **Google Maps Platform key** with the Maps JavaScript API (Street View) and the Street View Static API enabled; the monthly free credit covers a demo. Read `GOOGLE_MAPS_API_KEY` from `.env` server-side, and expose only what the browser needs (a referrer-restricted browser key).
-    - Preview: Street View Static API `https://maps.googleapis.com/maps/api/streetview?size=640x360&location=LAT,LNG&key=…`.
-    - Viewer: `google.maps.StreetViewPanorama`. Check the Street View metadata endpoint first and show "No street imagery here" if nothing is within ~200 m.
-  - **Free fallback without a key:** Mapillary (free account token, `MAPILLARY_TOKEN`). Thumbnails come from the Graph API `images?fields=thumb_1024_url&bbox=…` and navigation from MapillaryJS. Choose whichever key is present; show the provider credit.
-  - Coordinates: use the hex centre (`score_point` returns `lat`/`lon`).
+_(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Done
 
+- [x] 2026-11-21 (P2, your request): **Street View-style preview on hex click.** New `backend/api/streetview.py`:
+  - `GET /streetview/config` returns `{provider, browser_key, credit}`.
+  - `GET /streetview/preview?lat&lon` serves a JPEG (proxied, so the server key stays server-side) with `X-Pano-Id`/credit headers. It returns 404 `no_imagery` when nothing is within 200 m (Google metadata check first), and 503 `not_configured` without a key.
+  - `PUT/DELETE /streetview/keys/{google|mapillary}` writes `GOOGLE_MAPS_API_KEY` / `MAPILLARY_TOKEN` to the gitignored `.env`.
+  - Google wins when both keys exist. The viewer uses `GOOGLE_MAPS_BROWSER_KEY` if set (referrer-restricted), else the server key.
+  - UI: the hex detail panel shows the preview (using `score_point`'s `lat`/`lon`). Clicking it, or "Look around", opens a full-screen viewer (Google `StreetViewPanorama` or MapillaryJS, arrows/drag, Esc or ✕ to close) with the provider credit. Keys go in Connections → Street view.
+  - Tested with mocked providers. Not tested against the real services, since there's no key here and the hosts are blocked.
 - [x] 2026-11-21 (P2, your bug): **Voice no longer waits for a stop button.** The mic toggle (aria-pressed "Mic on/off") is now the only control, and Talk and the orb tap use it too. With the mic on, each utterance sends itself after ~800 ms of silence, with ≥ 400 ms of real speech required. Listening resumes after the reply and stays paused while TTS speaks. Cause: Talk was push-to-talk (recorded until stop), and the always-on mode used fixed loudness thresholds that a quiet mic with noise suppression never crossed. The thresholds now follow a running noise floor. Verified in Chromium with a fake mic (tone, then silence): `/assistant/transcribe` fired by itself about 4 s after the mic went on, the request ran, and the mic stayed on.
 - [x] 2026-11-21 (P2, your request): **Smaller hexes in UK towns and cities.** `uk_urban` loads (res 8, 24,705 cells). A Manchester bbox returns 220 res-8 + 1 res-7 cells, which render together. My viewport rule now fetches once **any** region in view passes its zoom threshold (it used to be **all**, so res-8 `uk_urban` would have hidden rural res-7 UK until zoom 9). The ≤ 40k-cell cap still applies. Your non-wrapping USA bbox is in, thanks. Also: read-only API calls now retry for about 20 s while the API starts, so `make dev` no longer shows "Can't reach the API" while uvicorn is still loading the regions.
 - [x] 2026-11-21 (P2): **Map key items for every region.** `/pois` accepts all your kinds (it reads `scoring.pois.POI_KINDS`; `station, substation, power_plant, water, port, ixp, data_centre, airport` as fallback) and passes `region` and `detail` through (NaN → null). The frontend asks per padded, snapped viewport (`/pois?bbox=`), refetching only when that box changes, and shows icons from zoom 7.5 (was 10.8: national sets are sparse). The API caps a response at 4,000 points, shared round-robin across kinds so no category vanishes. London seed points are dropped wherever real points of that kind exist. Colours: power_plant yellow (with substation), port blue (water family, anchor icon), airport grey/white. Tooltips show `detail` (fuel, MW). Tests added.
