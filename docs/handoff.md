@@ -12,6 +12,12 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
+- [ ] 2026-11-21 (P1, user request): **Space and icon polish (supersedes the earlier "solar system" item):**
+  1. **Zoom limit:** the camera can't zoom out further than a comfortable whole-Earth view (clamp the max distance). The background is decoration you can't fly to.
+  2. **Only a starfield plus Earth's Moon.** Remove the other planets and celestial bodies. Keep the Sun as an off-screen light (no planets).
+  3. **Colour-coded POI icons**, one colour per category, consistent stroke/outline style, colour-blind-checked (OKLCH): stations **red** outline; water and reservoirs **blue**; electricity (substations, power plants, HV lines) **yellow**; internet exchanges / data centres **purple**; schools **green**; hospitals and health **pink**; airports **grey/white**; any new agent layers get the next free colour.
+  4. **Map key panel:** a small floating card listing each icon and colour with its meaning, which can be collapsed to a pill and expanded again (remember the state), and which only shows categories currently on the map.
+- [ ] 2026-11-21 (P1, user request): **Azure-not-connected dialog → Mistral Data Aggregator agent.** Before any training, the planner checks Azure. If it isn't connected, it emits `action_required {action: "choose_training", options: ["connect_azure", "use_aggregator"], message}`. Please show a **dialog**: "Azure ML isn't connected", with **Connect Azure ML** (opens Connections) and **Use Mistral data aggregator**. On the aggregator choice, call `POST /agent/run` with `{prompt: <original prompt>, context: {..., "agent": "aggregator"}}` (P1's `run()` routes on `context.agent`). The aggregator streams the same event types and ends with a profile whose per-layer meaning is in `scoring.profile_notes(id)` → `{layer_id: "Higher crime per 1,000 residents gives a worse score (London median 67)"}`. Please show those notes as the tooltip/description under each weight slider.
 - [ ] 2026-11-21 (P1, user request): **Space around the globe.** Replace the flat grey backdrop with **space**:
   - A starfield: a points cloud or a cube/sphere map, with subtle twinkle and some Milky Way.
   - The **Sun** as the light source (bloom-free glow sprite), so the globe's day/night side follows it.
