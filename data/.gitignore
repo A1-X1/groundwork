@@ -1,0 +1,4 @@
+# Only data/README.md and data/sample/ are committed.
+raw/
+processed/
+sample/models/

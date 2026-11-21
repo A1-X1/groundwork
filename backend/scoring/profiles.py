@@ -1,0 +1,101 @@
+"""Profile YAML schema, validation and loading."""
+
+from __future__ import annotations
+
+import math
+from pathlib import Path
+from typing import Literal
+
+import yaml
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+PROFILES_DIR = Path(__file__).resolve().parents[1] / "profiles"
+
+
+class ProfileError(ValueError):
+    """A profile YAML file is invalid (bad schema or unknown layer ids)."""
+
+
+class LayerWeight(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    weight: float = Field(ge=0)
+    better: Literal["higher", "lower"]
+
+    @field_validator("weight")
+    @classmethod
+    def _finite(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("weight must be finite")
+        return v
+
+
+class ModelSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["presence"] = "presence"
+    positives: str
+    exclude_features: list[str] = Field(default_factory=list)
+    # Lowest feasibility multiplier: the model can at most scale a score down to this.
+    floor: float = Field(default=0.5, ge=0, le=1)
+
+
+class Profile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
+    label: str
+    description: str
+    layers: dict[str, LayerWeight] = Field(min_length=1)
+    masks: list[str] = Field(default_factory=list)
+    model: ModelSpec | None = None
+
+    @model_validator(mode="after")
+    def _renormalise(self) -> Profile:
+        total = sum(lw.weight for lw in self.layers.values())
+        if total <= 0:
+            raise ValueError("at least one layer weight must be positive")
+        for lw in self.layers.values():
+            lw.weight = lw.weight / total
+        return self
+
+    def public(self) -> dict:
+        ordered = sorted(self.layers.items(), key=lambda kv: (-kv[1].weight, kv[0]))
+        return {
+            "id": self.id,
+            "label": self.label,
+            "description": self.description,
+            "layers": [{"id": k, "weight": round(v.weight, 6), "better": v.better} for k, v in ordered],
+            "masks": list(self.masks),
+            "has_model": self.model is not None,
+        }
+
+
+def load_profile(path: Path, known_layers: set[str]) -> Profile:
+    try:
+        raw = yaml.safe_load(path.read_text())
+        profile = Profile.model_validate(raw)
+    except Exception as exc:
+        raise ProfileError(f"{path.name}: {exc}") from exc
+    if profile.id != path.stem:
+        raise ProfileError(f"{path.name}: id {profile.id!r} must match the file name")
+    referenced = {
+        "layers": set(profile.layers),
+        "masks": set(profile.masks),
+        "model.exclude_features": set(profile.model.exclude_features) if profile.model else set(),
+    }
+    for where, ids in referenced.items():
+        unknown = sorted(ids - known_layers)
+        if unknown:
+            raise ProfileError(f"{path.name}: unknown layer id(s) in {where}: {unknown}")
+    return profile
+
+
+def load_profiles(known_layers: set[str], directory: Path = PROFILES_DIR) -> dict[str, Profile]:
+    profiles = {}
+    for path in sorted(directory.glob("*.yaml")):
+        p = load_profile(path, known_layers)
+        profiles[p.id] = p
+    if not profiles:
+        raise ProfileError(f"no profiles found in {directory}")
+    return profiles

@@ -1,0 +1,158 @@
+{
+  "generated_at": "2026-11-21T10:25:52Z",
+  "region": "london",
+  "resolution": 8,
+  "boundary": "simplified built-in outline",
+  "cells": 2654,
+  "layers": {
+    "elevation": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/elevation/open_meteo_res8.json",
+      "seconds": 0.19
+    },
+    "slope": {
+      "status": "synthetic",
+      "reason": "derived from synthetic elevation",
+      "seconds": 0.12
+    },
+    "mean_temp_annual": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/open_meteo/weather_2025_00.json",
+      "seconds": 0.01
+    },
+    "summer_max_temp": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/open_meteo/weather_2025_00.json",
+      "seconds": 0.01
+    },
+    "wet_bulb_p99": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/open_meteo/weather_2025_00.json",
+      "seconds": 0.01
+    },
+    "free_cooling_hours": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/open_meteo/weather_2025_00.json",
+      "seconds": 0.01
+    },
+    "humidity_mean": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/open_meteo/weather_2025_00.json",
+      "seconds": 0.01
+    },
+    "wind_speed_mean": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/open_meteo/weather_2025_00.json",
+      "seconds": 0.01
+    },
+    "solar_irradiance": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/open_meteo/weather_2025_00.json",
+      "seconds": 0.01
+    },
+    "population_density": {
+      "status": "synthetic",
+      "reason": "missing /home/user/groundwork/data/raw/ons/lsoa_population.csv. Download Census 2021 TS001 (usual residents) by LSOA from Nomis and save as data/raw/ons/lsoa_population.csv",
+      "seconds": 0.03
+    },
+    "land_use_residential": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/osm/landuse_residential.json",
+      "seconds": 0.02
+    },
+    "crime_rate": {
+      "status": "synthetic",
+      "reason": "no cached police data",
+      "seconds": 0.02
+    },
+    "deprivation_index": {
+      "status": "synthetic",
+      "reason": "missing /home/user/groundwork/data/raw/ons/imd.csv. Download English Indices of Deprivation File 7 (all ranks, scores) CSV and save as data/raw/ons/imd.csv",
+      "seconds": 0.02
+    },
+    "median_house_price": {
+      "status": "synthetic",
+      "reason": "Save Price Paid CSVs (no header, e.g. pp-2025.csv) in data/raw/landreg/ and a postcode lookup with columns pcds,lat,long (from the ONS Postcode Directory) as data/raw/onspd/postcodes.csv",
+      "seconds": 0.02
+    },
+    "flood_risk": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/planning/api_flood-risk-zone.json",
+      "seconds": 0.01
+    },
+    "flood_zone_3": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/planning/api_flood-risk-zone.json",
+      "seconds": 0.0
+    },
+    "air_quality_no2": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/open_meteo/air_2025_00.json",
+      "seconds": 0.01
+    },
+    "air_quality_pm25": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/open_meteo/air_2025_00.json",
+      "seconds": 0.01
+    },
+    "grid_carbon_intensity": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/carbon_intensity/london_2026-11-21.json",
+      "seconds": 0.01
+    },
+    "dist_station": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/osm/stations.json",
+      "seconds": 0.0
+    },
+    "dist_substation": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/osm/substations.json",
+      "seconds": 0.0
+    },
+    "dist_hv_line": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/osm/hv_lines.json",
+      "seconds": 0.0
+    },
+    "dist_fibre_ix": {
+      "status": "real",
+      "seconds": 0.0
+    },
+    "dist_water_body": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/osm/water.json",
+      "seconds": 0.01
+    },
+    "green_space_access": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/osm/parks.json",
+      "seconds": 0.0
+    },
+    "dist_major_road": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/osm/major_roads.json",
+      "seconds": 0.02
+    },
+    "dist_primary_school": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/osm/schools.json",
+      "seconds": 0.0
+    },
+    "dist_secondary_school": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/osm/schools.json",
+      "seconds": 0.0
+    },
+    "school_quality_nearby": {
+      "status": "synthetic",
+      "reason": "offline and no cache at /home/user/groundwork/data/raw/osm/schools.json",
+      "seconds": 0.01
+    },
+    "protected_land": {
+      "status": "synthetic",
+      "reason": "offline and no cached protected-land sources",
+      "seconds": 0.0
+    }
+  }
+}
