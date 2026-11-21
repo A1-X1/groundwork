@@ -12,17 +12,17 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
-- [ ] 2026-11-21 (P1, user request): **Space around the globe.** Replace the flat grey backdrop with **space**:
-  - A starfield: a points cloud or a cube/sphere map, with subtle twinkle and some Milky Way.
-  - The **Sun** as the light source (bloom-free glow sprite), so the globe's day/night side follows it.
-  - A visible **Moon**, and the **solar system** in the far background: the other planets as small lit spheres on rough orbits, to scale artistically, not physically.
-  - The camera can orbit out far enough to see them. Keep the atmosphere rim on Earth.
-  - Performance budget: stars as one `Points` draw, planets as low-poly spheres, no post-processing. Respect reduced motion (no twinkle).
-  - Free textures: NASA (public domain) or Solar System Scope (CC BY 4.0); credit them.
-  - P2: acknowledged, next up after this push.
+_(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Done
 
+- [x] 2026-11-21 (P2, your request): **Space around the globe.** The grey backdrop is now space (`frontend/src/map/space.ts`):
+  - Stars: 7k stars in one `Points` draw, denser and dimmer along a Milky Way band, plus a faint additive haze. They twinkle only while frames run, and not at all under reduced motion.
+  - The Sun is a bloom-free glow sprite with the scene's directional light. It sits over today's real subsolar point, so the night side is where it really is. Ambient light is low but the night side stays legible.
+  - The Moon and the seven other planets (Saturn with a ring) are low-poly lit spheres. They sit on rough, slowly drifting orbits in the ecliptic (tilted 23.44°), to artistic scale.
+  - The camera can pull back to distance 14, and the atmosphere rim is kept. No post-processing.
+  - Every surface is procedural, so there are no textures to credit or download (the container can't reach NASA or Solar System Scope). Real textures can be dropped in later.
+  - Verified in Chromium: starfield, day/night terminator, rotation.
 - [x] 2026-11-21 (P2): **Globe ⇄ map hand-off, both ways, every time.** Zooming the map out past zoom 3.6 (wheel, pinch, the +/− buttons or a "zoom out" command) hands back to the globe. The globe snaps in close over the same spot and pulls back to country distance, and this works after command fly-tos too. Wheel-zooming the globe all the way in hands over to the map at the point facing the camera (or shows "Data covers: …" where there's no data). Clicking a region on the globe enters it at the clicked point. Cause: the hand-off was one-way, and MapLibre 5 scroll-zoom steps carry no `originalEvent`, so the map now tracks user input itself. Verified in Chromium: map 9.7 → wheel out → globe, then wheel in → map.
 - [x] 2026-11-21 (P2): **Viewport-only hexes for multi-region data.** `/score`, `/score/custom` and `/layers/{id}` are fetched only with a `bbox`: the viewport padded 30 % and snapped to a grid, so small pans reuse it and your cache. Fetches are debounced 250 ms. They happen only when every region in view passes its zoom threshold (res ≤ 5: z6, res 6–7: z7, res 8: z9) and the estimate stays ≤ 40k cells, or when the view holds ≤ 6k cells whatever the zoom, so all of London still shows from afar. There are no hexes on the globe. It marks each `/regions` entry with coarse hexes (polyfilled, ≤ 600 per region) and offers "Open <first region> map". `raw: null` is now valid in the API models (`LayerValue.raw`, `PointScore.raw`). The overlay draws those cells neutral, and tooltips and details say "no data here". Logic in `frontend/src/lib/viewport.ts` with tests. Verified with London + UK: Manchester returns 241 res-7 cells and central London 235 res-8 cells, with no overlap. FYI: for the Manchester bbox, `ScoreResponse.resolution` says 8 although the cells are res 7. The UI reads each cell's own resolution, so it doesn't matter to me, but you may want it to be the resolution of the returned cells.
 - [x] 2026-11-21 (P2): **Compound commands as an ordered queue.** Agent `ui` commands are sorted by `seq`. Each one awaits its effect before the next: `PAN_*` waits for the map's `moveend` (or the globe's arrival), `SET_PROFILE` for that profile's scores, `SET_OVERLAY` for the layer's data, each with a timeout. My rule parser splits on "then / and then / after that / , and / ;" in order, and `/assistant/command` sorts Mistral output by `seq`. It also returns `understood` (false only when the text isn't a map command), and the UI asks the agent only then. Verified: "show the thermal view then show the best house sites" ran both steps in order.

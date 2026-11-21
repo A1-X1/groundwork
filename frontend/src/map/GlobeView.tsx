@@ -10,6 +10,7 @@ import { Button } from '@astryxdesign/core/Button';
 import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
 import { cellToBoundary, cellToChildren, getRes0Cells } from 'h3-js';
+import { buildSpace, SPACE_FAR, subsolarPoint } from './space';
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RAMPS, sample } from '../lib/colour';
@@ -171,18 +172,21 @@ export function GlobeView(props: Props) {
       35,
       (host.clientWidth || 800) / (host.clientHeight || 600),
       0.01,
-      50,
+      200,
     );
     let distance = FAR;
     camera.position.set(0, 0, distance);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 1.1));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.4);
-    sun.position.set(-3, 2, 4);
-    scene.add(sun);
+    scene.background = new THREE.Color(0x02030a);
+    // Low ambient so the night side reads as night but stays legible; the Sun does the rest.
+    scene.add(new THREE.AmbientLight(0xc8d4ff, 0.42));
 
     const globe = new THREE.Group();
     scene.add(globe);
+    // Space turns with the globe, so the Sun stays over today's real subsolar point.
+    const space = buildSpace(toVec(...subsolarPoint(new Date())));
+    globe.add(space.group);
+    let lastFrame = performance.now();
     const loader = new THREE.TextureLoader();
     const day = loader.load('/textures/earth-blue-marble-2k.jpg', () => renderOnce());
     day.colorSpace = THREE.SRGBColorSpace;
@@ -255,7 +259,7 @@ export function GlobeView(props: Props) {
       const dy = e.clientY - last.y;
       moved += Math.abs(dx) + Math.abs(dy);
       last = { x: e.clientX, y: e.clientY };
-      const k = 0.005 * (distance - 0.9);
+      const k = 0.005 * Math.min(distance - 0.9, 2.6);
       const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), dx * k);
       const qx = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), dy * k);
       globe.quaternion.premultiply(qy).premultiply(qx);
@@ -277,7 +281,7 @@ export function GlobeView(props: Props) {
       e.preventDefault();
       anim = null;
       const before = distance;
-      distance = THREE.MathUtils.clamp(distance * (1 + e.deltaY * 0.001), NEAR, FAR + 1);
+      distance = THREE.MathUtils.clamp(distance * (1 + e.deltaY * 0.001), NEAR, SPACE_FAR);
       propsRef.current.onUserInteract();
       // Reaching the closest distance hands over to the flat map at the point facing us.
       if (
@@ -319,6 +323,10 @@ export function GlobeView(props: Props) {
         globe.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), 0.0012);
         again = true;
       }
+      // Twinkle and orbits advance only while frames run continuously (no jumps when idle).
+      const now = performance.now();
+      if (!reduced) space.tick(Math.min((now - lastFrame) / 1000, 1 / 30));
+      lastFrame = now;
       camera.position.set(0, 0, distance);
       camera.lookAt(0, 0, 0);
       maybeLoadHiRes();
@@ -399,6 +407,7 @@ export function GlobeView(props: Props) {
       el.removeEventListener('pointerup', onUp);
       el.removeEventListener('wheel', onWheel);
       earthGeo.dispose();
+      space.dispose();
       gridGeo.dispose();
       day.dispose();
       bump.dispose();
@@ -424,7 +433,7 @@ export function GlobeView(props: Props) {
     const z = props.zoom;
     if (!z || !api.current) return;
     const d = api.current.distance();
-    const next = THREE.MathUtils.clamp(z.dir === 'in' ? d * 0.7 : d / 0.7, NEAR, FAR + 1);
+    const next = THREE.MathUtils.clamp(z.dir === 'in' ? d * 0.7 : d / 0.7, NEAR, SPACE_FAR);
     api.current.zoomTo(next);
   }, [props.zoom]);
 
