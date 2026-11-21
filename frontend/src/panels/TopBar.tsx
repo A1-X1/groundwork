@@ -1,0 +1,71 @@
+import { Heading } from '@astryxdesign/core/Heading';
+import { HStack } from '@astryxdesign/core/HStack';
+import { Link } from '@astryxdesign/core/Link';
+import { Text } from '@astryxdesign/core/Text';
+import { VStack } from '@astryxdesign/core/VStack';
+import { API_URL, USE_FIXTURE } from '../api/client';
+import { cssGradient, RAMPS, type RampId } from '../lib/colour';
+
+export interface LegendSpec {
+  title: string;
+  ramp: RampId;
+  low: string;
+  high: string;
+}
+
+export function TopBar({ legend }: { legend: LegendSpec | null }) {
+  return (
+    <HStack
+      justify="between"
+      align="center"
+      gap={4}
+      paddingInline={4}
+      paddingBlock={2}
+      wrap="wrap"
+      style={{
+        paddingInlineStart: 'max(var(--spacing-4), env(safe-area-inset-left))',
+        paddingInlineEnd: 'max(var(--spacing-4), env(safe-area-inset-right))',
+      }}
+    >
+      <HStack gap={2} align="center">
+        <Heading level={1} weight="semibold">
+          Groundwork
+        </Heading>
+        <Text color="secondary">London</Text>
+      </HStack>
+
+      {legend && (
+        <VStack gap={1} width={280} aria-label={`Legend: ${legend.title}`} role="group">
+          <HStack justify="between">
+            <Text type="supporting" weight="medium">
+              {legend.title}
+            </Text>
+          </HStack>
+          <HStack
+            height={8}
+            aria-hidden
+            style={{
+              background: cssGradient(RAMPS[legend.ramp]),
+              borderRadius: 'var(--radius-inner)',
+            }}
+          />
+          <HStack justify="between">
+            <Text type="supporting" color="secondary" hasTabularNumbers>
+              {legend.low}
+            </Text>
+            <Text type="supporting" color="secondary" hasTabularNumbers>
+              {legend.high}
+            </Text>
+          </HStack>
+        </VStack>
+      )}
+
+      <HStack gap={4} align="center">
+        {USE_FIXTURE && <Text color="secondary">Fixture data</Text>}
+        <Link href={`${API_URL}/docs`} isExternalLink>
+          API docs
+        </Link>
+      </HStack>
+    </HStack>
+  );
+}

@@ -1,0 +1,65 @@
+[
+  {
+    "id": "data_centre",
+    "label": "Data centre",
+    "description": "Low cooling demand, clean grid power, connectivity, low hazard.",
+    "layers": [
+      { "id": "free_cooling_hours", "weight": 0.2, "better": "higher" },
+      { "id": "wet_bulb_p99", "weight": 0.15, "better": "lower" },
+      { "id": "grid_carbon_intensity", "weight": 0.15, "better": "lower" },
+      { "id": "dist_substation", "weight": 0.15, "better": "lower" },
+      { "id": "dist_fibre_ix", "weight": 0.15, "better": "lower" },
+      { "id": "slope", "weight": 0.1, "better": "lower" },
+      { "id": "population_density", "weight": 0.1, "better": "lower" }
+    ],
+    "masks": ["flood_zone_3", "protected_land"],
+    "has_model": true
+  },
+  {
+    "id": "house",
+    "label": "House",
+    "description": "Safe, connected, green and affordable places to live.",
+    "layers": [
+      { "id": "crime_rate", "weight": 0.2, "better": "lower" },
+      { "id": "dist_station", "weight": 0.15, "better": "lower" },
+      { "id": "green_space_access", "weight": 0.15, "better": "lower" },
+      { "id": "median_house_price", "weight": 0.15, "better": "lower" },
+      { "id": "school_quality_nearby", "weight": 0.1, "better": "higher" },
+      { "id": "air_quality_no2", "weight": 0.1, "better": "lower" },
+      { "id": "flood_risk", "weight": 0.1, "better": "lower" },
+      { "id": "dist_primary_school", "weight": 0.05, "better": "lower" }
+    ],
+    "masks": ["flood_zone_3", "protected_land"],
+    "has_model": true
+  },
+  {
+    "id": "school",
+    "label": "School",
+    "description": "Where children live, clean air, safe streets and walkable access.",
+    "layers": [
+      { "id": "population_density", "weight": 0.25, "better": "higher" },
+      { "id": "air_quality_no2", "weight": 0.2, "better": "lower" },
+      { "id": "crime_rate", "weight": 0.15, "better": "lower" },
+      { "id": "dist_secondary_school", "weight": 0.15, "better": "higher" },
+      { "id": "dist_station", "weight": 0.1, "better": "lower" },
+      { "id": "dist_major_road", "weight": 0.1, "better": "higher" },
+      { "id": "green_space_access", "weight": 0.05, "better": "lower" }
+    ],
+    "masks": ["flood_zone_3", "protected_land"],
+    "has_model": false
+  },
+  {
+    "id": "mine",
+    "label": "Mine",
+    "description": "Water access, distance from people, road access and flat ground. London is a demo region; mineral deposit layers are future work.",
+    "layers": [
+      { "id": "dist_water_body", "weight": 0.2, "better": "lower" },
+      { "id": "population_density", "weight": 0.3, "better": "lower" },
+      { "id": "dist_major_road", "weight": 0.2, "better": "lower" },
+      { "id": "slope", "weight": 0.15, "better": "lower" },
+      { "id": "dist_hv_line", "weight": 0.15, "better": "lower" }
+    ],
+    "masks": ["protected_land"],
+    "has_model": false
+  }
+]
