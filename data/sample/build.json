@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-21T11:36:54Z",
+  "generated_at": "2026-11-21T11:49:35Z",
   "region": "london",
   "resolution": 8,
   "boundary": "simplified built-in outline",
@@ -43,11 +43,11 @@
     },
     "wind_speed_100m": {
       "status": "real",
-      "seconds": 0.07
+      "seconds": 0.14
     },
     "wind_power_density": {
       "status": "real",
-      "seconds": 0.0
+      "seconds": 0.01
     },
     "precipitation_annual": {
       "status": "real",
@@ -66,9 +66,8 @@
       "seconds": 0.0
     },
     "population_density": {
-      "status": "synthetic",
-      "reason": "missing data/raw/ons/lsoa_population.csv. Download Census 2021 TS001 (usual residents) by LSOA from Nomis and save as data/raw/ons/lsoa_population.csv",
-      "seconds": 0.03
+      "status": "real",
+      "seconds": 4.11
     },
     "land_use_residential": {
       "status": "synthetic",
@@ -76,9 +75,8 @@
       "seconds": 0.02
     },
     "crime_rate": {
-      "status": "synthetic",
-      "reason": "offline and no cache at data/raw/police/last_updated.json",
-      "seconds": 0.02
+      "status": "real",
+      "seconds": 0.33
     },
     "deprivation_index": {
       "status": "synthetic",
@@ -91,29 +89,24 @@
       "seconds": 0.02
     },
     "flood_risk": {
-      "status": "synthetic",
-      "reason": "offline and no cache at data/raw/planning/api_flood-risk-zone.json",
-      "seconds": 0.22
+      "status": "real",
+      "seconds": 370.15
     },
     "flood_zone_3": {
-      "status": "synthetic",
-      "reason": "offline and no cache at data/raw/planning/api_flood-risk-zone.json",
-      "seconds": 0.0
+      "status": "real",
+      "seconds": 9.89
     },
     "air_quality_no2": {
-      "status": "synthetic",
-      "reason": "offline and no cache at data/raw/open_meteo/air_2025_00.json",
-      "seconds": 0.01
+      "status": "real",
+      "seconds": 6.18
     },
     "air_quality_pm25": {
-      "status": "synthetic",
-      "reason": "offline and no cache at data/raw/open_meteo/air_2025_00.json",
-      "seconds": 0.01
+      "status": "real",
+      "seconds": 0.0
     },
     "grid_carbon_intensity": {
-      "status": "synthetic",
-      "reason": "offline and no cache at data/raw/carbon_intensity/london.json",
-      "seconds": 0.01
+      "status": "real",
+      "seconds": 2.14
     },
     "dist_station": {
       "status": "synthetic",
@@ -165,14 +158,15 @@
       "seconds": 0.02
     },
     "protected_land": {
-      "status": "synthetic",
-      "reason": "offline and no cached protected-land sources",
-      "seconds": 0.0
+      "status": "real",
+      "uses_synthetic": [
+        "population_density"
+      ],
+      "seconds": 208.13
     },
     "cloud_cover_mean": {
-      "status": "synthetic",
-      "reason": "offline and no cache at data/raw/open_meteo/daily_cloud_cover_mean_2016_2025_21.json",
-      "seconds": 0.02
+      "status": "real",
+      "seconds": 0.07
     },
     "dist_airport": {
       "status": "synthetic",
@@ -184,14 +178,13 @@
       "seconds": 0.01
     },
     "sunshine_hours": {
-      "status": "synthetic",
-      "reason": "offline and no cache at data/raw/open_meteo/daily_sunshine_duration_2016_2025_12.json",
-      "seconds": 0.02
+      "status": "real",
+      "seconds": 0.08
     },
     "wind_gust_max": {
       "status": "synthetic",
-      "reason": "offline and no cache at data/raw/open_meteo/daily_wind_gusts_10m_max_2016_2025_00.json",
-      "seconds": 0.01
+      "reason": "offline and no cache at data/raw/open_meteo/daily_wind_gusts_10m_max_2016_2025_15.json",
+      "seconds": 0.02
     }
   }
 }

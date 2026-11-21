@@ -24,7 +24,7 @@ def zone_polygons() -> dict[str, list]:
     zones: dict[str, list] = {"2": [], "3": []}
     for f in feats:
         props = f.get("properties", {})
-        level = str(props.get("flood-risk-level") or props.get("flood_zone") or props.get("name") or "")
+        level = str(props.get("flood-risk-level") or props.get("flood_zone") or "")
         key = "3" if "3" in level else ("2" if "2" in level else None)
         if key:
             zones[key].extend(_planning.polygons([f]))
