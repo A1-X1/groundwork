@@ -31,9 +31,11 @@ def test_list_profiles_shape():
     profiles = scoring.list_profiles()
     assert {p["id"] for p in profiles} >= {"data_centre", "house", "school", "mine"}
     for p in profiles:
-        assert set(p) == {"id", "label", "description", "layers", "masks", "has_model"}
+        assert set(p) == {"id", "label", "description", "layers", "masks", "has_model", "generated"}
         assert math.isclose(sum(lw["weight"] for lw in p["layers"]), 1.0, abs_tol=1e-5)
         assert all(set(lw) == {"id", "weight", "better"} for lw in p["layers"])
+    gen = {p["id"]: p["generated"] for p in profiles}
+    assert gen["nuclear_power_plant"] is True and gen["house"] is False
 
 
 def test_list_layers_covers_every_layer():

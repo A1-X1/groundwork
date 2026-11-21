@@ -107,7 +107,10 @@ def test_3d_model_spec_saved_and_budgeted(sandbox):
 
 
 def test_train_model_runs_azure_job_script_locally(sandbox):
-    pytest.importorskip("lightgbm")
+    from backend.scoring.ml import lightgbm_available
+
+    if not lightgbm_available():
+        pytest.skip("lightgbm unavailable")
     r = tools.call("train_model", {"profile_id": "data_centre", "backend": "local"})
     assert r["trained"] and r["backend"] == "local"
     meta = json.loads((sandbox / "processed" / "jobs" / "data_centre" / "data" / "meta.json").read_text())
@@ -246,3 +249,24 @@ def test_generated_profile_with_unbuilt_layer_is_skipped(tmp_path):
     (tmp_path / "bad.yaml").write_text("id: bad\nlabel: B\ndescription: d\nlayers:\n  nope: {weight: 1, better: lower}\n")
     with pytest.raises(ProfileError):
         load_profiles({"slope"}, tmp_path)
+
+
+def test_scoring_survives_lightgbm_oserror(monkeypatch):
+    """macOS without libomp: importing lightgbm raises OSError; scoring must fall back to 1.0."""
+    import builtins
+
+    from backend.scoring import data as _data
+    from backend.scoring import ml
+    from backend.scoring.profiles import load_profiles
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *a, **k):
+        if name == "lightgbm" or name.startswith("lightgbm."):
+            raise OSError("dlopen(lib_lightgbm.dylib): Library not loaded: libomp.dylib")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    assert ml.lightgbm_available() is False
+    grid = _data.load(_data.LONDON_SAMPLE)
+    assert ml.get_model(grid, load_profiles(set(grid.layer_ids))["data_centre"]) is None

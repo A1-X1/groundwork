@@ -235,6 +235,11 @@ def train_model(profile_id: str, backend: str = "auto") -> dict[str, Any]:
     if profile_id not in profiles:
         raise ToolError(f"unknown profile {profile_id!r}")
     profile = profiles[profile_id]
+    from backend.scoring.ml import lightgbm_available
+
+    if not lightgbm_available():
+        return {"trained": False, "reason": "LightGBM can't load here (on macOS: brew install libomp)",
+                "advice": "Scores still work; the feasibility multiplier stays 1.0."}
     if profile.model is None:
         raise ToolError("profile declares no model; add a `model` block with positives first")
     connected = azure_ml.status()["configured"] and azure_ml.sdk_installed()

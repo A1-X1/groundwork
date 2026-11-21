@@ -36,8 +36,13 @@ Mistral powers every natural-language part of Groundwork: two agents that build 
 
 `POST /assistant/command` sends the typed or spoken request to `mistral-small-latest`, which returns structured UI commands (`PAN_COUNTRY`, `PAN_CITY`, `SET_PROFILE`, `SET_OVERLAY`, `SHOW_TOP_SITES`, `PLACE_SITE`, …). Without a key it falls back to an offline rule-based parser.
 
-## 3. Voxtral: voice in and out
+## 3. Suitability reviewer (`backend/api/assistant.py`)
 
+`POST /assistant/review` asks `mistral-small-latest` for a short plain-language review of a selected site (score, top drivers, caveats), with offline rules as a fallback when no key is set.
+
+## 4. Voxtral: voice in and out
+
+- **Hands-free listening:** a mic toggle turns on always-on listening. Voice activity detection sends each utterance **automatically when you pause** (no stop button), and listening resumes after the reply, paused while the assistant speaks.
 - **Speech to text:** recorded audio from the voice orb goes to Mistral's transcription endpoint (`/v1/audio/transcriptions`, model `voxtral-mini-latest`), and the text is then handled as a command or agent prompt.
 - **Text to speech:** replies are spoken with Voxtral TTS (`/v1/audio/speech`, model `voxtral-mini-tts-latest`). The default voice is "Paul" (`en_paul`), and each reply picks a tone variant from its wording (e.g. cheerful, confident). `GROUNDWORK_VOICE` switches speaker (`gb_oliver`, `gb_jane`).
 
