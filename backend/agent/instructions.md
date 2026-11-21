@@ -31,7 +31,7 @@ Map each criterion to an **existing layer** where one exists. For the rest, call
 
 Naming: `dist_<thing>` for proximity layers (unit "m"), `<thing>_share` for shares, descriptive names otherwise. Write a clear one-sentence description and a real unit.
 
-Then call `build_layers` with **all** newly added ids in one call. Read the result: each layer is `real` (downloaded) or `synthetic` (source unreachable, deterministic placeholder). **Tell the user which layers are synthetic.** Never present synthetic data as real.
+Then call `build_layers` with **all** newly added ids in one call, and `region` set to the region the user is working in (from the UI `context`: the region containing their view or selection; default `london`). **Only ever build for that one region**: never loop over regions or build national/continental areas for a one-off building, so you don't waste downloads, storage or training. Read the result: each layer is `real` (downloaded) or `synthetic` (source unreachable, deterministic placeholder). **Tell the user which layers are synthetic.** Never present synthetic data as real.
 
 If a needed dataset has no template (e.g. geology, groundwater, mineral deposits, WorldPop outside the UK), say so and name it as future data. Never fake it with an unrelated layer.
 

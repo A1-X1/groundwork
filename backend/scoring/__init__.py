@@ -5,8 +5,13 @@
 Unknown profile/layer ids raise ``KeyError`` (API → 404); bad weights, bboxes or
 coordinates raise ``ValueError`` (API → 422).
 
-Additions beyond the contract (safe to ignore): ``data_status()`` for ``/health`` and
-``reload()`` to pick up a rebuilt grid without restarting.
+Multi-region: every grid in data/sample + data/processed (regions/<id>/) is loaded. Calls
+with a ``bbox`` return cells from every region in view (finer regions hide the coarser
+cells they cover). Calls without a bbox use the default region (London). Layers that a
+region lacks are *unavailable* there: value 0.5 (neutral), ``raw`` = None.
+
+Additions beyond the contract (safe to ignore): ``data_status()``, ``health()``,
+``list_regions()``, ``list_pois()``, ``default_profiles()`` and ``reload()``.
 """
 
 from __future__ import annotations
@@ -18,27 +23,40 @@ from typing import Any
 
 from . import data as _data
 from .profiles import ProfileError, load_profiles
-from .scorer import Scorer, validate_bbox
+from .scorer import validate_bbox  # noqa: F401  (re-exported)
+from .world import World
 
 __all__ = ["ProfileError", "data_status", "default_profiles", "get_layer", "health", "list_pois", "list_regions", "list_layers", "list_profiles",
            "reload", "score", "score_point"]
 
 BBox = tuple[float, float, float, float]
 _lock = threading.Lock()
-_scorer: Scorer | None = None
+_scorer: World | None = None
 TOP_DRIVERS = 5
 MODEL_NOTE = ("The feasibility model learns where similar sites have been built, not where "
               "they should be; it scales the normative weighted score, it does not replace it.")
 
 
-def _engine() -> Scorer:
+def _world() -> World:
     global _scorer
     if _scorer is None:
         with _lock:
             if _scorer is None:
-                grid = _data.load()
-                _scorer = Scorer(grid, load_profiles(set(grid.layer_ids)))
+                grids = _data.load_all()
+                known = set().union(*(g.layer_ids for g in grids.values()))
+                _scorer = World(grids, load_profiles(known))
     return _scorer
+
+
+def _engine():
+    """The default region's scorer (single-region callers)."""
+    return _world().primary
+
+
+def _num(v: Any, nd: int = 4) -> float | None:
+    """JSON-safe number: NaN (unavailable) → None."""
+    f = float(v)
+    return None if math.isnan(f) else round(f, nd)
 
 
 def reload() -> None:
@@ -49,7 +67,7 @@ def reload() -> None:
 
 
 def list_profiles() -> list[dict]:
-    return [p.public() for p in _engine().profiles.values()]
+    return [p.public() for p in _world().profiles.values()]
 
 
 def list_layers() -> list[dict]:
@@ -57,21 +75,26 @@ def list_layers() -> list[dict]:
 
 
 def get_layer(layer_id: str, bbox: BBox | None = None) -> list[dict]:
-    eng = _engine()
-    if layer_id not in eng.data.layer_ids:
+    world = _world()
+    if layer_id not in world.primary.data.layer_ids:
         raise KeyError(f"unknown layer {layer_id!r}")
-    sel = eng.bbox_mask(bbox)
-    frame = eng.data.frame.loc[sel]
-    return [{"h3": h, "value": round(float(v), 4), "raw": round(float(r), 4)}
-            for h, v, r in zip(frame.index, frame[layer_id], frame[f"raw_{layer_id}"], strict=True)]
+    out: list[dict] = []
+    for rid, mask in world.in_bbox(bbox):
+        frame = world.grids[rid].frame.loc[mask]
+        out.extend({"h3": h, "value": round(float(v), 4), "raw": _num(r)}
+                   for h, v, r in zip(frame.index, frame[layer_id], frame[f"raw_{layer_id}"], strict=True))
+    return out
 
 
 def score(profile_id: str, weights: dict[str, float] | None = None, bbox: BBox | None = None) -> list[dict]:
     """Cells shaped as ``score_response.cells``: h3, score (None if masked), masked, breakdown."""
-    eng = _engine()
-    if bbox is not None:
-        validate_bbox(bbox)
-    return eng.cells(eng.compute(profile_id, weights), bbox)
+    world = _world()
+    world.profile(profile_id)  # KeyError before any work
+    out: list[dict] = []
+    for rid, mask in world.in_bbox(bbox):
+        sc = world.scorers[rid]
+        out.extend(sc.cells(sc.compute(profile_id, weights), None, mask))
+    return out
 
 
 def score_point(profile_id: str, lat: float, lon: float, weights: dict[str, float] | None = None) -> dict:
@@ -88,18 +111,18 @@ def score_point(profile_id: str, lat: float, lon: float, weights: dict[str, floa
     """
     import h3
 
-    eng = _engine()
+    world = _world()
+    world.profile(profile_id)
     try:
         lat, lon = float(lat), float(lon)
     except (TypeError, ValueError) as exc:
         raise ValueError("lat and lon must be numbers") from exc
     if not (math.isfinite(lat) and math.isfinite(lon) and -90 <= lat <= 90 and -180 <= lon <= 180):
         raise ValueError("lat must be in [-90, 90] and lon in [-180, 180]")
+    region, cell = world.locate(lat, lon)
+    eng = world.scorers[region]
     result = eng.compute(profile_id, weights)
     frame = eng.data.frame
-    cell = h3.latlng_to_cell(lat, lon, eng.data.resolution)
-    if cell not in frame.index:
-        raise KeyError(f"({lat}, {lon}) is outside the {eng.data.build.get('region', 'study')} region")
     i = frame.index.get_loc(cell)
     row = frame.iloc[i]
     meta = {m["id"]: m for m in eng.data.layers}
@@ -109,7 +132,7 @@ def score_point(profile_id: str, lat: float, lon: float, weights: dict[str, floa
     for j, lid in enumerate(result.layer_ids):
         layers.append({
             "id": lid, "label": meta[lid]["label"], "unit": meta[lid]["unit"],
-            "value": round(float(row[lid]), 4), "raw": round(float(row[f"raw_{lid}"]), 4),
+            "value": round(float(row[lid]), 4), "raw": _num(row[f"raw_{lid}"]),
             "weight": round(result.weights[j], 6), "better": result.directions[j],
             "contribution": round(float(result.contributions[i, j]), 4),
         })
@@ -118,7 +141,7 @@ def score_point(profile_id: str, lat: float, lon: float, weights: dict[str, floa
     if result.model is not None:
         contrib = result.model.contributions(frame.iloc[[i]])[0]
         pairs = [{"layer": f, "label": meta[f]["label"], "value": round(float(c), 4),
-                  "raw": round(float(row[f"raw_{f}"]), 4)} for f, c in zip(result.model.features, contrib[:-1], strict=True)]
+                  "raw": _num(row[f"raw_{f}"])} for f, c in zip(result.model.features, contrib[:-1], strict=True)]
         pos = sorted((p for p in pairs if p["value"] > 0), key=lambda p: -p["value"])[:TOP_DRIVERS]
         neg = sorted((p for p in pairs if p["value"] < 0), key=lambda p: p["value"])[:TOP_DRIVERS]
         shap = {"base_value": round(float(contrib[-1]), 4), "positive": pos, "negative": neg}
@@ -133,6 +156,7 @@ def score_point(profile_id: str, lat: float, lon: float, weights: dict[str, floa
     rank = None if masked else int(result.rank[i])
     return {
         "profile": profile_id,
+        "region": region,
         "h3": cell,
         "lat": round(centre[0], 6),
         "lon": round(centre[1], 6),
@@ -148,7 +172,8 @@ def score_point(profile_id: str, lat: float, lon: float, weights: dict[str, floa
         "weights": dict(zip(result.layer_ids, (round(w, 6) for w in result.weights), strict=True)),
         "breakdown": {lid: round(float(result.contributions[i, j]), 4) for j, lid in enumerate(result.layer_ids)},
         "layers": layers,
-        "raw": {lid: round(float(row[f"raw_{lid}"]), 4) for lid in eng.data.layer_ids},
+        "raw": {lid: _num(row[f"raw_{lid}"]) for lid in eng.data.layer_ids},
+        "unavailable": [lid for lid in eng.data.layer_ids if math.isnan(float(row[f"raw_{lid}"]))],
         "values": {lid: round(float(row[lid]), 4) for lid in eng.data.layer_ids},
         "shap": shap,
         "shap_flat": shap_flat,
@@ -161,7 +186,7 @@ DEFAULT_PROFILES = ("data_centre", "house", "school", "solar_farm", "wind_farm")
 
 def default_profiles() -> list[str]:
     """Profile ids for the home screen, in display order (others go under "More")."""
-    available = {p for p in _engine().profiles}
+    available = set(_world().profiles)
     return [p for p in DEFAULT_PROFILES if p in available]
 
 
@@ -174,38 +199,30 @@ def list_pois(kinds: list[str] | None = None, bbox: BBox | None = None) -> list[
 
 
 def list_regions() -> list[dict[str, Any]]:
-    """Regions with detailed hexes: [{id, name, bbox, resolution, cells, is_sample, generated_at}]."""
-    eng = _engine()
-    f = eng.data.frame
-    pad = 0.01
-    names = {"london": "Greater London"}
-    region = eng.data.build.get("region", "london")
-    return [{
-        "id": region, "name": names.get(region, region.replace("_", " ").title()),
-        "bbox": [round(float(f["lon"].min()) - pad, 4), round(float(f["lat"].min()) - pad, 4),
-                 round(float(f["lon"].max()) + pad, 4), round(float(f["lat"].max()) + pad, 4)],
-        "resolution": eng.data.resolution, "cells": int(len(f)),
-        "is_sample": eng.data.directory.resolve() == _data.SAMPLE_DIR.resolve(),
-        "generated_at": eng.data.build.get("generated_at"),
-    }]
+    """Regions with hexes: [{id, name, bbox:[w,s,e,n], resolution, cells, kind, country,
+    real_layers, unavailable_layers, generated_at, directory}], finest first."""
+    return _world().regions()
 
 
 def health() -> dict[str, Any]:
-    """Optional extension used by ``GET /health`` (shared/handoff/p2-to-p1.md)."""
-    eng = _engine()
+    """Optional extension used by ``GET /health``: default-region layer status + per region."""
+    world = _world()
+    eng = world.primary
     statuses = {k: v.get("status", "unknown") for k, v in eng.data.build.get("layers", {}).items()}
     return {"data_generated_at": eng.data.build.get("generated_at"),
-            "layers": {lid: statuses.get(lid, "unknown") for lid in eng.data.layer_ids}}
+            "layers": {lid: statuses.get(lid, "unknown") for lid in eng.data.layer_ids},
+            "regions": {rid: {k: v.get("status") for k, v in g.build.get("layers", {}).items()}
+                        for rid, g in world.grids.items()}}
 
 
 def data_status() -> dict[str, Any]:
     """For ``/health``: where data came from and which layers are real vs synthetic."""
-    eng = _engine()
+    eng = _world().primary
     build = eng.data.build
     layers = build.get("layers", {})
     return {
         "data_dir": str(eng.data.directory),
-        "is_sample": eng.data.directory.resolve() == _data.SAMPLE_DIR.resolve(),
+        "is_sample": _data.SAMPLE_DIR.resolve() in [eng.data.directory.resolve(), *eng.data.directory.resolve().parents],
         "generated_at": build.get("generated_at"),
         "checked_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "region": build.get("region", "london"),
@@ -214,6 +231,7 @@ def data_status() -> dict[str, Any]:
         "real_layers": sorted(k for k, v in layers.items() if v.get("status") == "real"),
         "synthetic_layers": sorted(k for k, v in layers.items() if v.get("status") == "synthetic"),
         "profiles": sorted(eng.profiles),
+        "regions": [{k: r[k] for k in ("id", "resolution", "cells", "real_layers")} for r in _world().regions()],
     }
 
 

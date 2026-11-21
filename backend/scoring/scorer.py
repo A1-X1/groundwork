@@ -72,7 +72,10 @@ class Scorer:
     # ---- model -----------------------------------------------------------------
     def model(self, profile: Profile) -> ml.TrainedModel | None:
         if profile.id not in self._models:
-            self._models[profile.id] = ml.get_model(self.data, profile)
+            try:
+                self._models[profile.id] = ml.get_model(self.data, profile)
+            except ValueError:  # too few positives in this region: score normatively
+                self._models[profile.id] = None
             m = self._models[profile.id]
             n = len(self.data.frame)
             self._feas[profile.id] = (ml.feasibility(m, self.data, profile.model.floor)[1]
@@ -127,8 +130,9 @@ class Scorer:
         lat, lon = frame["lat"].to_numpy(), frame["lon"].to_numpy()
         return (lon >= min_lon) & (lon <= max_lon) & (lat >= min_lat) & (lat <= max_lat)
 
-    def cells(self, result: Result, bbox: tuple[float, float, float, float] | None) -> list[dict[str, Any]]:
-        sel = np.flatnonzero(self.bbox_mask(bbox))
+    def cells(self, result: Result, bbox: tuple[float, float, float, float] | None,
+              mask: np.ndarray | None = None) -> list[dict[str, Any]]:
+        sel = np.flatnonzero(self.bbox_mask(bbox) if mask is None else mask)
         index = self.data.frame.index
         contrib = np.round(result.contributions, 4)
         out = []

@@ -16,8 +16,8 @@
     "kind": "raster",
     "description": "Steepest gradient from this hex to any neighbouring hex.",
     "source": "Derived from the elevation layer",
-    "min": 0.114,
-    "max": 9.1423
+    "min": 0.11395480620431245,
+    "max": 9.142294075778862
   },
   {
     "id": "mean_temp_annual",
@@ -26,8 +26,8 @@
     "kind": "raster",
     "description": "Mean of hourly 2 m air temperature over the year, lapse-rate corrected to hex elevation.",
     "source": "Open-Meteo Historical Weather API (ERA5 / ERA5-Land), 2025",
-    "min": 10.3593,
-    "max": 12.4743
+    "min": 10.35925507032356,
+    "max": 12.474259778068626
   },
   {
     "id": "summer_max_temp",
@@ -36,8 +36,8 @@
     "kind": "raster",
     "description": "Mean daily maximum temperature in June–August, lapse-rate corrected.",
     "source": "Open-Meteo Historical Weather API (ERA5 / ERA5-Land), 2025",
-    "min": 21.7995,
-    "max": 24.4307
+    "min": 21.799469802913798,
+    "max": 24.430741389002065
   },
   {
     "id": "wet_bulb_p99",
@@ -46,8 +46,8 @@
     "kind": "raster",
     "description": "99th percentile of hourly wet-bulb temperature (Stull 2011): the design point for evaporative cooling.",
     "source": "Open-Meteo Historical Weather API (ERA5 / ERA5-Land), 2025",
-    "min": 17.945,
-    "max": 19.6205
+    "min": 17.945006857150165,
+    "max": 19.620474572946392
   },
   {
     "id": "free_cooling_hours",
@@ -56,8 +56,8 @@
     "kind": "raster",
     "description": "Hours per year with dry-bulb temperature below 18 °C, when air-side economisers can cool a data hall without chillers.",
     "source": "Open-Meteo Historical Weather API (ERA5 / ERA5-Land), 2025",
-    "min": 6964.9444,
-    "max": 7734.5778
+    "min": 6964.944382379209,
+    "max": 7734.577793152421
   },
   {
     "id": "humidity_mean",
@@ -66,8 +66,8 @@
     "kind": "raster",
     "description": "Mean hourly relative humidity at 2 m.",
     "source": "Open-Meteo Historical Weather API (ERA5 / ERA5-Land), 2025",
-    "min": 73.5904,
-    "max": 79.5364
+    "min": 73.59040054442579,
+    "max": 79.53640226321004
   },
   {
     "id": "wind_speed_mean",
@@ -76,8 +76,8 @@
     "kind": "raster",
     "description": "Mean hourly 10 m wind speed.",
     "source": "Open-Meteo Historical Weather API (ERA5 / ERA5-Land), 2025",
-    "min": 2.9656,
-    "max": 4.0469
+    "min": 2.965606050119362,
+    "max": 4.046945943332674
   },
   {
     "id": "solar_irradiance",
@@ -86,8 +86,8 @@
     "kind": "raster",
     "description": "Annual global horizontal irradiance (sum of hourly shortwave radiation).",
     "source": "Open-Meteo Historical Weather API (ERA5 / ERA5-Land), 2025",
-    "min": 1204.3841,
-    "max": 1229.5269
+    "min": 1204.3841450232978,
+    "max": 1229.5268970560728
   },
   {
     "id": "wind_speed_100m",
@@ -96,8 +96,8 @@
     "kind": "raster",
     "description": "Mean hourly wind speed at a typical turbine hub height (100 m).",
     "source": "Open-Meteo Historical Weather API (ERA5 hourly), 2025",
-    "min": 5.4972,
-    "max": 6.8359
+    "min": 5.497234828029679,
+    "max": 6.835872151601246
   },
   {
     "id": "wind_power_density",
@@ -106,8 +106,8 @@
     "kind": "raster",
     "description": "Mean available wind power per m² of rotor at 100 m (0.5·ρ·v³): what a turbine can actually harvest.",
     "source": "Open-Meteo Historical Weather API (ERA5 hourly), 2025",
-    "min": 165.8177,
-    "max": 308.2261
+    "min": 165.81773375750052,
+    "max": 308.2261363418752
   },
   {
     "id": "precipitation_annual",
@@ -116,8 +116,8 @@
     "kind": "raster",
     "description": "Mean yearly rainfall total over the normals period.",
     "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
-    "min": 695.7242,
-    "max": 790.2945
+    "min": 695.7242322024005,
+    "max": 790.2945456867269
   },
   {
     "id": "soil_moisture_mean",
@@ -126,8 +126,8 @@
     "kind": "raster",
     "description": "Mean volumetric soil water content in the top 7 cm over the normals period (drainage, foundations, vegetation).",
     "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
-    "min": 0.3047,
-    "max": 0.3925
+    "min": 0.3046793348917773,
+    "max": 0.392511917435254
   },
   {
     "id": "evapotranspiration_annual",
@@ -136,8 +136,8 @@
     "kind": "raster",
     "description": "FAO-56 reference evapotranspiration per year: water demand of vegetation and evaporative cooling.",
     "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
-    "min": 695.2029,
-    "max": 759.6653
+    "min": 695.2028833571839,
+    "max": 759.665304555549
   },
   {
     "id": "temp_trend_decade",
@@ -146,8 +146,8 @@
     "kind": "raster",
     "description": "Linear trend of annual mean temperature over the normals period (historical warming rate).",
     "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
-    "min": 0.7179,
-    "max": 1.2322
+    "min": 0.7179184054139283,
+    "max": 1.2321585724645465
   },
   {
     "id": "population_density",
@@ -157,7 +157,7 @@
     "description": "Residents per km² from the WorldPop 100 m constrained grid (or ONS Census 2021 LSOAs when those files are present).",
     "source": "WorldPop 2020 constrained 100 m (CC BY 4.0); optional ONS Census 2021 TS001 by LSOA",
     "min": 0.0,
-    "max": 26487.0023
+    "max": 26487.002278979162
   },
   {
     "id": "land_use_residential",
@@ -187,7 +187,7 @@
     "description": "Index of Multiple Deprivation score of the LSOAs in and around the hex (higher = more deprived).",
     "source": "MHCLG English Indices of Deprivation (File 7, LSOA) + ONS LSOA centroids",
     "min": 2.0,
-    "max": 43.5028
+    "max": 43.50283470986253
   },
   {
     "id": "median_house_price",
@@ -226,8 +226,8 @@
     "kind": "raster",
     "description": "Annual mean surface NO₂ concentration.",
     "source": "Open-Meteo Air Quality API (CAMS Europe), 2025",
-    "min": 10.4664,
-    "max": 23.5575
+    "min": 10.466394719563938,
+    "max": 23.55749315615136
   },
   {
     "id": "air_quality_pm25",
@@ -236,8 +236,8 @@
     "kind": "raster",
     "description": "Annual mean surface PM2.5 concentration.",
     "source": "Open-Meteo Air Quality API (CAMS Europe), 2025",
-    "min": 8.6067,
-    "max": 9.8224
+    "min": 8.60667454037915,
+    "max": 9.82237751135986
   },
   {
     "id": "grid_carbon_intensity",
@@ -246,8 +246,8 @@
     "kind": "aggregate",
     "description": "Mean forecast carbon intensity of electricity for the distribution region. All of Greater London is one region (London, id 13), so this layer is uniform here; it differentiates sites once a region spans several DNOs.",
     "source": "National Grid ESO Carbon Intensity API (regional)",
-    "min": 189.0729,
-    "max": 189.0729
+    "min": 189.07291666666666,
+    "max": 189.07291666666666
   },
   {
     "id": "dist_station",
@@ -256,8 +256,8 @@
     "kind": "proximity",
     "description": "Straight-line distance from the hex centre to the nearest station or Underground entrance.",
     "source": "OpenStreetMap railway=station, railway=subway_entrance, public_transport=station",
-    "min": 28.1991,
-    "max": 8138.0844
+    "min": 28.199072251854815,
+    "max": 7662.616079835375
   },
   {
     "id": "dist_substation",
@@ -266,8 +266,8 @@
     "kind": "proximity",
     "description": "Distance to the nearest substation tagged ≥ 132 kV (falls back to all mapped substations if voltages are missing). Large loads need a grid connection here.",
     "source": "OpenStreetMap power=substation via Overpass API",
-    "min": 13.0202,
-    "max": 11525.6288
+    "min": 13.020204744619683,
+    "max": 11525.628796128849
   },
   {
     "id": "dist_hv_line",
@@ -276,8 +276,8 @@
     "kind": "proximity",
     "description": "Distance to the nearest mapped transmission line (power=line) or HV cable.",
     "source": "OpenStreetMap power=line, power=cable via Overpass API",
-    "min": 13.0202,
-    "max": 14984.2009
+    "min": 13.020204744619683,
+    "max": 14984.200866623674
   },
   {
     "id": "dist_fibre_ix",
@@ -286,8 +286,8 @@
     "kind": "proximity",
     "description": "Distance to the nearest interconnection hub hosting LINX/LONAP (Docklands, City, Slough).",
     "source": "Seeded list of public London IXP facilities (approximate coordinates; see layers/_places.py)",
-    "min": 272.7042,
-    "max": 26980.3996
+    "min": 272.70418456404377,
+    "max": 26980.399555862998
   },
   {
     "id": "dist_water_body",
@@ -296,8 +296,8 @@
     "kind": "proximity",
     "description": "Distance to the nearest river, canal, reservoir or lake (cooling / process water access).",
     "source": "OpenStreetMap natural=water, waterway=river|canal via Overpass API",
-    "min": 8.4102,
-    "max": 21030.3497
+    "min": 8.410198104421198,
+    "max": 21030.3496833907
   },
   {
     "id": "green_space_access",
@@ -307,7 +307,7 @@
     "description": "Distance from the hex centre to the edge of the nearest public park (0 inside a park). Lower = better access.",
     "source": "OpenStreetMap leisure=park via Overpass API",
     "min": 0.0,
-    "max": 1922.8194
+    "max": 1922.819419764929
   },
   {
     "id": "dist_major_road",
@@ -316,8 +316,8 @@
     "kind": "proximity",
     "description": "Distance to the nearest motorway, trunk or primary road (access for heavy vehicles; also noise and pollution).",
     "source": "OpenStreetMap highway=motorway|trunk|primary via Overpass API",
-    "min": 2.1296,
-    "max": 5665.3098
+    "min": 2.129578303221658,
+    "max": 5665.309807422701
   },
   {
     "id": "dist_primary_school",
@@ -326,8 +326,8 @@
     "kind": "proximity",
     "description": "Distance from the hex centre to the nearest open primary school.",
     "source": "DfE Get Information About Schools (GIAS); OpenStreetMap amenity=school as fallback",
-    "min": 13.5561,
-    "max": 3701.2266
+    "min": 13.656123609697383,
+    "max": 3789.033175385517
   },
   {
     "id": "dist_secondary_school",
@@ -336,8 +336,8 @@
     "kind": "proximity",
     "description": "Distance from the hex centre to the nearest open secondary school.",
     "source": "DfE Get Information About Schools (GIAS); OpenStreetMap amenity=school as fallback",
-    "min": 16.4106,
-    "max": 8997.7966
+    "min": 16.410625006605088,
+    "max": 8195.329841059067
   },
   {
     "id": "school_quality_nearby",
@@ -346,7 +346,7 @@
     "kind": "proximity",
     "description": "Percentage of Ofsted-rated schools within 2 km of the hex centre rated Good or Outstanding.",
     "source": "DfE Get Information About Schools (GIAS) with latest Ofsted overall effectiveness",
-    "min": 73.4576,
+    "min": 73.45763743143625,
     "max": 100.0
   },
   {
@@ -366,8 +366,8 @@
     "kind": "raster",
     "description": "Mean daily total cloud cover (2016–2025); cloudier sites lose solar yield.",
     "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
-    "min": 66.1597,
-    "max": 66.979
+    "min": 66.15965356404207,
+    "max": 66.97896996317895
   },
   {
     "id": "dist_airport",
@@ -376,8 +376,8 @@
     "kind": "proximity",
     "description": "Straight-line distance from the hex centre to the nearest aerodrome (aeroway=aerodrome); nuclear siting keeps clear of aircraft crash hazard and airspace constraints.",
     "source": "OpenStreetMap via Overpass API",
-    "min": 150.1901,
-    "max": 12872.1199
+    "min": 150.19009660070066,
+    "max": 12872.119923536065
   },
   {
     "id": "seismic_activity",
@@ -396,8 +396,8 @@
     "kind": "raster",
     "description": "Mean yearly hours of bright sunshine (2016–2025), the direct driver of solar PV yield.",
     "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
-    "min": 2736.125,
-    "max": 2838.1604
+    "min": 2736.1249862109294,
+    "max": 2838.1604205624776
   },
   {
     "id": "wind_gust_max",

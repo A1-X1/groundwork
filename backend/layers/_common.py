@@ -70,6 +70,16 @@ class LayerMeta:
         }
 
 
+# Region being built (set by the pipeline): id, kind (city|national), country, bbox (w, s, e, n).
+REGION: dict = {"id": "london", "kind": "city", "country": "GBR", "bbox": (-0.56, 51.26, 0.37, 51.72)}
+
+
+def set_region(attrs: dict) -> None:
+    REGION.update({k: attrs[k] for k in ("region", "kind", "country", "bbox") if k in attrs})
+    if "region" in attrs:
+        REGION["id"] = attrs["region"]
+
+
 def is_offline() -> bool:
     return os.environ.get("GROUNDWORK_OFFLINE", "").lower() in {"1", "true", "yes"}
 

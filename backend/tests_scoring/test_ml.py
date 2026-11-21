@@ -12,7 +12,7 @@ from backend.scoring.profiles import load_profiles  # noqa: E402
 
 @pytest.fixture(scope="module")
 def sample():
-    grid = _data.load(_data.SAMPLE_DIR)
+    grid = _data.load(_data.LONDON_SAMPLE)
     return grid, load_profiles(set(grid.layer_ids))
 
 
