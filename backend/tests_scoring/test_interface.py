@@ -186,3 +186,11 @@ def test_default_profiles_have_their_data():
         prof = next(p for p in scoring.list_profiles() if p["id"] == pid)
         assert {lw["id"] for lw in prof["layers"]} | set(prof["masks"]) <= layer_ids, pid
         assert any(c["score"] is not None for c in scoring.score(pid)), pid
+
+
+def test_bboxes_never_wrap_the_globe():
+    for r in scoring.list_regions():
+        w, s_, e, n = r["bbox"]
+        assert -180 <= w < e <= 180 and e - w < 180, r["id"]
+    usa = next(r for r in scoring.list_regions() if r["id"] == "usa")
+    assert usa["bbox"][2] < -60  # east edge is Maine, not Asia

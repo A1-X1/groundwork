@@ -14,6 +14,15 @@ from .scorer import Scorer, validate_bbox
 DEFAULT_REGION = "london"
 
 
+def non_wrapping_bbox(lon: np.ndarray, lat: np.ndarray) -> list[float]:
+    """[w, s, e, n] that never spans the globe: if cells straddle the antimeridian (e.g. the
+    Aleutians), shift the eastern-hemisphere side west and clamp at -180."""
+    lon = np.asarray(lon, dtype=float)
+    if lon.max() - lon.min() > 180:
+        lon = np.where(lon > 0, lon - 360, lon)
+    return [max(float(lon.min()), -180.0), float(np.min(lat)), min(float(lon.max()), 180.0), float(np.max(lat))]
+
+
 class World:
     def __init__(self, grids: dict[str, GridData], profiles: dict[str, Profile]):
         self.grids = grids  # finest first
@@ -81,8 +90,7 @@ class World:
         out = []
         for rid, g in self.grids.items():
             f, b = g.frame, g.build
-            bbox = b.get("bbox") or [float(f["lon"].min()), float(f["lat"].min()),
-                                     float(f["lon"].max()), float(f["lat"].max())]
+            bbox = non_wrapping_bbox(f["lon"].to_numpy(), f["lat"].to_numpy())
             statuses = [v.get("status") for v in b.get("layers", {}).values()]
             out.append({
                 "id": rid, "name": b.get("label") or {"london": "Greater London"}.get(rid, rid.title()),

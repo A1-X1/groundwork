@@ -4,6 +4,9 @@
 # Natural Earth ADM0_A3 country code. order = build priority (UK → USA → rest of N. America → …).
 - {id: london, name: Greater London, country: GBR, resolution: 8, boundary: london, kind: city, order: 0}
 - {id: uk, name: United Kingdom, country: GBR, resolution: 7, boundary: GBR, kind: national, order: 1}
+# Towns and cities: res-8 hexes wherever the parent region's real (WorldPop) population density
+# ≥ min_density people/km². Finer cells replace the parent's coarse cells; London keeps its own grid.
+- {id: uk_urban, name: UK towns and cities, country: GBR, resolution: 8, boundary: {urban_of: uk, min_density: 1000, exclude: [london]}, kind: national, order: 1}
 - {id: usa, name: United States, country: USA, resolution: 6, boundary: USA, kind: national, order: 2}
 - {id: canada, name: Canada, country: CAN, resolution: 5, boundary: CAN, kind: national, order: 3}
 - {id: mexico, name: Mexico, country: MEX, resolution: 6, boundary: MEX, kind: national, order: 4}

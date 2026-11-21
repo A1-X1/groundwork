@@ -64,7 +64,11 @@ def get(region_id: str = "london") -> Region:
     spec = next((r for r in definitions() if r["id"] == region_id), None)
     if spec is None:
         raise KeyError(f"unknown region {region_id!r}; known: {region_ids()}")
-    if spec["boundary"] == "london":
+    if isinstance(spec["boundary"], dict):  # derived (e.g. urban areas of another region)
+        b = spec["boundary"]
+        geom, source = {"type": "Derived", **b}, (f"cells of {b['urban_of']} with population density "
+                                                   f"≥ {b.get('min_density', 1000)}/km² (WorldPop)")
+    elif spec["boundary"] == "london":
         geom, source = _london_geometry()
     else:
         geom, source = _country_geometry(spec["boundary"]), f"Natural Earth 10m admin-0 ({spec['boundary']})"
