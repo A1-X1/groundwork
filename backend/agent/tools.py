@@ -34,6 +34,7 @@ UI_COMMANDS = {
     "OPEN_CREATE", "CREATE_STRUCTURE", "OPEN_STRUCTURE", "SHOW_MODEL", "SHOW_PROGRESS", "GO_HOME",
     "PAN_ADDRESS",  # {address, lat, lon}: fly to an exact address and drop a pin
     "GO_TO_RANK",   # {rank: 1–500 | "next" | "prev"}: fly to and select the n-th best hex in view
+    "OPEN_MAP",     # leave the home/create screen and show the globe (then PAN_* flies there)
 }
 
 
