@@ -95,10 +95,23 @@ export const api = {
     return request(`/score/${encodeURIComponent(profile)}`);
   },
 
-  point: (profile: string, lat: number, lon: number): Promise<PointScore> =>
-    fixtures
-      ? Promise.reject(fixtureOnly())
-      : request(`/score/${encodeURIComponent(profile)}/point?lat=${lat}&lon=${lon}`),
+  point: (
+    profile: string,
+    lat: number,
+    lon: number,
+    weights?: Record<string, number>,
+  ): Promise<PointScore> => {
+    if (fixtures) return Promise.reject(fixtureOnly());
+    const w =
+      weights && Object.keys(weights).length
+        ? `&weights=${encodeURIComponent(
+            Object.entries(weights)
+              .map(([k, v]) => `${k}:${v}`)
+              .join(','),
+          )}`
+        : '';
+    return request(`/score/${encodeURIComponent(profile)}/point?lat=${lat}&lon=${lon}${w}`);
+  },
 
   compare: (profiles: string[], lat: number, lon: number): Promise<CompareResponse> =>
     fixtures

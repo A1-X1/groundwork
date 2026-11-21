@@ -126,7 +126,7 @@ export const DIVERGING = {
   negative: 'oklch(64% 0.16 50)',
 } as const;
 
-export const MASKED_RGB: RGB = [150, 150, 150];
+export const MASKED_RGB: RGB = [92, 98, 108];
 
 /** WCAG relative luminance of an sRGB colour, for contrast checks in tests. */
 export function relativeLuminance([r, g, b]: RGB): number {

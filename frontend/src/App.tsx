@@ -8,6 +8,7 @@ import { flushSync } from 'react-dom';
 import { formatRaw, formatScore } from './lib/format';
 import { overlayFor } from './lib/overlays';
 import { kindForProfile, type SiteRender } from './map/buildings';
+import { GlobeIntro } from './map/GlobeIntro';
 import { ELEVATION_SCALE, MapView, type HexDatum, type MapFocus } from './map/MapView';
 import { ControlPanel } from './panels/ControlPanel';
 import { CellDetail, SiteCompare, TopSites } from './panels/DetailPanel';
@@ -25,6 +26,8 @@ export default function App() {
   const [lowPower, setLowPower] = useState(false);
   const [focus, setFocus] = useState<MapFocus | null>(null);
   const [heroSiteId, setHeroSiteId] = useState<string | null>(null);
+  const [introDone, setIntroDone] = useState(false);
+  const [introKey, setIntroKey] = useState(0);
 
   const overlay = overlayFor(gw.overlayId);
   const scoreData = 'data' in gw.score ? gw.score.data : undefined;
@@ -172,7 +175,13 @@ export default function App() {
     <Layout
       header={
         <LayoutHeader hasDivider padding={0}>
-          <TopBar legend={legend} />
+          <TopBar
+            legend={legend}
+            onGlobe={() => {
+              setIntroKey((k) => k + 1);
+              setIntroDone(false);
+            }}
+          />
         </LayoutHeader>
       }
       start={
@@ -207,7 +216,9 @@ export default function App() {
               focus={focus}
               onHexClick={onHexClick}
               onLowPower={() => setLowPower(true)}
+              introDone={introDone}
             />
+            {!introDone && <GlobeIntro key={introKey} onDone={() => setIntroDone(true)} />}
             <VStack
               style={{
                 position: 'absolute',

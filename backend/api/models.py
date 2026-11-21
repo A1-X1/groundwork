@@ -146,6 +146,28 @@ class CustomScoreRequest(BaseModel):
     )
 
 
+class ShapDriver(BaseModel):
+    layer: str
+    label: str
+    value: float = Field(description="SHAP value (log-odds contribution to feasibility).")
+    raw: float | None = Field(default=None, description="Raw layer value at this cell.")
+
+
+class ShapExplanation(BaseModel):
+    base_value: float
+    positive: list[ShapDriver] = Field(description="Up to 5 drivers raising feasibility.")
+    negative: list[ShapDriver] = Field(description="Up to 5 drivers lowering feasibility.")
+
+
+class ModelInfo(BaseModel):
+    type: str = Field(examples=["presence"])
+    positives: str | None = Field(default=None, examples=["osm:telecom=data_center"])
+    auc_spatial_cv: float | None = Field(default=None, description="Spatial block CV AUC.")
+    n_positives: int | None = None
+    positives_synthetic: bool | None = None
+    note: str | None = None
+
+
 class PointScore(BaseModel):
     profile: str
     h3: str = Field(examples=[H3_EXAMPLE])
@@ -153,17 +175,21 @@ class PointScore(BaseModel):
     lon: float
     score: float | None
     masked: bool
-    rank: int | None = Field(description="1 = best unmasked cell in the region.")
-    ranked_cells: int = Field(description="Number of unmasked cells ranked.")
-    percentile: float | None = Field(description="Share of ranked cells this cell beats (0–1).")
-    breakdown: dict[str, float]
-    raw: dict[str, float] = Field(description="Raw layer values in original units.")
+    masks: list[str] = Field(default_factory=list, description="Mask layers hit at this cell.")
+    sustainability: float | None = Field(default=None, description="Weighted layer score.")
     feasibility: float | None = Field(
         default=None, description="ML feasibility multiplier, if the profile has a model."
     )
-    shap: dict[str, float] | None = Field(
-        default=None, description="Top signed SHAP drivers of the feasibility model."
+    rank: int | None = Field(description="1 = best unmasked cell in the region.")
+    ranked_cells: int = Field(description="Number of unmasked cells ranked.")
+    percentile: float | None = Field(description="Share of ranked cells this cell beats (0–1).")
+    weights: dict[str, float] = Field(default_factory=dict, description="Effective weights.")
+    breakdown: dict[str, float]
+    raw: dict[str, float] = Field(description="Raw layer values in original units.")
+    shap: ShapExplanation | None = Field(
+        default=None, description="Top SHAP drivers of the feasibility model."
     )
+    model: ModelInfo | None = Field(default=None, description="Feasibility model metadata.")
 
 
 class CompareEntry(BaseModel):

@@ -52,6 +52,7 @@ export function useGroundwork() {
   const [point, setPoint] = useState<Async<PointScore>>({ status: 'idle' });
   const [compare, setCompare] = useState<Async<CompareResponse>>({ status: 'idle' });
   const [sites, setSites] = useState<PlacedSite[]>([]);
+  const [appliedWeights, setAppliedWeights] = useState<Record<string, number> | null>(null);
 
   const lastGoodWeights = useRef<Record<string, number>>({});
   const scoreSeq = useRef(0);
@@ -109,6 +110,7 @@ export function useGroundwork() {
           if (seq !== scoreSeq.current) return;
           lastProfileScored.current = profileId;
           lastGoodWeights.current = weights;
+          setAppliedWeights(isDefaultWeights ? null : weights);
           setWeightsError(null);
           setScore({ status: 'ready', data });
         })
@@ -151,32 +153,44 @@ export function useGroundwork() {
     [layerValues],
   );
 
-  // ---- point detail + compare
+  // ---- point detail: follows the weights the server last accepted, so it matches the map
   useEffect(() => {
     if (!selection || !profileId) {
       setPoint({ status: 'idle' });
-      setCompare({ status: 'idle' });
       return;
     }
     const seq = ++pointSeq.current;
-    setPoint({ status: 'loading' });
-    setCompare({ status: 'loading' });
+    setPoint((p) => ({ status: 'loading', data: 'data' in p ? p.data : undefined }));
     api
-      .point(profileId, selection.lat, selection.lon)
+      .point(profileId, selection.lat, selection.lon, appliedWeights ?? undefined)
       .then((d) => seq === pointSeq.current && setPoint({ status: 'ready', data: d }))
       .catch(
         (e: unknown) =>
           seq === pointSeq.current && setPoint({ status: 'error', message: message(e) }),
       );
-    const ids = profileList.map((p) => p.id);
+  }, [selection, profileId, appliedWeights]);
+
+  // ---- compare use cases at the selected location (default weights)
+  const compareSeq = useRef(0);
+  useEffect(() => {
+    if (!selection || profileList.length === 0) {
+      setCompare({ status: 'idle' });
+      return;
+    }
+    const seq = ++compareSeq.current;
+    setCompare({ status: 'loading' });
     api
-      .compare(ids, selection.lat, selection.lon)
-      .then((d) => seq === pointSeq.current && setCompare({ status: 'ready', data: d }))
+      .compare(
+        profileList.map((p) => p.id),
+        selection.lat,
+        selection.lon,
+      )
+      .then((d) => seq === compareSeq.current && setCompare({ status: 'ready', data: d }))
       .catch(
         (e: unknown) =>
-          seq === pointSeq.current && setCompare({ status: 'error', message: message(e) }),
+          seq === compareSeq.current && setCompare({ status: 'error', message: message(e) }),
       );
-  }, [selection, profileId, profileList.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selection, profileList.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- actions
   const chooseProfile = useCallback(

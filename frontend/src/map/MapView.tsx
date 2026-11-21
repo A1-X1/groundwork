@@ -39,6 +39,8 @@ interface Props {
   focus: MapFocus | null;
   onHexClick: (h3: string, lat: number, lon: number) => void;
   onLowPower: () => void;
+  /** False while the globe intro plays: the map waits zoomed out, then flies in. */
+  introDone: boolean;
 }
 
 export const ELEVATION_SCALE = 1800;
@@ -48,7 +50,8 @@ const STYLES = {
   light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
   dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
 };
-const ACCENT: [number, number, number] = [47, 111, 94];
+const ACCENT: [number, number, number] = [118, 172, 255];
+const HOME = { zoom: 9.7, pitch: 50, bearing: -12 };
 
 function fallbackStyle(dark: boolean): StyleSpecification {
   return {
@@ -64,7 +67,8 @@ function fallbackStyle(dark: boolean): StyleSpecification {
   };
 }
 
-const prefersDark = () => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+// The app is dark-only (Groundwork theme), so the basemap is too.
+const prefersDark = () => true;
 const prefersReducedMotion = () =>
   window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
@@ -111,14 +115,14 @@ export function MapView(props: Props) {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    let dark = prefersDark();
+    const dark = prefersDark();
     const map = new maplibregl.Map({
       container: container as HTMLDivElement,
       style: STYLES[dark ? 'dark' : 'light'],
       center: CENTRE,
-      zoom: 9.7,
-      pitch: 50,
-      bearing: -12,
+      zoom: propsRef.current.introDone ? HOME.zoom : 5.2,
+      pitch: propsRef.current.introDone ? HOME.pitch : 0,
+      bearing: propsRef.current.introDone ? HOME.bearing : 0,
       maxPitch: 70,
       pixelRatio: Math.min(window.devicePixelRatio, 2),
       attributionControl: { compact: true },
@@ -168,20 +172,25 @@ export function MapView(props: Props) {
       if (slowStreak >= 2 && !propsRef.current.lowPower) propsRef.current.onLowPower();
     });
 
-    const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
-    const onScheme = () => {
-      dark = mq.matches;
-      map.setStyle(STYLES[dark ? 'dark' : 'light']);
-    };
-    mq?.addEventListener('change', onScheme);
-
     return () => {
       window.clearTimeout(styleTimeout);
-      mq?.removeEventListener('change', onScheme);
       map.remove();
       mapRef.current = null;
     };
   }, []);
+
+  // ---- hand-over from the globe intro
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !props.introDone) return;
+    if (Math.abs(map.getZoom() - HOME.zoom) < 0.5) return;
+    map.flyTo({
+      center: CENTRE,
+      ...HOME,
+      duration: prefersReducedMotion() ? 0 : 2200,
+      essential: false,
+    });
+  }, [props.introDone]);
 
   // ---- relief / terrain
   useEffect(() => {

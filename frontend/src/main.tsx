@@ -9,7 +9,7 @@ import './global.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Theme theme={themes[defaultThemeSlug]} mode="system">
+    <Theme theme={themes[defaultThemeSlug]} mode="dark">
       <App />
     </Theme>
   </StrictMode>,

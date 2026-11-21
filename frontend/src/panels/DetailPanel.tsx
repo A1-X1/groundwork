@@ -28,10 +28,12 @@ function DivergingBars({
   values,
   labelFor,
   limit = 8,
+  format = formatSigned,
 }: {
   values: Record<string, number>;
   labelFor: (id: string) => string;
   limit?: number;
+  format?: (v: number) => string;
 }) {
   const entries = Object.entries(values)
     .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
@@ -52,7 +54,7 @@ function DivergingBars({
             <HStack justify="between" gap={2}>
               <Text maxLines={1}>{labelFor(id)}</Text>
               <Text hasTabularNumbers color="secondary">
-                {formatSigned(v)}
+                {format(v)}
               </Text>
             </HStack>
             <HStack
@@ -176,8 +178,12 @@ export function CellDetail(p: DetailProps) {
   const breakdown = data?.breakdown ?? p.fallbackCell?.breakdown ?? {};
   const rank = data ? { rank: data.rank, total: data.ranked_cells } : p.fallbackRank;
   const percentile = data?.percentile;
-  const hitMasks =
-    data && p.profile ? p.profile.masks.filter((m) => (data.raw[m] ?? 0) >= 0.5) : [];
+  const hitMasks = data?.masks ?? [];
+  const shapValues = data?.shap
+    ? Object.fromEntries(
+        [...data.shap.positive, ...data.shap.negative].map((d) => [d.layer, d.value / 10]),
+      )
+    : null;
   const profileLayerIds = new Set(p.profile?.layers.map((l) => l.id));
   const rawEntries = Object.entries(data?.raw ?? {});
   const title = p.site?.name ?? `${p.profile?.label ?? 'Site'} at this hexagon`;
@@ -215,9 +221,10 @@ export function CellDetail(p: DetailProps) {
             </Text>
           )}
         </HStack>
-        {data?.feasibility != null && (
+        {data?.model && data.feasibility != null && data.sustainability != null && (
           <Text color="secondary" display="block" hasTabularNumbers textWrap="pretty">
-            Weighted score × model feasibility {data.feasibility.toFixed(2)}
+            Weighted score {formatScore(data.sustainability)} × model feasibility{' '}
+            {data.feasibility.toFixed(2)}
           </Text>
         )}
       </VStack>
@@ -258,14 +265,27 @@ export function CellDetail(p: DetailProps) {
         </VStack>
       )}
 
-      {data?.shap && Object.keys(data.shap).length > 0 && (
+      {shapValues && Object.keys(shapValues).length > 0 && (
         <VStack gap={3}>
           <Heading level={3}>What the model sees</Heading>
           <Text color="secondary" display="block" textWrap="pretty">
-            Top drivers of the feasibility model. It learns where things have been built, not where
-            they should be.
+            {data?.model?.note ??
+              'The feasibility model learns where similar sites have been built, not where they should be.'}
           </Text>
-          <DivergingBars values={data.shap} labelFor={labelFor} limit={5} />
+          <DivergingBars
+            values={shapValues}
+            labelFor={labelFor}
+            limit={10}
+            format={(v) => `${v >= 0 ? '+' : '−'}${Math.abs(v * 10).toFixed(2)}`}
+          />
+          {data?.model && (
+            <Text type="supporting" color="secondary" display="block" hasTabularNumbers>
+              Trained on {data.model.n_positives ?? '?'}
+              {data.model.positives_synthetic ? ' synthetic' : ''} examples
+              {data.model.auc_spatial_cv != null &&
+                ` · spatial CV AUC ${data.model.auc_spatial_cv.toFixed(2)}`}
+            </Text>
+          )}
         </VStack>
       )}
 

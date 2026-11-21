@@ -54,6 +54,22 @@ export interface LayerValues {
   cells: LayerValue[];
 }
 
+export interface ShapDriver {
+  layer: string;
+  label: string;
+  value: number;
+  raw: number | null;
+}
+
+export interface ModelInfo {
+  type: string;
+  positives: string | null;
+  auc_spatial_cv: number | null;
+  n_positives: number | null;
+  positives_synthetic: boolean | null;
+  note: string | null;
+}
+
 export interface PointScore {
   profile: string;
   h3: string;
@@ -61,13 +77,17 @@ export interface PointScore {
   lon: number;
   score: number | null;
   masked: boolean;
+  masks: string[];
+  sustainability: number | null;
+  feasibility: number | null;
   rank: number | null;
   ranked_cells: number;
   percentile: number | null;
+  weights: Record<string, number>;
   breakdown: Record<string, number>;
   raw: Record<string, number>;
-  feasibility: number | null;
-  shap: Record<string, number> | null;
+  shap: { base_value: number; positive: ShapDriver[]; negative: ShapDriver[] } | null;
+  model: ModelInfo | null;
 }
 
 export interface CompareEntry {

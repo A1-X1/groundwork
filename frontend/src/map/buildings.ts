@@ -24,12 +24,12 @@ const GROW_MS = 700;
 const MODEL_SCALE = 2.4;
 
 const palette = {
-  wall: new THREE.MeshLambertMaterial({ color: 0xe9e6df }),
+  wall: new THREE.MeshLambertMaterial({ color: 0xd9dde3 }),
   wallDark: new THREE.MeshLambertMaterial({ color: 0x8c96a0 }),
   roof: new THREE.MeshLambertMaterial({ color: 0x5b6670 }),
   roofWarm: new THREE.MeshLambertMaterial({ color: 0xb0553a }),
   metal: new THREE.MeshLambertMaterial({ color: 0x46505a }),
-  accent: new THREE.MeshLambertMaterial({ color: 0x2f6f5e }),
+  accent: new THREE.MeshLambertMaterial({ color: 0x76acff }),
   spoil: new THREE.MeshLambertMaterial({ color: 0x6d5a45 }),
 };
 
@@ -162,7 +162,7 @@ export class BuildingsLayer implements CustomLayerInterface {
     this.scene.add(sun);
     this.ring = new THREE.Mesh(
       new THREE.RingGeometry(190, 215, 6).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: 0x2f6f5e, side: THREE.DoubleSide }),
+      new THREE.MeshBasicMaterial({ color: 0x76acff, side: THREE.DoubleSide }),
     );
     this.ring.position.y = 2;
     this.reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;

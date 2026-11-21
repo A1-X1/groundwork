@@ -405,26 +405,35 @@ def score_point(
         raise KeyError(f"no data for location ({lat}, {lon}); outside the region")
     i = g["index"][cell]
     result = dict(_score_all(profile_id, weights)[i])
+    labels = {m[0]: m[1] for m in LAYER_META}
     result["raw"] = {lid: round(g["raw"][lid][i], 3) for lid in g["raw"]}
+    result["masks"] = [m for m in p["masks"] if g["raw"][m][i] >= 0.5]
+    result["weights"] = {lid: w for lid, (w, _) in _effective_weights(p, weights).items()}
+    feas = _feasibility(profile_id)[i] if p["has_model"] else 1.0
+    result["feasibility_score"] = round(feas, 4)
+    if result["score"] is not None:
+        result["sustainability_score"] = round(result["score"] / feas, 4)
     if p["has_model"]:
-        result["feasibility"] = round(_feasibility(profile_id)[i], 4)
-        drivers = {
-            lid: round(0.08 * _noise(lat, lon, 100 + k, 2.0), 4)
+        drivers = [
+            {"layer": lid, "label": labels[lid], "value": round(0.8 * _noise(lat, lon, 100 + k, 2.0), 4),
+             "raw": result["raw"][lid]}
             for k, lid in enumerate(g["raw"])
             if lid not in p["masks"]
-        }
-        top = sorted(drivers.items(), key=lambda kv: abs(kv[1]), reverse=True)[:DEFAULT_TOP_N * 2]
-        result["shap"] = dict(top)
+        ]
+        pos = sorted((d for d in drivers if d["value"] > 0), key=lambda d: -d["value"])
+        neg = sorted((d for d in drivers if d["value"] < 0), key=lambda d: d["value"])
+        result["shap"] = {"base_value": -2.0, "positive": pos[:DEFAULT_TOP_N],
+                          "negative": neg[:DEFAULT_TOP_N]}
+        result["model"] = {"type": "presence", "positives": "synthetic stub", "note": (
+            "Stub model. The feasibility model learns where similar sites have been built, "
+            "not where they should be.")}
     else:
-        result["feasibility"] = None
         result["shap"] = None
+        result["model"] = None
     return result
 
 
-def health() -> dict:
-    """Optional extension (proposed to Person 1): data provenance for ``GET /health``."""
-    return {
-        "source": "stub",
-        "data_generated_at": None,
-        "layers": {m[0]: "synthetic" for m in LAYER_META},
-    }
+def data_status() -> dict:
+    """Same shape as Person 1's ``backend.scoring.data_status``."""
+    return {"is_sample": True, "generated_at": None, "cells": len(_grid()["cells"]),
+            "real_layers": [], "synthetic_layers": [m[0] for m in LAYER_META]}

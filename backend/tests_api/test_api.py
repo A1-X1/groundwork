@@ -10,6 +10,7 @@ def test_health(client) -> None:
     assert body["status"] == "ok"
     assert body["scoring_source"] in {"real", "stub"}
     assert body["real_layers"] + body["synthetic_layers"] <= len(body["layers"])
+    assert body["synthetic_layers"] > 0 or body["real_layers"] > 0
 
 
 def test_profiles(client) -> None:
@@ -132,3 +133,23 @@ def test_openapi_documents_every_endpoint(client) -> None:
         for op in paths[p].values():
             assert op.get("summary") and op.get("description") and op.get("tags")
     assert client.get("/redoc").status_code == 200
+
+
+def test_point_accepts_weights(client) -> None:
+    base = client.get("/score/data_centre/point", params=CITY).json()
+    tuned = client.get(
+        "/score/data_centre/point", params={**CITY, "weights": "free_cooling_hours:90"}
+    ).json()
+    assert base["h3"] == tuned["h3"]
+    if not base["masked"]:
+        assert base["breakdown"] != tuned["breakdown"]
+    bad = client.get("/score/data_centre/point", params={**CITY, "weights": "oops"})
+    assert bad.status_code == 422
+
+
+def test_point_model_explanation(client) -> None:
+    body = client.get("/score/data_centre/point", params={"lat": 51.56, "lon": -0.05}).json()
+    if body["shap"] is not None:
+        assert {"base_value", "positive", "negative"} <= set(body["shap"])
+        assert all(d["value"] > 0 for d in body["shap"]["positive"])
+        assert body["model"]["type"]

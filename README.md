@@ -10,12 +10,13 @@ London is the demo region.
 
 ![Groundwork 3D map: London hexagons extruded by data-centre suitability, with a placed data centre and its score breakdown](docs/img/map.png)
 
-> **Status:** the scoring library (`backend/scoring`) is in progress. Until it lands, the API serves
-> a deterministic **synthetic** London grid from `backend/api/stub_scoring.py`, so every screen works.
-> `GET /health` and the app both say which layers are real and which are synthetic.
+> **Data status:** the scoring library and pipeline are in place. The committed sample grid
+> (`data/sample/`) still uses deterministic **synthetic** fallbacks for most layers until `make data`
+> is run with network access. `GET /health` and the app both say which layers are real.
 
 ## Features
 
+- A three.js globe that turns to London and dives into its hex grid, in a dark, single-accent theme.
 - Every hexagon of Greater London scored for four use cases, with a live 0–100 score and rank.
 - Weight sliders re-score the whole city in about 200 ms. The map stays visible while it updates.
 - "Why this score": each layer's signed pull relative to the London average.
@@ -54,7 +55,8 @@ flowchart LR
   weighted sum of direction-corrected layers. Feasibility is an optional ML model (1.0 when a profile has
   none). Masked hexagons get `score: null`.
 
-The two halves meet only at the contracts in [`shared/contracts/`](shared/contracts/). More detail in
+The two halves meet only at the contracts in [`shared/contracts/`](shared/contracts/). Async
+requests between the two halves go in [docs/handoff.md](docs/handoff.md). More detail in
 [docs/architecture.md](docs/architecture.md).
 
 ## Prerequisites

@@ -7,10 +7,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import threading
 from collections import OrderedDict
-from collections.abc import Callable, Hashable
+from collections.abc import AsyncIterator, Callable, Hashable
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Annotated, Any, TypeVar
 
@@ -36,7 +38,8 @@ from backend.api.models import (
 )
 
 RESOLUTION = 8
-LONDON_POINT = {"lat": 51.5155, "lon": -0.0922}
+WARM_POINT = (51.5155, -0.0922)
+log = logging.getLogger("groundwork.api")
 
 scoring, SCORING_SOURCE = scoring_source.load()
 
@@ -70,7 +73,24 @@ ERRORS: dict[int | str, dict[str, Any]] = {
     422: {"model": ErrorResponse, "description": "Invalid parameters or weights."},
 }
 
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Warm ML models in the background so the first click on a model profile is fast."""
+
+    def warm() -> None:
+        for p in scoring.list_profiles():
+            if p.get("has_model"):
+                try:
+                    scoring.score_point(p["id"], *WARM_POINT)
+                except Exception as exc:  # warm-up is best effort
+                    log.warning("warm-up for %s failed: %s", p["id"], exc)
+
+    threading.Thread(target=warm, name="warm-models", daemon=True).start()
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="Groundwork API",
     version="0.1.0",
     summary="Site suitability for any kind of development, scored per H3 hexagon.",
@@ -180,6 +200,16 @@ def validate_weights(weights: dict[str, float] | None) -> dict[str, float] | Non
     return weights
 
 
+def check_weight_keys(profile_id: str, weights: dict[str, float] | None) -> None:
+    """Unknown layers in weights are bad input (422), whichever backend is active."""
+    if not weights:
+        return
+    own = {layer["id"] for layer in profile_by_id(profile_id)["layers"]}
+    bad = sorted(k for k, v in weights.items() if k not in own and v != 0)
+    if bad:
+        raise ValueError(f"layer(s) {', '.join(bad)} are not part of profile '{profile_id}'")
+
+
 def parse_bbox(raw: str | None) -> BBox | None:
     if raw is None or raw.strip() == "":
         return None
@@ -260,15 +290,20 @@ Lon = Annotated[float, Query(ge=-180, le=180, description="Longitude (WGS84).", 
 def health() -> Health:
     """Reports which scoring backend is active, when the data was built, and which layers are
     real versus synthetic fallbacks."""
-    info: dict[str, Any] = {}
-    if hasattr(scoring, "health"):
-        info = scoring.health() or {}
-    layers = info.get("layers") or {layer["id"]: "unknown" for layer in scoring.list_layers()}
+    layers: dict[str, str] = {layer["id"]: "unknown" for layer in scoring.list_layers()}
+    generated_at = None
+    if hasattr(scoring, "data_status"):
+        st = scoring.data_status() or {}
+        generated_at = st.get("generated_at")
+        for lid in st.get("real_layers") or []:
+            layers[lid] = "real"
+        for lid in st.get("synthetic_layers") or []:
+            layers[lid] = "synthetic"
     return Health(
         status="ok",
         scoring_source=SCORING_SOURCE,
-        data_generated_at=info.get("data_generated_at"),
-        layers=layers,
+        data_generated_at=generated_at,
+        layers=layers,  # type: ignore[arg-type]
         real_layers=sum(v == "real" for v in layers.values()),
         synthetic_layers=sum(v == "synthetic" for v in layers.values()),
     )
@@ -327,6 +362,58 @@ def score(profile_id: ProfileId, bbox: BBoxQuery = None) -> ScoreResponse:
     return cached_score(profile_id, None, parse_bbox(bbox))
 
 
+WeightsQuery = Annotated[
+    str | None,
+    Query(
+        description="Optional weight overrides: `layer:weight,layer:weight`, as the sliders send.",
+        examples=["free_cooling_hours:40,dist_fibre_ix:30"],
+    ),
+]
+
+
+def parse_weights(raw: str | None) -> dict[str, float] | None:
+    if raw is None or raw.strip() == "":
+        return None
+    out: dict[str, float] = {}
+    for part in raw.split(","):
+        key, sep, val = part.partition(":")
+        try:
+            if not sep:
+                raise ValueError
+            out[key.strip()] = float(val)
+        except ValueError:
+            raise ValueError("weights must look like layer:weight,layer:weight") from None
+    return validate_weights(out)
+
+
+def point_score(
+    profile_id: str, lat: float, lon: float, weights: dict[str, float] | None
+) -> PointScore:
+    res = scoring.score_point(profile_id, lat, lon, weights=weights)
+    if "rank" in res and "rank_of" in res:
+        n = int(res["rank_of"] or 0)
+        rank = {"rank": res["rank"], "ranked_cells": n, "percentile": res.get("percentile")}
+    else:
+        rank = rank_fields(profile_id, res["h3"], weights)
+    return PointScore(
+        profile=profile_id,
+        h3=res["h3"],
+        lat=res.get("lat", lat),
+        lon=res.get("lon", lon),
+        score=res.get("score"),
+        masked=bool(res.get("masked")),
+        masks=res.get("masks") or [],
+        sustainability=res.get("sustainability_score"),
+        feasibility=res.get("feasibility_score", res.get("feasibility")),
+        weights=res.get("weights") or {},
+        breakdown=res.get("breakdown") or {},
+        raw=res.get("raw") or {},
+        shap=res.get("shap"),
+        model=res.get("model"),
+        **rank,
+    )
+
+
 @app.get(
     "/score/{profile_id}/point",
     response_model=PointScore,
@@ -334,23 +421,14 @@ def score(profile_id: ProfileId, bbox: BBoxQuery = None) -> ScoreResponse:
     summary="Explain the score at one location",
     responses=ERRORS,
 )
-def score_point(profile_id: ProfileId, lat: Lat, lon: Lon) -> PointScore:
+def score_point(
+    profile_id: ProfileId, lat: Lat, lon: Lon, weights: WeightsQuery = None
+) -> PointScore:
     """Score, rank among all hexagons, signed breakdown, raw layer values and (if the profile
     has a model) SHAP drivers for the hexagon containing `lat`,`lon`."""
-    res = scoring.score_point(profile_id, lat, lon)
-    return PointScore(
-        profile=profile_id,
-        lat=lat,
-        lon=lon,
-        h3=res["h3"],
-        score=res.get("score"),
-        masked=bool(res.get("masked")),
-        breakdown=res.get("breakdown") or {},
-        raw=res.get("raw") or {},
-        feasibility=res.get("feasibility"),
-        shap=res.get("shap"),
-        **rank_fields(profile_id, res["h3"], None),
-    )
+    parsed = parse_weights(weights)
+    check_weight_keys(profile_id, parsed)
+    return point_score(profile_id, lat, lon, parsed)
 
 
 @app.post(
@@ -364,6 +442,7 @@ def score_custom(body: CustomScoreRequest) -> ScoreResponse:
     """Live re-scoring for the weight sliders. Weights override the profile defaults for the
     given layers and are renormalised to sum to 1. Results are cached by profile + weights."""
     weights = validate_weights(body.weights)
+    check_weight_keys(body.profile, weights)
     return cached_score(body.profile, weights, check_bbox(body.bbox))
 
 
@@ -390,15 +469,17 @@ def compare(
     h3_id = ""
     for pid in ids:
         meta = profile_by_id(pid)
-        res = scoring.score_point(pid, lat, lon)
-        h3_id = res["h3"]
+        pt = point_score(pid, lat, lon, None)
+        h3_id = pt.h3
         results.append(
             CompareEntry(
                 profile=pid,
                 label=meta["label"],
-                score=res.get("score"),
-                masked=bool(res.get("masked")),
-                **rank_fields(pid, h3_id, None),
+                score=pt.score,
+                masked=pt.masked,
+                rank=pt.rank,
+                ranked_cells=pt.ranked_cells,
+                percentile=pt.percentile,
             )
         )
     return CompareResponse(h3=h3_id, lat=lat, lon=lon, results=results)

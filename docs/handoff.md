@@ -8,25 +8,25 @@ Person 1's session polls this file on its branch about every 3 minutes and treat
 
 ## Inbox for Person 1 (data, profiles, scoring, ML)
 
-_(empty — add items as `- [ ] YYYY-MM-DD: request`)_
+- [ ] 2026-11-21: **Unknown layer in `weights` raises `KeyError` (→ 404).** Contract §5.1 says bad weights are `ValueError` (→ 422). The API now pre-checks weight keys against the profile and returns 422 either way, so nothing is broken. Raising `ValueError` would match the contract for direct library callers too.
+- [ ] 2026-11-21: **FYI: `GET /score/{p}/point` now takes `?weights=layer:w,layer:w`** and passes it to `score_point(..., weights=)`, so the detail panel matches the sliders. This is additive, with no contract change.
+- [ ] 2026-11-21: **FYI: `/health`** reads `data_status()` (`generated_at`, `real_layers`, `synthetic_layers`).
+- [ ] 2026-11-21: **Branching.** `claude/compassionate-fermi-i5q2mu` (P2) now **merges your `main`** with `--allow-unrelated-histories`, so it shares your root. A plain merge PR into `main` will work. No rebase needed on your side.
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
-- [ ] 2026-11-21: **Scoring interface is ready.** `backend/scoring/__init__.py` implements contract §5.1 against `data/sample/grid.parquet` (2,654 London res-8 hexes, 30 layers). Swap your stub for `import backend.scoring as scoring`.
-- [ ] 2026-11-21: **Error mapping.** `KeyError` → 404 (unknown profile/layer, or a point outside London); `ValueError` → 422 (bad weights, bbox, lat/lon).
-- [ ] 2026-11-21: **Extra functions (additive, not in the contract):** `scoring.data_status()` gives `/health` the data dir, `is_sample`, `generated_at`, `cells`, `real_layers` and `synthetic_layers`. `scoring.reload()` drops caches.
-- [ ] 2026-11-21: **`score_point` shape** (not frozen by the contract; tell me if you want changes): `profile, h3, lat, lon, score, masked, masks[], sustainability_score, feasibility_score, rank (1 = best, null if masked), rank_of, percentile, weights{}, breakdown{}, layers[{id,label,unit,value,raw,weight,better,contribution}], raw{all layers}, values{all layers}, shap (null | {base_value, positive[≤5], negative[≤5]} of {layer,label,value,raw}), model (null | {type, positives, auc_spatial_cv, n_positives, positives_synthetic, note})`.
-- [ ] 2026-11-21: **Weights.** Overrides may only target the profile's own layers. Another layer with weight 0 is ignored; non-zero raises `ValueError`, because a direction is needed. `list_profiles()` lists layers sorted by weight, highest first, so take the first N for the visible sliders.
-- [ ] 2026-11-21: **First call per model profile** (`data_centre`, `house`) trains in memory (about 1 s) unless `make train` has run. Consider warming it on API startup.
-- [ ] 2026-11-21: **`.gitignore` needs:** `.venv/`, `__pycache__/`, `.pytest_cache/`, `.ruff_cache/`, `node_modules/`, `.env`. `data/.gitignore` already covers `data/raw`, `data/processed` and `data/sample/models`.
-- [ ] 2026-11-21: **Makefile targets:** `data: python -m backend.pipeline.run`, `train: python -m backend.scoring.train`, and tests via `python -m pytest backend/tests_scoring`. Install with `uv pip install -r backend/pipeline/requirements.txt`.
-- [ ] 2026-11-21: **Design requests from the user (frontend is yours):**
-  1. A minimal theme with a dark background in the style of Meta's product UI (Astryx dark mode, one accent colour).
-  2. **The world as a 3D globe rendered with three.js**, zooming into London's hex grid.
-- [ ] 2026-11-21: **Branching.** P1 work is on `claude/vibrant-cannon-exav8h`, which was the first push to an empty repo. If you create `main` separately the histories won't share a root, so either branch `main` from this commit or tell me and I'll rebase onto yours.
-
-- [ ] 2026-11-21: **Folder skeleton pushed.** Empty `.gitkeep` placeholders only, in `shared/contracts/`, `backend/api/`, `backend/tests_api/` and `frontend/src/`, so the full §4 layout exists. Nothing of yours has content; delete the `.gitkeep` files once you add real files. `README.md`, `.gitignore`, `Makefile`, `docker-compose.yml` and `docs/architecture.md` are left for you to write.
+_(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Done
 
-_(nothing yet)_
+- [x] 2026-11-21 (P2): **Scoring interface ready.** Done: the API auto-uses `backend.scoring` (`GROUNDWORK_SCORING=auto`). `make test-api` runs against both the stub and your module, and passes 30/30 on each.
+- [x] 2026-11-21 (P2): **Error mapping.** Done: `KeyError` → 404 and `ValueError` → 422, with one error body shape.
+- [x] 2026-11-21 (P2): **`data_status()` / `reload()`.** `/health` uses `data_status()`. `reload()` isn't wired yet.
+- [x] 2026-11-21 (P2): **`score_point` shape.** Accepted as-is. The API exposes `masks`, `sustainability`, `feasibility`, your `rank`/`rank_of`/`percentile`, structured `shap {base_value, positive, negative}` and `model`. The UI shows the drivers and your model note.
+- [x] 2026-11-21 (P2): **Weights.** Sliders cover the profile's own layers only, top 4 by weight, with the rest under "More layers".
+- [x] 2026-11-21 (P2): **First call trains.** The API warms every model profile in a background thread on startup.
+- [x] 2026-11-21 (P2): **`.gitignore`.** Already covers all of those.
+- [x] 2026-11-21 (P2): **Makefile targets.** `data`, `data-offline`, `train` and `test-scoring` match. `install-pipeline` uses your requirements file.
+- [x] 2026-11-21 (P2): **Design requests.** Done: a dark-only Astryx theme (`frontend/themes/groundwork`, Meta blue `#0064E0` as the single accent, `#76acff` on dark) and a three.js dotted globe intro that turns to London and dives into the hex grid. It's skippable, replayable from the "Globe" button, and skipped under reduced motion.
+- [x] 2026-11-21 (P2): **Branching.** Merged your `main` into the P2 branch. See the item in your inbox.
+- [x] 2026-11-21 (P2): **Folder skeleton.** Removed the `.gitkeep` files in my folders.

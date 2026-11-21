@@ -1,4 +1,7 @@
+import { Button } from '@astryxdesign/core/Button';
 import { Heading } from '@astryxdesign/core/Heading';
+import { Icon } from '@astryxdesign/core/Icon';
+import { Globe2 } from 'lucide-react';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Link } from '@astryxdesign/core/Link';
 import { Text } from '@astryxdesign/core/Text';
@@ -13,7 +16,7 @@ export interface LegendSpec {
   high: string;
 }
 
-export function TopBar({ legend }: { legend: LegendSpec | null }) {
+export function TopBar({ legend, onGlobe }: { legend: LegendSpec | null; onGlobe: () => void }) {
   return (
     <HStack
       justify="between"
@@ -62,6 +65,13 @@ export function TopBar({ legend }: { legend: LegendSpec | null }) {
 
       <HStack gap={4} align="center">
         {USE_FIXTURE && <Text color="secondary">Fixture data</Text>}
+        <Button
+          label="Globe"
+          variant="ghost"
+          size="sm"
+          icon={<Icon icon={Globe2} size="sm" />}
+          onClick={onGlobe}
+        />
         <Link href={`${API_URL}/docs`} isExternalLink>
           API docs
         </Link>

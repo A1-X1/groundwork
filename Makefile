@@ -52,8 +52,9 @@ web: ## Run the frontend on http://localhost:5173
 
 test: test-api test-scoring test-web ## Run all tests
 
-test-api: ## API + contract tests
-	$(BIN)/python -m pytest backend/tests_api -q
+test-api: ## API + contract tests, against the stub and (if installed) the real scoring module
+	GROUNDWORK_SCORING=stub $(BIN)/python -m pytest backend/tests_api -q
+	@if $(BIN)/python -c "import backend.scoring" 2>/dev/null; then GROUNDWORK_SCORING=real $(BIN)/python -m pytest backend/tests_api -q; else echo "backend.scoring not importable — real-backend API tests skipped"; fi
 
 test-scoring: ## Scoring tests (Person 1)
 	@if [ -d backend/tests_scoring ]; then $(BIN)/python -m pytest backend/tests_scoring -q; else echo "backend/tests_scoring not present yet — skipping"; fi
