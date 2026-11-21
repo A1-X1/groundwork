@@ -49,6 +49,9 @@ class Profile(BaseModel):
     layers: dict[str, LayerWeight] = Field(min_length=1)
     masks: list[str] = Field(default_factory=list)
     model: ModelSpec | None = None
+    # Plain-language meaning of each weight, e.g. "Higher crime per 1,000 residents gives a
+    # worse score". Optional; scoring.profile_notes() fills gaps from the direction.
+    notes: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _renormalise(self) -> Profile:
@@ -84,6 +87,9 @@ def load_profile(path: Path, known_layers: set[str]) -> Profile:
         "masks": set(profile.masks),
         "model.exclude_features": set(profile.model.exclude_features) if profile.model else set(),
     }
+    stray = sorted(set(profile.notes) - set(profile.layers))
+    if stray:
+        raise ProfileError(f"{path.name}: notes for layers not in the profile: {stray}")
     for where, ids in referenced.items():
         unknown = sorted(ids - known_layers)
         if unknown:
