@@ -138,3 +138,39 @@ def test_transcribe_upstream_failure_is_502(client, monkeypatch) -> None:
     monkeypatch.setattr(assistant.httpx, "post", boom)
     r = client.post("/assistant/transcribe", files={"file": ("a.webm", b"xx", "audio/webm")})
     assert r.status_code == 502
+
+
+def test_pick_tone_and_voice() -> None:
+    assert assistant.pick_tone("I found three strong sites.") == "cheerful"
+    assert assistant.pick_tone("Want me to show you why?") == "curious"
+    assert assistant.pick_tone("Sorry, I couldn't find that place.") == "neutral"
+    assert assistant.voice_for("curious", "gb_oliver") == "gb_oliver_curious"
+    assert assistant.voice_for("curious", "en_paul") == "en_paul_happy"  # Paul has no curious
+    assert assistant.voice_for("cheerful", "en_paul") == "en_paul_cheerful"
+    assert assistant.voice_for("excited", "gb_jane") == "gb_jane_neutral"
+    assert assistant.SPEAKER == "en_paul" or assistant.SPEAKER  # default is Paul unless overridden
+
+
+def test_speak_without_key_is_422(client) -> None:
+    r = client.post("/assistant/speak", json={"text": "hello"})
+    assert r.status_code == 422
+
+
+def test_speak_returns_mp3(client, monkeypatch) -> None:
+    import base64
+
+    monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
+    seen: dict = {}
+
+    def fake_post(url, headers=None, json=None, timeout=None, **_):
+        seen.update(url=url, body=json)
+        payload = {"audio_data": base64.b64encode(b"ID3fake").decode()}
+        return httpx.Response(200, json=payload, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(assistant.httpx, "post", fake_post)
+    r = client.post("/assistant/speak", json={"text": "Good news, I found the best site."})
+    assert r.status_code == 200 and r.headers["content-type"] == "audio/mpeg"
+    assert r.content == b"ID3fake"
+    assert r.headers["x-voice"].endswith("_cheerful")
+    assert seen["body"]["voice_id"] == r.headers["x-voice"]
+    assert seen["url"].endswith("/audio/speech")

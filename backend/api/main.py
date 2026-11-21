@@ -21,7 +21,8 @@ from fastapi import FastAPI, File, Form, Path, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend.api import agent_routes, areas, assistant, pois, scoring_source
@@ -626,3 +627,34 @@ async def assistant_transcribe(
         return assistant.transcribe(audio, file.filename or "", file.content_type or "", language)
     except httpx.HTTPError as exc:
         return _error(502, "upstream_error", f"Voxtral transcription failed: {exc}")
+
+
+class SpeakRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=1500)
+    tone: assistant.Tone | None = Field(
+        default=None, description="Override the tone; otherwise picked from the wording."
+    )
+    speaker: str | None = Field(
+        default=None, description="Speaker family: en_paul (default), gb_oliver, gb_jane."
+    )
+
+
+@app.post(
+    "/assistant/speak",
+    tags=["assistant"],
+    summary="Speak a reply with a Voxtral voice",
+    responses={
+        200: {"content": {"audio/mpeg": {}}, "description": "MP3 audio."},
+        422: {"model": ErrorResponse, "description": "No key or empty text."},
+        502: {"model": ErrorResponse, "description": "Voxtral call failed."},
+    },
+)
+def assistant_speak(body: SpeakRequest) -> Response:
+    """Turns a reply into speech with Mistral's Voxtral TTS (key stays server-side). The tone
+    (neutral, curious, cheerful, confident, excited) follows the wording unless given; the voice
+    used is returned in `X-Voice`."""
+    try:
+        audio, voice = assistant.speak(body.text, body.tone, body.speaker)
+    except httpx.HTTPError as exc:
+        return _error(502, "upstream_error", f"Voxtral speech failed: {exc}")
+    return Response(content=audio, media_type="audio/mpeg", headers={"X-Voice": voice})

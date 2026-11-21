@@ -16,6 +16,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { VStack } from '@astryxdesign/core/VStack';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
+import { speakReply } from '../lib/speech';
 import type { AssistantResponse } from '../api/types';
 import { VoiceOrb } from '../map/VoiceOrb';
 import type { VoiceState } from '../state/useVoice';
@@ -50,18 +51,24 @@ export function VoiceLab() {
       .catch((e: unknown) => setError(String((e as Error).message)));
   }, []);
 
+  const [voiceUsed, setVoiceUsed] = useState<string | null>(null);
   const speak = (t: string) => {
-    if (!speakReplies || !('speechSynthesis' in window)) return setState('idle');
-    const u = new SpeechSynthesisUtterance(t);
-    u.lang = 'en-GB';
-    u.onstart = () => setState('speaking');
-    u.onboundary = () => (level.current = 0.9);
-    u.onend = u.onerror = () => {
-      level.current = 0;
-      setState('idle');
-    };
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
+    if (!speakReplies) return setState('idle');
+    void speakReply(
+      t,
+      {
+        onStart: (v) => {
+          setVoiceUsed(v);
+          setState('speaking');
+        },
+        onLevel: (l) => (level.current = l),
+        onEnd: () => {
+          level.current = 0;
+          setState('idle');
+        },
+      },
+      !!status?.mistral,
+    );
   };
 
   const parse = async (heard: string, transcribeMs: number | null, audioKb: number | null) => {
@@ -174,6 +181,9 @@ export function VoiceLab() {
             <MetadataList>
               <MetadataListItem label="Speech-to-text">
                 <Text>{ready ? (status?.voxtral_model ?? 'Voxtral') : 'not configured'}</Text>
+              </MetadataListItem>
+              <MetadataListItem label="Voice">
+                <Text>{voiceUsed ?? (ready ? 'Voxtral Paul (tone per reply)' : 'browser')}</Text>
               </MetadataListItem>
               <MetadataListItem label="Mode">
                 <Text>Tap to talk (up to 12 s), or hold</Text>
