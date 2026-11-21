@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from . import _synthetic
-from ._common import LayerMeta, cached_json, http_get
+from ._common import DAILY, LayerMeta, cached_json, http_get
 
 META = LayerMeta(
     id="grid_carbon_intensity", label="Grid carbon intensity", unit="gCO₂/kWh", kind="aggregate",
@@ -23,14 +23,13 @@ URL = "https://api.carbonintensity.org.uk/regional/intensity/{start}/fw48h/regio
 
 def fetch() -> float:
     start = datetime.now(UTC).strftime("%Y-%m-%dT%H:%MZ")
-    day = start[:10]
 
     def produce() -> dict[str, float]:
         res = http_get(URL.format(start=start, rid=LONDON_REGION_ID))
         values = [p["intensity"]["forecast"] for p in res["data"]["data"]]
         return {"mean_forecast": float(np.mean(values)), "n": len(values)}
 
-    return cached_json(f"carbon_intensity/london_{day}.json", produce)["mean_forecast"]
+    return cached_json("carbon_intensity/london.json", produce, DAILY)["mean_forecast"]
 
 
 def to_hex(raw: float, grid: pd.DataFrame) -> pd.Series:

@@ -80,18 +80,43 @@ def raw_path(*parts: str) -> Path:
     return path
 
 
-def cached_json(name: str, producer: Callable[[], Any]) -> Any:
+# Cache lifetimes. The API never calls sources: it only reads grid.parquet, so these
+# control how often `make data` re-downloads.
+FOREVER: float | None = None          # fixed historical periods (climate years, normals)
+DAILY = 24 * 3600.0                   # live-ish feeds (grid carbon intensity)
+MONTHLY = 30 * 24 * 3600.0            # slowly changing maps (OSM, planning, crime)
+
+
+def refresh_requested() -> bool:
+    return os.environ.get("GROUNDWORK_REFRESH", "").lower() in {"1", "true", "yes"}
+
+
+def cached_json(name: str, producer: Callable[[], Any], max_age: float | None = FOREVER) -> Any:
     """Return JSON cached at ``data/raw/<name>``; call ``producer`` on a miss.
 
-    In offline mode a cache miss raises ``OfflineError`` instead of downloading.
+    A cache older than ``max_age`` seconds (or any cache under ``--refresh``) is
+    re-downloaded; if that download fails the stale copy is used. In offline mode a
+    miss raises ``OfflineError`` and stale copies are always used.
     """
     path = raw_path(name)
     if path.exists():
-        with path.open() as fh:
-            return json.load(fh)
+        age = time.time() - path.stat().st_mtime
+        fresh = (max_age is None or age <= max_age) and not refresh_requested()
+        if fresh or is_offline():
+            with path.open() as fh:
+                return json.load(fh)
+        try:
+            return _store(path, producer())
+        except Exception as exc:  # noqa: BLE001 — stale beats nothing
+            log.warning("refresh of %s failed (%s); using cached copy", name, exc)
+            with path.open() as fh:
+                return json.load(fh)
     if is_offline():
         raise OfflineError(f"offline and no cache at {path}")
-    data = producer()
+    return _store(path, producer())
+
+
+def _store(path: Path, data: Any) -> Any:
     tmp = path.with_suffix(path.suffix + ".tmp")
     with tmp.open("w") as fh:
         json.dump(data, fh)

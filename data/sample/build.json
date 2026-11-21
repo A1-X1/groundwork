@@ -1,53 +1,64 @@
 {
-  "generated_at": "2026-11-21T10:28:17Z",
+  "generated_at": "2026-11-21T10:52:20Z",
   "region": "london",
   "resolution": 8,
   "boundary": "simplified built-in outline",
   "cells": 2654,
   "layers": {
     "elevation": {
-      "status": "synthetic",
-      "reason": "offline and no cache at data/raw/elevation/open_meteo_res8.json",
-      "seconds": 0.19
+      "status": "real",
+      "seconds": 0.0
     },
     "slope": {
-      "status": "synthetic",
-      "reason": "derived from synthetic elevation",
+      "status": "real",
       "seconds": 0.08
     },
     "mean_temp_annual": {
-      "status": "synthetic",
-      "reason": "offline and no cache at data/raw/open_meteo/weather_2025_00.json",
-      "seconds": 0.01
+      "status": "real",
+      "seconds": 0.27
     },
     "summer_max_temp": {
-      "status": "synthetic",
-      "reason": "offline and no cache at data/raw/open_meteo/weather_2025_00.json",
+      "status": "real",
       "seconds": 0.01
     },
     "wet_bulb_p99": {
-      "status": "synthetic",
-      "reason": "offline and no cache at data/raw/open_meteo/weather_2025_00.json",
+      "status": "real",
       "seconds": 0.01
     },
     "free_cooling_hours": {
-      "status": "synthetic",
-      "reason": "offline and no cache at data/raw/open_meteo/weather_2025_00.json",
-      "seconds": 0.01
+      "status": "real",
+      "seconds": 0.0
     },
     "humidity_mean": {
-      "status": "synthetic",
-      "reason": "offline and no cache at data/raw/open_meteo/weather_2025_00.json",
-      "seconds": 0.01
+      "status": "real",
+      "seconds": 0.0
     },
     "wind_speed_mean": {
-      "status": "synthetic",
-      "reason": "offline and no cache at data/raw/open_meteo/weather_2025_00.json",
-      "seconds": 0.01
+      "status": "real",
+      "seconds": 0.0
     },
     "solar_irradiance": {
+      "status": "real",
+      "seconds": 0.0
+    },
+    "precipitation_annual": {
       "status": "synthetic",
-      "reason": "offline and no cache at data/raw/open_meteo/weather_2025_00.json",
+      "reason": "offline and no cache at data/raw/open_meteo/normals_2016_2025_00.json",
+      "seconds": 0.01
+    },
+    "soil_moisture_mean": {
+      "status": "synthetic",
+      "reason": "offline and no cache at data/raw/open_meteo/normals_2016_2025_00.json",
+      "seconds": 0.19
+    },
+    "evapotranspiration_annual": {
+      "status": "synthetic",
+      "reason": "offline and no cache at data/raw/open_meteo/normals_2016_2025_00.json",
+      "seconds": 0.01
+    },
+    "temp_trend_decade": {
+      "status": "synthetic",
+      "reason": "offline and no cache at data/raw/open_meteo/normals_2016_2025_00.json",
       "seconds": 0.01
     },
     "population_density": {
@@ -78,7 +89,7 @@
     "flood_risk": {
       "status": "synthetic",
       "reason": "offline and no cache at data/raw/planning/api_flood-risk-zone.json",
-      "seconds": 0.0
+      "seconds": 0.01
     },
     "flood_zone_3": {
       "status": "synthetic",
@@ -97,7 +108,7 @@
     },
     "grid_carbon_intensity": {
       "status": "synthetic",
-      "reason": "offline and no cache at data/raw/carbon_intensity/london_2026-11-21.json",
+      "reason": "offline and no cache at data/raw/carbon_intensity/london.json",
       "seconds": 0.01
     },
     "dist_station": {
@@ -132,7 +143,7 @@
     "dist_major_road": {
       "status": "synthetic",
       "reason": "offline and no cache at data/raw/osm/major_roads.json",
-      "seconds": 0.02
+      "seconds": 0.03
     },
     "dist_primary_school": {
       "status": "synthetic",

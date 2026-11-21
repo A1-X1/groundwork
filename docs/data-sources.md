@@ -4,6 +4,49 @@ Every layer caches raw downloads in `data/raw/` and has a deterministic syntheti
 
 Retrieval date: whenever you run `make data`. The weather and air-quality year is set in `backend/layers/_openmeteo.py` (`YEAR = 2025`).
 
+## Endpoint status (tested 2026-11-21 from the cloud dev container)
+
+| Endpoint | Key? | Status | Used for |
+|---|---|---|---|
+| `api.open-meteo.com/v1/elevation` | no | ✅ 200 | elevation, slope |
+| `archive-api.open-meteo.com/v1/archive` | no | ✅ 200 (one 429 seen: daily per-IP limit on a shared cloud IP; fine from a laptop, and everything is cached) | temperature, humidity, wind, solar, wet bulb, free cooling, 10-year normals (precipitation, soil moisture, evapotranspiration, warming trend) |
+| `air-quality-api.open-meteo.com` | no | ✅ 200 | NO₂, PM2.5 |
+| `geocoding-api.open-meteo.com` | no | ✅ 200 | city lookup for `PAN_CITY` |
+| `nominatim.openstreetmap.org` | no (≤ 1 req/s, real User-Agent) | ✅ 200 | country / city geocoding |
+| `overpass-api.de` | no | ⚠️ refuses the cloud egress; mirrors used | OSM layers |
+| `overpass.kumi.systems` (mirror) | no | ✅ 200 | OSM layers (automatic fallback) |
+| `api.carbonintensity.org.uk` | no | ✅ 200 | grid carbon (GB) |
+| `data.police.uk/api` | no | ✅ 200 | crime (England & Wales) |
+| `www.planning.data.gov.uk/entity.geojson` | no | ✅ 200 | flood zones, Green Belt, SSSI (England) |
+| `hub.worldpop.org/rest` | no | ✅ 200 | global population (next step) |
+| `earthquake.usgs.gov/fdsnws` | no | ✅ 200 | global seismic hazard (next step) |
+| `naciscdn.org` (Natural Earth) | no | ✅ 200 | country boundaries for the globe and `PAN_COUNTRY` |
+| `www.geoboundaries.org/api` | no | ✅ 200 | admin boundaries worldwide |
+| `raw.githubusercontent.com/owid/energy-data` | no | ✅ 200 | electricity carbon intensity per country |
+| `copernicus-dem-30m.s3.amazonaws.com` | no | ✅ 200 | 30 m DEM tiles worldwide |
+| `gibs.earthdata.nasa.gov` (WMTS) | no | ✅ 200 | Blue Marble globe imagery |
+| `www.nomisweb.co.uk/api` | no | ✅ 200 | UK census population |
+| `api.protectedplanet.net` | **yes, free** | 🔑 401 without token | worldwide protected areas (WDPA) |
+
+### Sign-ups needed
+
+1. **Protected Planet API token** (free): request at https://api.protectedplanet.net/request. Without it, protected land outside England falls back to OSM nature reserves.
+2. **Mistral API key** for the voice assistant: https://console.mistral.ai (free experiment tier). It belongs in the API's `.env`.
+3. *Optional, visuals only:* a **Google Maps Platform key** with the Map Tiles API (Photorealistic 3D Tiles) for a photoreal globe, or a free **Cesium ion** token. Neither is needed for data: every data layer has a free, keyless source above (Google's Air Quality / Solar APIs are not required).
+
+### Refresh policy
+
+The API never calls data sources at request time; it only reads `grid.parquet`. Downloads happen in `make data` and are cached in `data/raw/`:
+
+| Data | Cache lifetime |
+|---|---|
+| Historical climate and air quality (fixed year, 10-year normals), elevation | forever (the period never changes) |
+| OSM features, planning.data.gov.uk polygons | 30 days |
+| Grid carbon intensity | 1 day |
+| Police crime | per month of data |
+
+`python -m backend.pipeline.run --refresh` forces a re-download; a failed refresh falls back to the cached copy. To keep data current, run `make data` once a day (cron or a scheduled job): unchanged sources cost no API calls.
+
 ## Automatic downloads (no key)
 
 | Layers | Source | Licence | Notes |

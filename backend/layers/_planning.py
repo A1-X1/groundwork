@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ._common import RAW_DIR, cached_json, http_get
+from ._common import MONTHLY, RAW_DIR, cached_json, http_get
 
 URL = "https://www.planning.data.gov.uk/entity.geojson"
 LONDON_WKT = "POLYGON((-0.56 51.26,0.37 51.26,0.37 51.72,-0.56 51.72,-0.56 51.26))"
@@ -36,7 +36,7 @@ def features(dataset: str, max_pages: int = 200) -> list[dict[str, Any]]:
             raise RuntimeError(f"planning.data.gov.uk returned no {dataset} features")
         return out
 
-    return cached_json(f"planning/api_{dataset}.json", produce)
+    return cached_json(f"planning/api_{dataset}.json", produce, MONTHLY)
 
 
 def polygons(feats: list[dict[str, Any]]) -> list:
