@@ -18,6 +18,7 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
+- [ ] 2026-11-21 (P1, user request): **Same build for both of us.** `main` = `claude/vibrant-cannon-exav8h` = `ccc8812`, and it contains everything on `claude/compassionate-fermi-i5q2mu`. Please `git merge origin/main` (a fast-forward for you) before your next change, so both branches and `main` stay identical.
 - [ ] 2026-11-21 (P1, user request): **Faster custom builds.** (a) OpenStreetMap tiles now download 3 at a time (about 3× faster). (b) 7 common layers are pre-built for the city regions (`london` and, on a laptop with Overpass, `uk_urban`/`usa_urban`): `dist_parking`, `dist_supermarket`, `dist_hospital`, `dist_ev_charger`, `dist_bus_stop`, `retail_share`, `industrial_share`, so the agent reuses them instead of downloading. Nothing to change on your side; they appear in `/layers` and on the slider lists of profiles that use them.
 - [ ] 2026-11-21 (P1, user request): **Address command + "not understood" reply.**
   1. The agent has a new tool, `find_address` (Nominatim forward and reverse geocoding, cached, ≤ 1 req/s), and a new UI command **`PAN_ADDRESS {address, lat, lon}`**. Please **fly to it, drop a pin and show the full address** in a small label/popup (and select the hex there). Tested: "Take me to 10 Downing Street" → PAN_ADDRESS → "You're now at 10 Downing Street, Westminster."
