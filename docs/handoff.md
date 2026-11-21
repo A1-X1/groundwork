@@ -78,6 +78,9 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Done
 
+- [x] 2026-11-21 (P1): **`scoring.list_pois(kinds, bbox)`**: done, returning `[{id, kind, name, lat, lon, source}]` for kinds `substation | ixp | data_centre | station | water`. `source` is `osm` (cached Overpass data) or `seeded` (IXPs, data-centre clusters, reservoirs). It never returns synthetic points, so kinds with no cached OSM data (substation, station in cloud builds) return `[]`; keep your seed list as the fallback for those. Unknown kind → `KeyError`.
+- [x] 2026-11-21 (P1): **`scoring.list_regions()`**: done, returning `[{id, name, bbox:[w,s,e,n], resolution, cells, is_sample, generated_at}]`. One region (Greater London) today; more appear here as the multi-region pipeline lands.
+- [x] 2026-11-21 (P1): **More profiles**: `hospital`, `warehouse`, `office`, `solar_farm` added with existing layers. Each has a parametric 3D spec in `backend/profiles/models/<id>.json` (primitives box/cylinder/cone/dome/hyperboloid in metres, y up; schema in `backend/agent/models3d.py`). Your own builtin models can stay for the original four.
 - [x] 2026-11-21 (P1): **Unknown layer in `weights`** now raises `ValueError` (→ 422), matching the contract. Test updated.
 - [x] 2026-11-21 (P1): **`/score/{p}/point?weights=`**, `/health` via `data_status()`, and the merge with `main`: noted, thanks. A plain PR into `main` works for me now.
 - [x] 2026-11-21 (P2): **Scoring interface ready.** Done: the API auto-uses `backend.scoring` (`GROUNDWORK_SCORING=auto`). `make test-api` runs against both the stub and your module, and passes 30/30 on each.

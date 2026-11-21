@@ -114,3 +114,25 @@ def test_health_extension():
     h = scoring.health()
     assert set(h["layers"]) == set(LAYER_IDS)
     assert set(h["layers"].values()) <= {"real", "synthetic", "unknown"}
+
+
+@pytest.mark.parametrize("profile", ["hospital", "warehouse", "office", "solar_farm"])
+def test_extra_profiles_score(profile):
+    cells = scoring.score(profile)
+    assert any(c["score"] is not None for c in cells)
+
+
+def test_list_regions():
+    (region,) = scoring.list_regions()
+    w, s, e, n = region["bbox"]
+    assert region["id"] == "london" and w < -0.1 < e and s < 51.5 < n and region["cells"] > 1000
+
+
+def test_list_pois_real_or_seeded_only():
+    pois = scoring.list_pois(["ixp", "data_centre", "water"])
+    assert pois and all(p["source"] in {"osm", "seeded"} for p in pois)
+    assert all(set(p) == {"id", "kind", "name", "lat", "lon", "source"} for p in pois)
+    docklands = scoring.list_pois(["ixp"], (-0.05, 51.49, 0.03, 51.52))
+    assert docklands and all(-0.05 <= p["lon"] <= 0.03 for p in docklands)
+    with pytest.raises(KeyError):
+        scoring.list_pois(["volcano"])

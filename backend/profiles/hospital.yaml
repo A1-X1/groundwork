@@ -1,0 +1,16 @@
+id: hospital
+label: Hospital
+description: >-
+  Reach for the most people: dense, under-served catchments with fast road and
+  rail access, clean air and no flood risk. Emergency-access times are
+  approximated by distance to major roads.
+layers:
+  population_density:    {weight: 0.22, better: higher}
+  dist_major_road:       {weight: 0.18, better: lower}
+  dist_station:          {weight: 0.15, better: lower}
+  deprivation_index:     {weight: 0.12, better: higher}
+  air_quality_no2:       {weight: 0.10, better: lower}
+  flood_risk:            {weight: 0.10, better: lower}
+  dist_substation:       {weight: 0.08, better: lower}
+  slope:                 {weight: 0.05, better: lower}
+masks: [flood_zone_3, protected_land]

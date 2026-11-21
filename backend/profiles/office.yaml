@@ -1,0 +1,15 @@
+id: office
+label: Office
+description: >-
+  Commuter access first: close to stations in busy, well-connected areas with
+  good air, low crime and nearby green space for staff wellbeing.
+layers:
+  dist_station:          {weight: 0.28, better: lower}
+  population_density:    {weight: 0.15, better: higher}
+  dist_fibre_ix:         {weight: 0.12, better: lower}
+  crime_rate:            {weight: 0.12, better: lower}
+  air_quality_no2:       {weight: 0.10, better: lower}
+  green_space_access:    {weight: 0.10, better: lower}
+  summer_max_temp:       {weight: 0.08, better: lower}
+  flood_risk:            {weight: 0.05, better: lower}
+masks: [flood_zone_3, protected_land]

@@ -57,6 +57,19 @@ def query(name: str, selectors: list[str], *, geometry: bool = True, timeout: in
     return list(seen.values())
 
 
+def cached_elements(name: str) -> list[dict[str, Any]]:
+    """Elements from whatever tiles of query ``name`` are already cached (never downloads)."""
+    import json
+
+    from ._common import RAW_DIR
+
+    seen: dict[tuple[str, int], dict[str, Any]] = {}
+    for path in sorted((RAW_DIR / "osm" / name).glob("*.json")):
+        for el in json.loads(path.read_text()):
+            seen[(el.get("type", ""), el.get("id", 0))] = el
+    return list(seen.values())
+
+
 def element_points(elements: list[dict[str, Any]]) -> list[tuple[float, float]]:
     """One representative (lon, lat) per element (node position or way/relation centroid)."""
     pts: list[tuple[float, float]] = []

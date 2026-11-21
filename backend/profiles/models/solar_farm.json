@@ -1,0 +1,310 @@
+{
+  "id": "solar_farm",
+  "label": "Solar farm",
+  "footprint_m": [
+    300.0,
+    220.0
+  ],
+  "parts": [
+    {
+      "position": [
+        -120.0,
+        1.5,
+        -80.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        -90.0,
+        1.5,
+        -80.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        -60.0,
+        1.5,
+        -80.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        -30.0,
+        1.5,
+        -80.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        0.0,
+        1.5,
+        -80.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        30.0,
+        1.5,
+        -80.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        60.0,
+        1.5,
+        -80.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        90.0,
+        1.5,
+        -80.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        120.0,
+        1.5,
+        -80.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        -120.0,
+        1.5,
+        -48.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        -90.0,
+        1.5,
+        -48.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        -60.0,
+        1.5,
+        -48.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        -30.0,
+        1.5,
+        -48.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        0.0,
+        1.5,
+        -48.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        30.0,
+        1.5,
+        -48.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        60.0,
+        1.5,
+        -48.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        90.0,
+        1.5,
+        -48.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        120.0,
+        1.5,
+        -48.0
+      ],
+      "rotation_y": 0.0,
+      "color": "glass",
+      "shape": "box",
+      "size": [
+        24.0,
+        0.4,
+        10.0
+      ]
+    },
+    {
+      "position": [
+        130.0,
+        0.0,
+        90.0
+      ],
+      "rotation_y": 0.0,
+      "color": "steel",
+      "shape": "box",
+      "size": [
+        16.0,
+        4.0,
+        10.0
+      ]
+    }
+  ],
+  "palette": {
+    "concrete": "#b8bcc2",
+    "steel": "#8a94a3",
+    "glass": "#5b7fa6",
+    "roof": "#3d4450",
+    "brick": "#9c5b46",
+    "white": "#e8eaed",
+    "accent": "#0064e0",
+    "earth": "#7a6a52",
+    "green": "#4f7d5a",
+    "dark": "#2a2f37",
+    "warning": "#e0a100"
+  },
+  "segments": 24,
+  "triangles": 228
+}
