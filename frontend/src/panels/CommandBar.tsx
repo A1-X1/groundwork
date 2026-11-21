@@ -8,7 +8,7 @@ import { SendHorizontal } from 'lucide-react';
 import { useState } from 'react';
 
 interface Props {
-  onSubmit: (text: string) => Promise<string>;
+  onSubmit: (text: string, onProgress?: (msg: string) => void) => Promise<string>;
 }
 
 /** Typed commands. Voice goes through the orb (VoiceOrb + useVoice). */
@@ -22,7 +22,7 @@ export function CommandBar({ onSubmit }: Props) {
     if (!q || busy) return;
     setBusy(true);
     try {
-      setReply(await onSubmit(q));
+      setReply(await onSubmit(q, (m) => setReply(m)));
       setText('');
     } catch (e) {
       setReply(e instanceof Error ? e.message : 'Something went wrong.');

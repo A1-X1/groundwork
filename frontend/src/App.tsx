@@ -23,13 +23,13 @@ import { findPlace } from './lib/places';
 import { flushSync } from 'react-dom';
 import { formatRaw, formatScore } from './lib/format';
 import { overlayFor } from './lib/overlays';
-import { kindForProfile, type SiteRender } from './map/buildings';
+import { kindForProfile, type ModelSpec, type SiteRender } from './map/buildings';
 import { GlobeView, type GlobeTarget, type RegionHex } from './map/GlobeView';
 import { ELEVATION_SCALE, MapView, type HexDatum, type MapFocus } from './map/MapView';
 import { CommandBar } from './panels/CommandBar';
 import { ConnectionsDialog } from './panels/ConnectionsDialog';
 import { ApiError } from './api/client';
-import { VoiceOrb } from './map/VoiceOrb';
+import { VoiceDock } from './panels/VoiceDock';
 import { useVoice } from './state/useVoice';
 import { ControlPanel } from './panels/ControlPanel';
 import { CellDetail, SiteCompare, TopSites } from './panels/DetailPanel';
@@ -67,6 +67,8 @@ export default function App() {
   const [screen, setScreen] = useState<'home' | 'explore'>('home');
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [connectionsReason, setConnectionsReason] = useState<string | null>(null);
+  const [modelIds, setModelIds] = useState<string[]>([]);
+  const [modelSpecs, setModelSpecs] = useState<Record<string, ModelSpec>>({});
   const [projects, setProjects] = useState<Project[]>([]);
   /** Structures live in the API's database; browser storage is the fallback when it's down. */
   const [projectsLocal, setProjectsLocal] = useState(false);
@@ -296,17 +298,30 @@ export default function App() {
     },
     [cells],
   );
+  // Agent-designed buildings: load the spec for any placed site whose profile has one.
+  useEffect(() => {
+    const wanted = new Set(gw.sites.map((x) => x.profile).filter((p) => modelIds.includes(p)));
+    for (const id of wanted) {
+      if (modelSpecs[id]) continue;
+      api
+        .model3d(id)
+        .then((spec) => setModelSpecs((m) => ({ ...m, [id]: spec as ModelSpec })))
+        .catch(() => undefined);
+    }
+  }, [gw.sites, modelIds, modelSpecs]);
+
   const siteRenders: SiteRender[] = useMemo(
     () =>
       gw.sites.map((s) => ({
         id: s.id,
         kind: kindForProfile(s.profile),
+        spec: modelSpecs[s.profile],
         lat: s.lat,
         lon: s.lon,
         baseHeight: heightOf(s.h3),
         isSelected: gw.selection?.h3 === s.h3,
       })),
-    [gw.sites, gw.selection, heightOf],
+    [gw.sites, gw.selection, heightOf, modelSpecs],
   );
 
   // ---- interactions
@@ -549,8 +564,74 @@ export default function App() {
     [gw, globeVisible, goTo, flyGlobe, explain, resolvePoint, hasDetail, select],
   );
 
+  /** Agent UI commands are flat ({command, ...args}); the executor takes {type, args}. */
+  const fromAgent = (cmds: Record<string, unknown>[]): AssistantCommand[] =>
+    cmds.map(({ command, ...args }) => ({ type: String(command), args }));
+
+  const TOOL_LABELS: Record<string, string> = {
+    get_catalog: 'Checking what Groundwork already knows…',
+    add_layer: 'Adding a data source…',
+    add_source_layer: 'Adding a data source…',
+    write_profile: 'Writing the scoring profile…',
+    validate_profile: 'Checking the profile…',
+    write_model3d: 'Designing the 3D building…',
+    build_layers: 'Building the new layers…',
+    train_model: 'Training the feasibility model…',
+    ui_command: 'Updating the map…',
+  };
+
+  const runPlanningAgent = useCallback(
+    async (text: string, onProgress?: (msg: string) => void): Promise<string> => {
+      let final = '';
+      const notes: string[] = [];
+      await api.runAgent(text, (e) => {
+        if (e.type === 'tool_call' && typeof e.name === 'string') {
+          onProgress?.(TOOL_LABELS[e.name] ?? `Running ${e.name.replace(/_/g, ' ')}…`);
+        } else if (e.type === 'ui' && Array.isArray(e.commands)) {
+          void runCommands(fromAgent(e.commands as Record<string, unknown>[])).then((n) =>
+            notes.push(...n),
+          );
+        } else if (e.type === 'action_required') {
+          if (e.action === 'connect_azure' || e.action === 'connect_mistral') {
+            setConnectionsReason(typeof e.message === 'string' ? e.message : null);
+            setConnectionsOpen(true);
+          } else if (typeof e.message === 'string') {
+            notes.push(e.message);
+          }
+        } else if (e.type === 'message' && typeof e.content === 'string' && e.content) {
+          onProgress?.(e.content);
+        } else if ((e.type === 'done' || e.type === 'end') && typeof e.content === 'string') {
+          final = e.content;
+        } else if (e.type === 'error' && typeof e.message === 'string') {
+          final = `The planning agent stopped: ${e.message}`;
+        }
+      });
+      // New profiles, layers or 3D models may exist now.
+      await gw.reload().catch(() => undefined);
+      api
+        .models3d()
+        .then(setModelIds)
+        .catch(() => undefined);
+      return [final || 'Done.', ...notes].join(' ');
+    },
+    [gw, runCommands],
+  );
+
+  /** "I want to build a nuclear plant" → planning agent; "thermal view" → fast commands. */
+  const looksLikePlanning = (t: string) =>
+    /\b(build|building|plan|planning|create|new use case|looking for|site for|where should)\b/i.test(
+      t,
+    ) && !gw.profileList.some((p) => t.toLowerCase().includes(p.label.toLowerCase()));
+
   const ask = useCallback(
-    async (text: string): Promise<string> => {
+    async (text: string, onProgress?: (msg: string) => void): Promise<string> => {
+      if (looksLikePlanning(text)) {
+        try {
+          return await runPlanningAgent(text, onProgress);
+        } catch (e) {
+          if (!(e instanceof ApiError && e.status === 503)) throw e;
+        }
+      }
       const res = await api.assistant(text, {
         profile: gw.profile?.id ?? null,
         overlay: gw.overlayId,
@@ -558,31 +639,16 @@ export default function App() {
         site_ids: gw.sites.map((x) => x.id),
       });
       if (res.commands.length === 0) {
-        // Not a UI command: hand it to the planning agent (new use cases, layers, models).
         try {
-          const steps: string[] = [];
-          let azureNeeded = false;
-          await api.runAgent(text, (e) => {
-            if (e.action === 'connect_azure') azureNeeded = true;
-            if (typeof e.message === 'string') steps.push(e.message);
-          });
-          if (azureNeeded) {
-            setConnectionsReason(
-              'The planning agent needs Azure ML to train this model. Sign in, then ask again.',
-            );
-            setConnectionsOpen(true);
-          }
-          return steps.at(-1) ?? 'The planning agent finished.';
+          return await runPlanningAgent(text, onProgress);
         } catch (e) {
           if (!(e instanceof ApiError && e.status === 503)) throw e;
-          // agent not installed yet: fall through to the assistant's reply
         }
       }
       const notes = await runCommands(res.commands);
-      const out = notes.length ? notes.join(' ') : res.reply;
-      return out;
+      return notes.length ? notes.join(' ') : res.reply;
     },
-    [gw, runCommands],
+    [gw, runCommands, runPlanningAgent], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // ---- structures (home screen)
@@ -858,7 +924,7 @@ export default function App() {
                 pointerEvents: 'none',
               }}
             >
-              <VoiceOrb
+              <VoiceDock
                 state={voice.state}
                 level={voice.level}
                 message={voice.message}

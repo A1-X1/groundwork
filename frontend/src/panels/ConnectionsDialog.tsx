@@ -1,6 +1,5 @@
 import { Button } from '@astryxdesign/core/Button';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
-import { Heading } from '@astryxdesign/core/Heading';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Link } from '@astryxdesign/core/Link';
 import { Skeleton } from '@astryxdesign/core/Skeleton';
@@ -8,22 +7,63 @@ import { StatusDot } from '@astryxdesign/core/StatusDot';
 import { Text } from '@astryxdesign/core/Text';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { VStack } from '@astryxdesign/core/VStack';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { api } from '../api/client';
 import type { AzureConfig, Connections } from '../api/types';
+import { MicrosoftLogo, MistralLogo } from './BrandLogos';
 
 interface Props {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Shown when the planning agent asked for Azure before continuing. */
+  /** Shown when the planning agent asked for a connection before continuing. */
   reason?: string | null;
 }
 
 const EMPTY: AzureConfig = { subscription_id: '', resource_group: '', workspace: '' };
 
+function Row({
+  logo,
+  name,
+  connected,
+  pending,
+  detail,
+  children,
+}: {
+  logo: ReactNode;
+  name: string;
+  connected: boolean;
+  pending?: boolean;
+  detail: string;
+  children: ReactNode;
+}) {
+  return (
+    <VStack gap={3}>
+      <HStack gap={3} align="center">
+        {logo}
+        <VStack gap={0.5}>
+          <HStack gap={2} align="center">
+            <Text weight="semibold">{name}</Text>
+            <StatusDot
+              variant={connected ? 'success' : 'neutral'}
+              label={connected ? 'Connected' : 'Not connected'}
+              isPulsing={pending}
+            />
+          </HStack>
+          <Text type="supporting" color="secondary" textWrap="pretty">
+            {detail}
+          </Text>
+        </VStack>
+      </HStack>
+      {children}
+    </VStack>
+  );
+}
+
 export function ConnectionsDialog({ isOpen, onOpenChange, reason }: Props) {
   const [conn, setConn] = useState<Connections | null>(null);
   const [form, setForm] = useState<AzureConfig>(EMPTY);
+  const [key, setKey] = useState('');
+  const [open, setOpen] = useState<'mistral' | 'azure' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -41,7 +81,6 @@ export function ConnectionsDialog({ isOpen, onOpenChange, reason }: Props) {
     if (isOpen) void refresh();
   }, [isOpen, refresh]);
 
-  // Poll while a device-code sign-in is pending.
   useEffect(() => {
     if (!isOpen || conn?.azure_ml.status !== 'pending') return;
     const t = window.setInterval(() => void refresh(), 3000);
@@ -54,8 +93,10 @@ export function ConnectionsDialog({ isOpen, onOpenChange, reason }: Props) {
     try {
       await fn();
       await refresh();
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong.');
+      return false;
     } finally {
       setBusy(false);
     }
@@ -65,9 +106,9 @@ export function ConnectionsDialog({ isOpen, onOpenChange, reason }: Props) {
   const valid = form.subscription_id && form.resource_group && form.workspace;
 
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} width={520} purpose="form">
+    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} width={480} purpose="form">
       <DialogHeader title="Connections" onOpenChange={onOpenChange} />
-      <VStack gap={6} padding={4}>
+      <VStack gap={8} padding={4} paddingBlockEnd={6}>
         {reason && (
           <Text display="block" textWrap="pretty">
             {reason}
@@ -77,121 +118,166 @@ export function ConnectionsDialog({ isOpen, onOpenChange, reason }: Props) {
           <Skeleton height={220} />
         ) : (
           <>
-            <VStack gap={2}>
-              <HStack gap={2} align="center">
-                <StatusDot
-                  variant={conn.mistral.configured ? 'success' : 'neutral'}
-                  label={conn.mistral.configured ? 'Connected' : 'Not configured'}
+            <Row
+              logo={<MistralLogo size={28} />}
+              name="Mistral AI"
+              connected={conn.mistral.configured}
+              detail={
+                conn.mistral.configured
+                  ? `${conn.mistral.chat_model} for commands · ${conn.mistral.voxtral_model} for voice`
+                  : 'Voice, commands and the planning agent'
+              }
+            >
+              {conn.mistral.configured ? (
+                <Button
+                  label="Disconnect Mistral"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void run(() => api.forgetMistral())}
                 />
-                <Heading level={3}>Mistral</Heading>
-              </HStack>
-              <Text color="secondary" display="block" textWrap="pretty">
-                {conn.mistral.configured
-                  ? `Connected: ${conn.mistral.chat_model} for commands, ${conn.mistral.voxtral_model} for voice.`
-                  : 'Not configured. Add MISTRAL_API_KEY to the server’s .env; voice falls back to the browser.'}
-              </Text>
-            </VStack>
-
-            <VStack gap={3}>
-              <HStack gap={2} align="center">
-                <StatusDot
-                  variant={
-                    az?.status === 'signed_in'
-                      ? 'success'
-                      : az?.status === 'error'
-                        ? 'error'
-                        : 'neutral'
-                  }
-                  label={az?.status === 'signed_in' ? 'Signed in' : 'Not signed in'}
-                  isPulsing={az?.status === 'pending'}
-                />
-                <Heading level={3}>Azure Machine Learning</Heading>
-              </HStack>
-              <Text color="secondary" display="block" textWrap="pretty">
-                The planning agent trains feasibility models in your Azure ML workspace, or locally
-                when none is connected. Only these coordinates are stored, never credentials.
-              </Text>
-              <TextInput
-                label="Subscription ID"
-                value={form.subscription_id}
-                onChange={(v: string) => setForm((f) => ({ ...f, subscription_id: v.trim() }))}
-              />
-              <HStack gap={2}>
-                <TextInput
-                  label="Resource group"
-                  value={form.resource_group}
-                  onChange={(v: string) => setForm((f) => ({ ...f, resource_group: v.trim() }))}
+              ) : open === 'mistral' ? (
+                <VStack gap={2}>
+                  <TextInput
+                    label="Mistral API key"
+                    type="password"
+                    autoComplete="off"
+                    value={key}
+                    onChange={(v: string) => setKey(v)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && key.trim()) {
+                        void run(() => api.saveMistral(key.trim())).then((ok) => ok && setKey(''));
+                      }
+                    }}
+                    hasAutoFocus
+                  />
+                  <Text type="supporting" color="secondary" display="block">
+                    Create one at{' '}
+                    <Link href="https://console.mistral.ai/api-keys" isExternalLink>
+                      console.mistral.ai
+                    </Link>
+                    . It's kept on the Groundwork server only.
+                  </Text>
+                  <HStack gap={2}>
+                    <Button
+                      label="Save key"
+                      variant="primary"
+                      isDisabled={!key.trim()}
+                      isLoading={busy}
+                      onClick={() =>
+                        void run(() => api.saveMistral(key.trim())).then((ok) => ok && setKey(''))
+                      }
+                    />
+                    <Button label="Cancel" variant="ghost" onClick={() => setOpen(null)} />
+                  </HStack>
+                </VStack>
+              ) : (
+                <Button
+                  label="Connect with Mistral"
+                  variant="secondary"
+                  size="lg"
                   width="100%"
+                  icon={<MistralLogo />}
+                  onClick={() => setOpen('mistral')}
                 />
-                <TextInput
-                  label="Workspace"
-                  value={form.workspace}
-                  onChange={(v: string) => setForm((f) => ({ ...f, workspace: v.trim() }))}
-                  width="100%"
-                />
-              </HStack>
+              )}
+            </Row>
 
-              {az?.status === 'pending' && az.verification_uri && (
+            <Row
+              logo={<MicrosoftLogo size={26} />}
+              name="Azure Machine Learning"
+              connected={az?.status === 'signed_in'}
+              pending={az?.status === 'pending'}
+              detail={
+                az?.status === 'signed_in'
+                  ? `Signed in${az.account ? ` as ${az.account}` : ''} · ${az.config?.workspace ?? ''}`
+                  : 'Trains feasibility models; local training is used until you connect'
+              }
+            >
+              {az?.status === 'pending' && az.verification_uri ? (
                 <VStack gap={1}>
                   <Text display="block">
                     Open{' '}
                     <Link href={az.verification_uri} isExternalLink>
                       {az.verification_uri}
                     </Link>{' '}
-                    and enter this code:
+                    and enter:
                   </Text>
                   <Text type="code" size="xl" weight="semibold">
                     {az.user_code}
                   </Text>
                 </VStack>
-              )}
-              {az?.status === 'signed_in' && (
-                <Text display="block">Signed in{az.account ? ` as ${az.account}` : ''}.</Text>
-              )}
-              {az?.message && az.status !== 'pending' && (
-                <Text color="secondary" display="block" role="status" textWrap="pretty">
-                  {az.message}
-                </Text>
-              )}
-              {error && (
-                <Text color="secondary" display="block" role="alert">
-                  {error}
-                </Text>
-              )}
-
-              <HStack gap={2} wrap="wrap">
+              ) : az?.status === 'signed_in' ? (
                 <Button
-                  label="Sign in to Azure ML"
-                  variant="primary"
-                  isDisabled={!valid || az?.status === 'unavailable'}
-                  isLoading={busy || az?.status === 'pending'}
+                  label="Disconnect Azure"
+                  variant="ghost"
+                  size="sm"
                   onClick={() =>
                     void run(async () => {
-                      await api.saveAzure(form);
-                      await api.azureLogin();
+                      await api.forgetAzure();
+                      setForm(EMPTY);
                     })
                   }
                 />
-                <Button
-                  label="Save workspace"
-                  variant="secondary"
-                  isDisabled={!valid}
-                  onClick={() => void run(() => api.saveAzure(form))}
-                />
-                {az?.configured && (
-                  <Button
-                    label="Disconnect"
-                    variant="ghost"
-                    onClick={() =>
-                      void run(async () => {
-                        await api.forgetAzure();
-                        setForm(EMPTY);
-                      })
-                    }
+              ) : open === 'azure' ? (
+                <VStack gap={3}>
+                  <TextInput
+                    label="Subscription ID"
+                    value={form.subscription_id}
+                    onChange={(v: string) => setForm((f) => ({ ...f, subscription_id: v.trim() }))}
+                    hasAutoFocus
                   />
-                )}
-              </HStack>
-            </VStack>
+                  <HStack gap={2}>
+                    <TextInput
+                      label="Resource group"
+                      value={form.resource_group}
+                      onChange={(v: string) => setForm((f) => ({ ...f, resource_group: v.trim() }))}
+                      width="100%"
+                    />
+                    <TextInput
+                      label="Workspace"
+                      value={form.workspace}
+                      onChange={(v: string) => setForm((f) => ({ ...f, workspace: v.trim() }))}
+                      width="100%"
+                    />
+                  </HStack>
+                  <HStack gap={2}>
+                    <Button
+                      label="Continue to Microsoft"
+                      variant="primary"
+                      isDisabled={!valid || az?.status === 'unavailable'}
+                      isLoading={busy}
+                      onClick={() =>
+                        void run(async () => {
+                          await api.saveAzure(form);
+                          await api.azureLogin();
+                        })
+                      }
+                    />
+                    <Button label="Cancel" variant="ghost" onClick={() => setOpen(null)} />
+                  </HStack>
+                </VStack>
+              ) : (
+                <Button
+                  label="Sign in with Microsoft"
+                  variant="secondary"
+                  size="lg"
+                  width="100%"
+                  icon={<MicrosoftLogo />}
+                  onClick={() => setOpen('azure')}
+                />
+              )}
+              {az?.message && az.status !== 'pending' && az.status !== 'signed_in' && (
+                <Text type="supporting" color="secondary" display="block" role="status">
+                  {az.message}
+                </Text>
+              )}
+            </Row>
+
+            {error && (
+              <Text color="secondary" display="block" role="alert">
+                {error}
+              </Text>
+            )}
           </>
         )}
       </VStack>

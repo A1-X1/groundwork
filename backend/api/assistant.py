@@ -8,6 +8,7 @@ only ask the frontend to do things on this list.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -110,6 +111,40 @@ def _read_dotenv() -> dict[str, str]:
             k, v = line.split("=", 1)
             out[k.strip()] = v.strip().strip("'\"")
     return out
+
+
+def _dotenv_path() -> Path:
+    return Path(__file__).resolve().parents[2] / ".env"
+
+
+def save_mistral_key(key: str | None) -> None:
+    """Write (or remove) MISTRAL_API_KEY in the repo's gitignored .env and this process's env."""
+    path = _dotenv_path()
+    lines = path.read_text().splitlines() if path.is_file() else []
+    lines = [ln for ln in lines if not ln.strip().startswith("MISTRAL_API_KEY=")]
+    if key:
+        lines.append(f"MISTRAL_API_KEY={key}")
+        os.environ["MISTRAL_API_KEY"] = key
+    else:
+        os.environ.pop("MISTRAL_API_KEY", None)
+    path.write_text("\n".join(lines) + ("\n" if lines else ""))
+    with contextlib.suppress(OSError):
+        path.chmod(0o600)
+
+
+def check_mistral_key(key: str) -> bool | None:
+    """True if Mistral accepts the key, False if it rejects it, None if Mistral is unreachable."""
+    try:
+        r = httpx.get(
+            "https://api.mistral.ai/v1/models",
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=10.0,
+        )
+    except httpx.HTTPError:
+        return None
+    if r.status_code in (401, 403):
+        return False
+    return r.is_success or None
 
 
 def mistral_key() -> str | None:

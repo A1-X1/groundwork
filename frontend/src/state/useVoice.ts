@@ -30,7 +30,9 @@ function recognitionCtor(): RecognitionCtor | null {
 
 const MAX_RECORD_MS = 12000;
 
-export function useVoice(handle: (text: string) => Promise<string>) {
+export function useVoice(
+  handle: (text: string, onProgress?: (msg: string) => void) => Promise<string>,
+) {
   const [state, setState] = useState<VoiceState>('idle');
   const [message, setMessage] = useState<string | null>(null);
   const [engine, setEngine] = useState<'voxtral' | 'browser' | null>(null);
@@ -89,7 +91,7 @@ export function useVoice(handle: (text: string) => Promise<string>) {
       }
       setState('thinking');
       try {
-        const reply = await handleRef.current(text);
+        const reply = await handleRef.current(text, (m) => setMessage(m));
         setMessage(reply);
         speak(reply);
       } catch (e) {

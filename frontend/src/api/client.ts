@@ -70,7 +70,14 @@ function fixtureOnly(): never {
 // ---------------------------------------------------------------- endpoints
 
 export const api = {
+  models3d: (): Promise<string[]> => (fixtures ? Promise.resolve([]) : request('/models3d')),
+  model3d: (id: string): Promise<unknown> => request(`/models3d/${encodeURIComponent(id)}`),
+
   connections: (): Promise<Connections> => request('/connections'),
+  saveMistral: (apiKey: string): Promise<Connections['mistral']> =>
+    request('/connections/mistral', { method: 'PUT', body: JSON.stringify({ api_key: apiKey }) }),
+  forgetMistral: (): Promise<Connections['mistral']> =>
+    request('/connections/mistral', { method: 'DELETE' }),
   saveAzure: (cfg: AzureConfig): Promise<Connections['azure_ml']> =>
     request('/connections/azure', { method: 'PUT', body: JSON.stringify(cfg) }),
   forgetAzure: (): Promise<Connections['azure_ml']> =>

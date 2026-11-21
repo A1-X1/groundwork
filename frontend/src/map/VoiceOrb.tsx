@@ -10,7 +10,7 @@ import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import * as THREE from 'three';
 import type { VoiceState } from '../state/useVoice';
 
-const SIZE = 104;
+const SIZE = 96;
 const HOLD_MS = 320;
 
 const NOISE = /* glsl */ `
@@ -37,46 +37,50 @@ float snoise(vec3 v){
 }`;
 
 const VERT = /* glsl */ `
-uniform float uTime; uniform float uAmp; uniform float uFreq; uniform float uSwirl;
-varying vec3 vNormal; varying float vDisp;
+uniform float uTime; uniform float uAmp; uniform float uFreq;
+varying vec3 vNormal; varying vec3 vPos;
 ${NOISE}
 void main(){
   vec3 p = position;
-  float a = uSwirl * uTime;
-  mat2 r = mat2(cos(a), -sin(a), sin(a), cos(a));
-  vec3 q = p; q.xz = r * q.xz;
-  float n = snoise(q * uFreq + vec3(0.0, uTime * 0.35, 0.0));
-  float n2 = snoise(q * uFreq * 2.1 - vec3(uTime * 0.2));
-  float d = (n * 0.75 + n2 * 0.25) * uAmp;
-  vDisp = d;
-  vec3 displaced = p + normal * d;
+  float n = snoise(p * uFreq + vec3(0.0, uTime * 0.4, 0.0));
+  vec3 displaced = p + normal * n * uAmp;
+  vPos = p;
   vNormal = normalize(normalMatrix * normal);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
 }`;
 
+/* A soft, flowing pastel gradient: domain-warped noise picks between four colours that drift
+   across the sphere. Glassy rim, no hard lighting. */
 const FRAG = /* glsl */ `
-uniform vec3 uColor; uniform vec3 uDeep; uniform float uGlow; uniform float uTime;
-varying vec3 vNormal; varying float vDisp;
+uniform float uTime; uniform float uFlow; uniform float uGlow;
+uniform vec3 cA; uniform vec3 cB; uniform vec3 cC; uniform vec3 cD;
+varying vec3 vNormal; varying vec3 vPos;
+${NOISE}
 void main(){
+  float t = uTime * uFlow;
+  vec3 q = vPos * 0.42;
+  vec3 warp = vec3(snoise(q + vec3(t * 0.6, 0.0, 0.0)), snoise(q + vec3(0.0, t * 0.5, 4.1)), snoise(q + vec3(7.3, 0.0, t * 0.4)));
+  float f1 = snoise(q * 0.9 + warp * 0.45 + vec3(0.0, t * 0.3, 0.0)) * 0.5 + 0.5;
+  float f2 = snoise(q * 0.7 - warp * 0.35 + vec3(t * 0.25, 1.7, 0.0)) * 0.5 + 0.5;
+  vec3 col = mix(cA, cB, smoothstep(0.1, 0.9, f1));
+  col = mix(col, cC, smoothstep(0.3, 0.95, f2) * 0.85);
+  col = mix(col, cD, smoothstep(0.3, 0.95, f1 * f2 * 1.6) * 0.85);
   vec3 n = normalize(vNormal);
   float facing = max(dot(n, vec3(0.0, 0.0, 1.0)), 0.0);
-  float fres = pow(1.0 - facing, 2.6);
-  float key = max(dot(n, normalize(vec3(-0.45, 0.65, 0.6))), 0.0);
-  // dark core → accent body → pale rim; flowing bands come from the displacement
-  float body = clamp(0.02 + key * 0.62 + vDisp * 2.6, 0.0, 1.0);
-  vec3 col = mix(uDeep, uColor, body);
-  col += mix(uColor, vec3(1.0), 0.2) * fres * (0.55 + uGlow);
-  col += vec3(1.0) * pow(key, 24.0) * 0.12; // soft specular
+  float rim = pow(1.0 - facing, 3.0);
+  col = mix(col, vec3(1.0), rim * (0.35 + uGlow * 0.4));     // soft, glassy edge
+  col *= 0.88 + 0.12 * max(dot(n, normalize(vec3(-0.4, 0.6, 0.7))), 0.0);
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }`;
 
 /** Target shader parameters per state; `level` (0–1) adds on top. */
 const TARGETS: Record<VoiceState, { amp: number; freq: number; swirl: number; scale: number }> = {
-  idle: { amp: 0.06, freq: 1.4, swirl: 0.05, scale: 0.9 },
-  listening: { amp: 0.12, freq: 2.2, swirl: 0.15, scale: 1.0 },
-  thinking: { amp: 0.1, freq: 1.8, swirl: 1.4, scale: 0.94 },
-  speaking: { amp: 0.1, freq: 1.6, swirl: 0.25, scale: 0.98 },
+  // swirl = speed of the gradient flow; amp = surface ripple
+  idle: { amp: 0.012, freq: 1.6, swirl: 0.35, scale: 0.92 },
+  listening: { amp: 0.035, freq: 2.4, swirl: 0.7, scale: 1.0 },
+  thinking: { amp: 0.025, freq: 2.0, swirl: 2.2, scale: 0.95 },
+  speaking: { amp: 0.03, freq: 1.8, swirl: 0.9, scale: 0.98 },
 };
 
 const LABEL: Record<VoiceState, string> = {
@@ -117,14 +121,16 @@ export function VoiceOrb({ state, level, message, isAvailable, onStart, onStop }
     camera.position.z = 4.4;
     const uniforms = {
       uTime: { value: 0 },
-      uAmp: { value: 0.06 },
-      uFreq: { value: 1.4 },
-      uSwirl: { value: 0.05 },
+      uAmp: { value: 0.012 },
+      uFreq: { value: 1.6 },
+      uFlow: { value: 0.35 },
       uGlow: { value: 0 },
-      uColor: { value: new THREE.Color(0x76acff) },
-      uDeep: { value: new THREE.Color(0x071226) },
+      cA: { value: new THREE.Color(0x4f7dff) }, // accent blue
+      cB: { value: new THREE.Color(0xb7a8ff) }, // lavender
+      cC: { value: new THREE.Color(0x8fe3ff) }, // ice cyan
+      cD: { value: new THREE.Color(0xffc9b0) }, // warm peach highlight
     };
-    const geo = new THREE.IcosahedronGeometry(1, 48);
+    const geo = new THREE.IcosahedronGeometry(1, 32);
     const mesh = new THREE.Mesh(
       geo,
       new THREE.ShaderMaterial({ uniforms, vertexShader: VERT, fragmentShader: FRAG }),
@@ -147,9 +153,9 @@ export function VoiceOrb({ state, level, message, isAvailable, onStart, onStop }
       const motion = reduced ? 0.15 : 1;
       time += dt * motion;
       uniforms.uTime.value = time;
-      uniforms.uAmp.value += (tgt.amp * motion + lv * 0.22 * motion - uniforms.uAmp.value) * k;
+      uniforms.uAmp.value += (tgt.amp * motion + lv * 0.1 * motion - uniforms.uAmp.value) * k;
       uniforms.uFreq.value += (tgt.freq - uniforms.uFreq.value) * k;
-      uniforms.uSwirl.value += (tgt.swirl - uniforms.uSwirl.value) * k;
+      uniforms.uFlow.value += (tgt.swirl + lv * 1.2 - uniforms.uFlow.value) * k;
       uniforms.uGlow.value += ((hoverRef.current ? 0.35 : 0) + lv * 0.6 - uniforms.uGlow.value) * k;
       const breathe = s === 'idle' && !reduced ? Math.sin(time * 1.3) * 0.025 : 0;
       scale += (tgt.scale + lv * 0.12 + breathe - scale) * k;

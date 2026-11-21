@@ -9,6 +9,111 @@ import * as THREE from 'three';
 
 export type BuildingKind = 'data_centre' | 'house' | 'school' | 'mine' | 'generic';
 
+/** Parametric building spec from the planning agent (backend/agent/models3d.py). Metres, y up,
+ *  origin at the hex centre on the ground. */
+export interface ModelSpec {
+  id: string;
+  label: string;
+  footprint_m: [number, number];
+  parts: SpecPart[];
+  palette: Record<string, string>;
+  segments?: number;
+}
+
+type SpecPart = {
+  position?: [number, number, number];
+  rotation_y?: number;
+  color?: string;
+} & (
+  | { shape: 'box'; size: [number, number, number] }
+  | { shape: 'cylinder'; radius: number; height: number }
+  | { shape: 'cone'; radius: number; height: number }
+  | { shape: 'dome'; radius: number }
+  | {
+      shape: 'hyperboloid';
+      radius_bottom: number;
+      radius_waist: number;
+      radius_top: number;
+      height: number;
+      waist_at?: number;
+    }
+);
+
+const specMaterials = new Map<string, THREE.MeshLambertMaterial>();
+function specMaterial(hex: string): THREE.MeshLambertMaterial {
+  let m = specMaterials.get(hex);
+  if (!m) {
+    m = new THREE.MeshLambertMaterial({ color: new THREE.Color(hex), side: THREE.DoubleSide });
+    specMaterials.set(hex, m);
+  }
+  return m;
+}
+
+/** Build a three.js group from a spec. Each primitive's base sits at its `position`. */
+export function buildFromSpec(spec: ModelSpec): THREE.Group {
+  const g = new THREE.Group();
+  const seg = Math.max(8, Math.min(48, spec.segments ?? 24));
+  for (const part of spec.parts) {
+    let geo: THREE.BufferGeometry;
+    switch (part.shape) {
+      case 'box':
+        geo = new THREE.BoxGeometry(...part.size).translate(0, part.size[1] / 2, 0);
+        break;
+      case 'cylinder':
+        geo = new THREE.CylinderGeometry(part.radius, part.radius, part.height, seg).translate(
+          0,
+          part.height / 2,
+          0,
+        );
+        break;
+      case 'cone':
+        geo = new THREE.ConeGeometry(part.radius, part.height, seg).translate(
+          0,
+          part.height / 2,
+          0,
+        );
+        break;
+      case 'dome':
+        geo = new THREE.SphereGeometry(
+          part.radius,
+          seg,
+          Math.max(4, seg / 2),
+          0,
+          Math.PI * 2,
+          0,
+          Math.PI / 2,
+        );
+        break;
+      case 'hyperboloid': {
+        // Cooling-tower shell: radius eases bottom → waist → top with a smooth (cosine) profile.
+        const w = part.waist_at ?? 0.75;
+        const pts: THREE.Vector2[] = [];
+        const rows = 12;
+        for (let i = 0; i <= rows; i++) {
+          const t = i / rows;
+          const r =
+            t <= w
+              ? part.radius_waist +
+                (part.radius_bottom - part.radius_waist) * Math.cos((t / w) * (Math.PI / 2))
+              : part.radius_waist +
+                (part.radius_top - part.radius_waist) *
+                  Math.sin(((t - w) / (1 - w)) * (Math.PI / 2));
+          pts.push(new THREE.Vector2(r, t * part.height));
+        }
+        geo = new THREE.LatheGeometry(pts, seg);
+        break;
+      }
+    }
+    const hex = spec.palette[part.color ?? 'concrete'] ?? part.color ?? '#b8bcc2';
+    const mesh = new THREE.Mesh(geo, specMaterial(hex.startsWith('#') ? hex : '#b8bcc2'));
+    const [x, y, z] = part.position ?? [0, 0, 0];
+    mesh.position.set(x, y, z);
+    mesh.rotation.y = THREE.MathUtils.degToRad(part.rotation_y ?? 0);
+    g.add(mesh);
+  }
+  return g;
+}
+
 export interface SiteRender {
   id: string;
   kind: BuildingKind;
@@ -17,6 +122,8 @@ export interface SiteRender {
   /** Height in metres of the hex column the building sits on. */
   baseHeight: number;
   isSelected: boolean;
+  /** Agent-designed model; overrides `kind` when present. */
+  spec?: ModelSpec;
 }
 
 const GROW_MS = 700;
@@ -195,12 +302,16 @@ export class BuildingsLayer implements CustomLayerInterface {
     }
     for (const site of sites) {
       const existing = this.entries.get(site.id);
-      if (existing && existing.site.kind === site.kind) {
+      if (
+        existing &&
+        existing.site.kind === site.kind &&
+        existing.site.spec?.id === site.spec?.id
+      ) {
         existing.site = site;
         continue;
       }
       if (existing) this.scene.remove(existing.group);
-      const group = builders[site.kind]();
+      const group = site.spec ? buildFromSpec(site.spec) : builders[site.kind]();
       group.visible = false;
       this.scene.add(group);
       this.entries.set(site.id, {

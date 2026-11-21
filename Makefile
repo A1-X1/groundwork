@@ -10,7 +10,7 @@ WEB_PORT ?= 5173
 
 STAMP   := $(VENV)/.groundwork-installed
 
-.PHONY: help dev install install-api install-pipeline install-web data data-offline train api web test test-api test-scoring test-web lint clean
+.PHONY: help dev install install-api install-pipeline install-agent install-web data data-offline train api web test test-api test-scoring test-web lint clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -37,21 +37,24 @@ dev: $(STAMP) frontend/node_modules ## One command: install what is missing, the
 	  (cd frontend && VITE_API_URL=http://localhost:$(API_PORT) npm run dev -- --port $(WEB_PORT) --strictPort) & \
 	  wait
 
-$(STAMP): backend/api/requirements.txt backend/pipeline/requirements.txt | $(BIN)/python
-	$(MAKE) install-api install-pipeline
+$(STAMP): backend/api/requirements.txt backend/pipeline/requirements.txt backend/agent/requirements.txt | $(BIN)/python
+	$(MAKE) install-api install-pipeline install-agent
 	@touch $(STAMP)
 
 frontend/node_modules: frontend/package-lock.json
 	cd frontend && npm ci
 	@touch frontend/node_modules
 
-install: install-api install-pipeline install-web ## Install everything
+install: install-api install-pipeline install-agent install-web ## Install everything
 
 install-api: $(BIN)/python ## Install API dependencies
 	$(call pip_install,backend/api/requirements.txt)
 
 install-pipeline: $(BIN)/python ## Install data pipeline / scoring dependencies
 	@if [ -f backend/pipeline/requirements.txt ]; then $(call pip_install,backend/pipeline/requirements.txt); else echo "backend/pipeline/requirements.txt not present yet — skipping"; fi
+
+install-agent: $(BIN)/python ## Install planning-agent dependencies (Mistral SDK, Azure ML)
+	@if [ -f backend/agent/requirements.txt ]; then $(call pip_install,backend/agent/requirements.txt); else echo "backend/agent/requirements.txt not present yet — skipping"; fi
 
 install-web: ## Install frontend dependencies
 	cd frontend && npm install

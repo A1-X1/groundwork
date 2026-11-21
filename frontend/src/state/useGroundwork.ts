@@ -65,6 +65,14 @@ export function useGroundwork() {
   const profileList = profiles.status === 'ready' ? profiles.data : [];
   const layersById = useMemo(() => new Map(layers.map((l) => [l.id, l])), [layers]);
 
+  /** Re-read profiles and layers (the planning agent can add both). */
+  const reload = useCallback(async () => {
+    const [ps, ls] = await Promise.all([api.profiles(), api.layers()]);
+    setProfiles({ status: 'ready', data: ps });
+    setLayers(ls);
+    setLayerValues({});
+  }, []);
+
   // ---- bootstrap
   useEffect(() => {
     let alive = true;
@@ -269,6 +277,7 @@ export function useGroundwork() {
     sites,
     chooseProfile,
     applyProfileWeights,
+    reload,
     setWeight,
     resetWeights,
     setOverlayId,

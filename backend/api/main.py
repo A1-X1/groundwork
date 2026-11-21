@@ -122,6 +122,16 @@ app.include_router(areas.router, responses=ERRORS)
 app.include_router(agent_routes.router, responses=ERRORS)
 
 
+def _reload_after_agent() -> None:
+    """The agent may add profiles, layers and models: drop cached data and scores."""
+    if hasattr(scoring, "reload"):
+        scoring.reload()
+    score_cache.clear()
+
+
+agent_routes.ON_FINISH.append(_reload_after_agent)
+
+
 # ---------------------------------------------------------------- errors
 
 
