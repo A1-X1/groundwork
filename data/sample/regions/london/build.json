@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-21T12:49:36Z",
+  "generated_at": "2026-11-21T14:57:45Z",
   "region": "london",
   "resolution": 8,
   "boundary": "simplified built-in outline",
@@ -178,6 +178,21 @@
     "dist_airport": {
       "status": "synthetic",
       "reason": "offline and no cache at data/raw/osm/gen_dist_airport/0_0.json",
+      "seconds": 0.01
+    },
+    "dist_primary_road": {
+      "status": "synthetic",
+      "reason": "offline and no cache at data/raw/osm/gen_dist_primary_road/0_0.json",
+      "seconds": 0.17
+    },
+    "dist_tourist_attraction": {
+      "status": "synthetic",
+      "reason": "offline and no cache at data/raw/osm/gen_dist_tourist_attraction/0_0.json",
+      "seconds": 0.01
+    },
+    "green_space_share": {
+      "status": "synthetic",
+      "reason": "offline and no cache at data/raw/osm/gen_green_space_share/0_0.json",
       "seconds": 0.01
     },
     "seismic_activity": {

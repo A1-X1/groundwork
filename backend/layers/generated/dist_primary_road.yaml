@@ -1,0 +1,13 @@
+id: dist_primary_road
+label: Distance to primary road
+unit: m
+kind: proximity
+description: Distance to nearest primary or trunk road from OSM
+template: osm_proximity
+params:
+  selectors:
+  - way["highway"="primary"]
+  - way["highway"="trunk"]
+  - way["highway"="motorway"]
+added_by: agent
+is_mask: false

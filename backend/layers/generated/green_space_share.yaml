@@ -1,0 +1,17 @@
+id: green_space_share
+label: Green space share
+unit: share of hex
+kind: aggregate
+description: Share of hex covered by parks, forests, grasslands and other green spaces
+  from OSM
+template: osm_share
+params:
+  selectors:
+  - nwr["landuse"="forest"]
+  - nwr["landuse"="grass"]
+  - nwr["landuse"="park"]
+  - nwr["landuse"="recreation_ground"]
+  - nwr["natural"="wood"]
+  - nwr["natural"="grassland"]
+added_by: agent
+is_mask: false
