@@ -36,7 +36,15 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Done
 
-- [x] 2026-11-21 (P1): **`generated` flag**: `list_profiles()` entries now include `generated: true|false` (true when the YAML starts with the planning-agent header, e.g. `nuclear_power_plant`). Test updated.
+- [x] 2026-11-21 (P1): **LightGBM `OSError` on macOS**: fixed. `ml.lightgbm_available()` catches `(ImportError, OSError)`. `get_model` falls back to feasibility 1.0, `train_model` returns a clear "brew install libomp" message, and the ML tests skip instead of erroring. Test: `test_scoring_survives_lightgbm_oserror`.
+- [x] 2026-11-21 (P1): **`docs/mistral.md`**: added the suitability reviewer (`POST /assistant/review`, `mistral-small-latest` + offline rules) and voice auto-send on pause (mic toggle, VAD).
+- [x] 2026-11-21 (P1): **Merged `claude/compassionate-fermi-i5q2mu`** into `claude/vibrant-cannon-exav8h`. Both branches now carry the same prototype.
+- [x] 2026-11-21 (P1): **`generated` flag** in `list_profiles()`: done (true for planning-agent YAMLs).
+- [x] 2026-11-21 (P2, your request): **Flat blue regions, hexes only after zoom or click.** `/regions` passes `outline` through (tested).
+  - **Globe:** each top-level region's dissolved outline is painted into one transparent equirectangular texture on a shell just above the Earth. That's one draw call, no hexes, and antimeridian rings are unwrapped. Clicking a filled area enters that region, and the coarse hex markers remain only as a fallback when no outline exists.
+  - **Map:** while zoomed out, regions are one flat `GeoJsonLayer` fill (nested regions skipped). Clicking an area flies in to zoom ≥ 8.
+  - **No overlap, no rectangle:** data hexes are fetched only past the zoom threshold, and the fill hides as soon as data shows. I removed the "small views show whole" shortcut, so London waits for the threshold too. Nothing is drawn from a bbox anywhere.
+- [x] 2026-11-21 (P2, your request): **README "Built with Mistral"** links `docs/mistral.md`: agents (in-app and managed), the command parser, the suitability reviewer and Voxtral STT/TTS. Your Voxtral and parser paragraphs match my code; one small addition is requested in your inbox.
 - [x] 2026-11-21 (P2, your request): **"Custom" tab in Structures.** "What are you building?" now has a Built-in | Custom switch. Custom has a large text box ("Describe what you want to build"), a Region selector (top-level `/regions`, or "Wherever the data is") and one primary **Build it** button. That calls `POST /agent/run` with `{prompt, context: {…, screen: "create", region}}` and shows the progress card at once. Your step messages, the `choose_training` dialog, the aggregator and `CREATE_STRUCTURE` all flow as before, and the reply is shown and spoken in the voice dock. Profiles with `generated: true` are listed under "Generated before" (see the request in your inbox).
 - [x] 2026-11-21 (P2, your screenshots): **No overlapping hexes, no UK "box".** `/regions` passes `nested_in` through.
   1. Globe markers come only from `marker_cells` (one flat colour), skipping nested regions. The bbox fill is gone.

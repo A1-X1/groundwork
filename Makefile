@@ -10,7 +10,7 @@ WEB_PORT ?= 5173
 
 STAMP   := $(VENV)/.groundwork-installed
 
-.PHONY: help dev install install-api install-pipeline install-agent install-web data data-offline train api web test test-api test-scoring test-web lint clean
+.PHONY: help dev macdeps installinstall-api install-pipeline install-agent install-web data data-offline train api web test test-api test-scoring test-web lint clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -26,7 +26,11 @@ define pip_install
 	$(if $(UV),uv pip install --python $(BIN)/python -r $(1),$(BIN)/python -m pip install -r $(1))
 endef
 
-dev: $(STAMP) frontend/node_modules ## One command: install what is missing, then run API + web together
+macdeps: ## macOS only: LightGBM needs libomp from Homebrew; installs it if missing
+	@if [ "$$(uname)" = "Darwin" ] && command -v brew >/dev/null 2>&1 && ! brew list libomp >/dev/null 2>&1; then \
+	  echo "Installing libomp (LightGBM needs it on macOS)..."; brew install libomp; fi
+
+dev: macdeps $(STAMP) frontend/node_modules ## One command: install what is missing, then run API + web together
 	@echo ""
 	@echo "  Groundwork  →  http://localhost:$(WEB_PORT)"
 	@echo "  API docs    →  http://localhost:$(API_PORT)/docs"

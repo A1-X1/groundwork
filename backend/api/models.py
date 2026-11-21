@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -248,6 +248,11 @@ class Region(BaseModel):
         default_factory=list,
         description="Coarse H3 cells tracing the region's land (no sea), for globe markers and "
         "for clipping the map's surrounding grid.",
+    )
+    outline: dict[str, Any] | None = Field(
+        default=None,
+        description="Dissolved GeoJSON Polygon/MultiPolygon (lon/lat) of the region's land, drawn "
+        "as one flat area when zoomed out. Null for nested regions.",
     )
     nested_in: str | None = Field(
         default=None,

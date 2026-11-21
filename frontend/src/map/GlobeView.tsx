@@ -11,6 +11,7 @@ import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
 import { cellToBoundary, cellToChildren, getRes0Cells } from 'h3-js';
 import { buildSpace, MAX_DISTANCE, subsolarPoint } from './space';
+import { paintAreas, type PaintedAreas, type RegionArea } from './regionAreas';
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RAMPS, sample } from '../lib/colour';
@@ -36,6 +37,8 @@ interface Props {
   target: GlobeTarget | null;
   zoom: { dir: 'in' | 'out'; nonce: number } | null;
   regionHexes: RegionHex[];
+  /** Regions as flat filled areas (dissolved outlines); preferred over regionHexes. */
+  regionAreas?: RegionArea[];
   notice: string | null;
   onArrive: (target: GlobeTarget) => void;
   /** Click on a data region (with the clicked point), or the enter button (no point). */
@@ -152,6 +155,7 @@ export function GlobeView(props: Props) {
     zoomTo: (d: number) => void;
     jump: (q: THREE.Quaternion, d: number) => void;
     setRegion: (hexes: RegionHex[]) => void;
+    setAreas: (areas: RegionArea[]) => void;
     distance: () => number;
     redraw: () => void;
   } | null>(null);
@@ -229,6 +233,31 @@ export function GlobeView(props: Props) {
     globe.add(grid);
 
     let region: THREE.Mesh | null = null;
+    // ---- flat region areas: one transparent textured shell just above the Earth
+    let areaShell: THREE.Mesh | null = null;
+    let painted: PaintedAreas | null = null;
+    const setAreas = (areas: RegionArea[]) => {
+      if (areaShell) {
+        globe.remove(areaShell);
+        (areaShell.material as THREE.MeshBasicMaterial).map?.dispose();
+        (areaShell.material as THREE.Material).dispose();
+        areaShell = null;
+      }
+      painted = null;
+      if (!areas.length) return renderOnce();
+      painted = paintAreas(areas, [118, 172, 255]);
+      areaShell = new THREE.Mesh(
+        new THREE.SphereGeometry(1.0025, 96, 64),
+        new THREE.MeshBasicMaterial({
+          map: painted.texture,
+          transparent: true,
+          opacity: 0.55,
+          depthWrite: false,
+        }),
+      );
+      globe.add(areaShell);
+      renderOnce();
+    };
     const setRegion = (hexes: RegionHex[]) => {
       if (region) {
         globe.remove(region);
@@ -270,13 +299,21 @@ export function GlobeView(props: Props) {
     };
     const onUp = (e: PointerEvent) => {
       dragging = false;
-      if (moved > 6 || !region) return;
+      if (moved > 6 || (!region && !areaShell)) return;
       const rect = renderer.domElement.getBoundingClientRect();
       const ndc = new THREE.Vector2(
         ((e.clientX - rect.left) / rect.width) * 2 - 1,
         -((e.clientY - rect.top) / rect.height) * 2 + 1,
       );
       raycaster.setFromCamera(ndc, camera);
+      if (areaShell && painted) {
+        const hit = raycaster.intersectObject(areaShell)[0];
+        if (!hit) return;
+        const [lat, lon] = toLatLon(globe.worldToLocal(hit.point.clone()));
+        if (painted.regionAt(lat, lon) >= 0) propsRef.current.onEnterRegion([lat, lon]);
+        return;
+      }
+      if (!region) return;
       const hit = raycaster.intersectObject(region)[0];
       if (hit) propsRef.current.onEnterRegion(toLatLon(globe.worldToLocal(hit.point.clone())));
     };
@@ -384,6 +421,7 @@ export function GlobeView(props: Props) {
         renderOnce();
       },
       setRegion,
+      setAreas,
       distance: () => distance,
       redraw: kick,
     };
@@ -423,8 +461,11 @@ export function GlobeView(props: Props) {
   }, []);
 
   useEffect(() => {
-    api.current?.setRegion(props.regionHexes);
-  }, [props.regionHexes]);
+    // Flat areas when outlines exist; the coarse hex markers only as a fallback.
+    const areas = props.regionAreas ?? [];
+    api.current?.setAreas(areas);
+    api.current?.setRegion(areas.length ? [] : props.regionHexes);
+  }, [props.regionHexes, props.regionAreas]);
 
   useEffect(() => {
     const t = props.target;

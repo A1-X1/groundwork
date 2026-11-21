@@ -26,6 +26,7 @@ import { formatRaw, formatScore } from './lib/format';
 import { overlayFor } from './lib/overlays';
 import { kindForProfile, type ModelSpec, type SiteRender } from './map/buildings';
 import { GlobeView, type GlobeTarget, type RegionHex } from './map/GlobeView';
+import type { RegionArea } from './map/regionAreas';
 import {
   ELEVATION_SCALE,
   MapView,
@@ -283,9 +284,12 @@ export default function App() {
   );
   // The globe marks where data exists (from /regions), never the detailed hexes themselves.
   const regionHexes: RegionHex[] = useMemo(() => regionMarkers(regions), [regions]);
-  /** Coarse land cells of every top-level region (nested ones have none): map outlines. */
-  const regionCells = useMemo(
-    () => regions.filter((r) => !r.nested_in).flatMap((r) => r.marker_cells ?? []),
+  /** Each top-level region's dissolved outline: one flat area on the globe and zoomed-out map. */
+  const regionAreas: RegionArea[] = useMemo(
+    () =>
+      regions.flatMap((r) =>
+        !r.nested_in && r.outline ? [{ id: r.id, name: r.name, outline: r.outline }] : [],
+      ),
     [regions],
   );
   /** The smallest data region containing the map centre (London inside the UK → London). */
@@ -1081,8 +1085,8 @@ export default function App() {
             settleCamera();
           }}
           onZoomOut={onMapZoomOut}
-          regionCells={
-            gw.viewReason === 'zoom_in' || gw.viewReason === 'no_data' ? regionCells : undefined
+          regionAreas={
+            gw.viewReason === 'zoom_in' || gw.viewReason === 'no_data' ? regionAreas : undefined
           }
         />
         <GlobeView
@@ -1091,6 +1095,7 @@ export default function App() {
           target={globeTarget}
           zoom={globeZoom}
           regionHexes={regionHexes}
+          regionAreas={regionAreas}
           notice={globeNotice}
           onArrive={onArrive}
           onEnterRegion={(at) => {

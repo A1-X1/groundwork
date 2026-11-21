@@ -1,6 +1,12 @@
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { H3HexagonLayer } from '@deck.gl/geo-layers';
-import { IconLayer, PathLayer, PolygonLayer, ScatterplotLayer } from '@deck.gl/layers';
+import {
+  GeoJsonLayer,
+  IconLayer,
+  PathLayer,
+  PolygonLayer,
+  ScatterplotLayer,
+} from '@deck.gl/layers';
 import type { PickingInfo } from '@deck.gl/core';
 import { VStack } from '@astryxdesign/core/VStack';
 import { cellToLatLng } from 'h3-js';
@@ -13,6 +19,7 @@ import { categoryOf, POI_LABEL, poiIconUrl } from './poiIcons';
 import { MASKED_RGB, RAMPS, sample, type RampId } from '../lib/colour';
 import { BuildingsLayer, type SiteRender } from './buildings';
 import { GLOBE_ZOOM } from '../lib/viewport';
+import type { RegionArea } from './regionAreas';
 
 export interface HexDatum {
   h3: string;
@@ -50,7 +57,8 @@ interface Props {
   zoomCmd: { dir: 'in' | 'out'; nonce: number } | null;
   pois: Poi[];
   /** Outlines of the regions with data, drawn while zoomed out past the hex threshold. */
-  regionCells?: string[];
+  /** Regions as flat areas while zoomed out; clicking one zooms in until data hexes load. */
+  regionAreas?: RegionArea[];
   /** False while hidden behind the home screen; the map resizes when it becomes visible. */
   isActive: boolean;
   basemap: Basemap;
@@ -458,25 +466,26 @@ export function MapView(props: Props) {
       parameters: { depthCompare: 'always' },
       transitions: prefersReducedMotion() ? {} : { getSize: 200 },
     });
-    // Where data exists, while zoomed out: the regions' coarse land cells (one shared
-    // resolution, never overlapping, never over the sea). Hidden once data hexes load, so big
-    // and small hexes never stack.
-    const regionCells = props.regionCells ?? [];
-    const outlineLayer = new H3HexagonLayer<string>({
-      id: 'region-cells',
-      data: regionCells,
-      getHexagon: (d) => d,
+    // Where data exists, while zoomed out: each region as one flat blue area (no hexagons, so
+    // nothing can overlap). Hidden once data hexes load. Clicking an area zooms in to it.
+    const areas = props.regionAreas ?? [];
+    const outlineLayer = new GeoJsonLayer<unknown>({
+      id: 'region-areas',
+      data: { type: 'FeatureCollection', features: areas.map((r) => ({ type: 'Feature', properties: { id: r.id, name: r.name }, geometry: r.outline })) } as never,
       filled: true,
       stroked: true,
-      extruded: false,
-      highPrecision: false,
-      getFillColor: [...ACCENT, 34],
-      getLineColor: [...ACCENT, 150],
+      getFillColor: [...ACCENT, 70],
+      getLineColor: [...ACCENT, 200],
       lineWidthMinPixels: 1,
-      lineWidthMaxPixels: 1,
-      visible: regionCells.length > 0,
-      pickable: false,
-    });
+      wrapLongitude: true,
+      visible: areas.length > 0,
+      pickable: true,
+      onClick: ({ coordinate }: PickingInfo) => {
+        const map = mapRef.current;
+        if (!map || !coordinate) return;
+        map.flyTo({ center: [coordinate[0]!, coordinate[1]!], zoom: Math.max(map.getZoom() + 2, 8), duration: prefersReducedMotion() ? 0 : 1200 });
+      },
+    }); // prettier-ignore
     const areaLayer = new PolygonLayer<MapArea>({
       id: 'areas',
       data: props.areas,
@@ -562,7 +571,7 @@ export function MapView(props: Props) {
     props.selectedAreaId,
     props.draft,
     props.isDrawing,
-    props.regionCells,
+    props.regionAreas,
   ]);
 
   return (

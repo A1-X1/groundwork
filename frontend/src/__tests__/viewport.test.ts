@@ -41,8 +41,9 @@ describe('viewport data view', () => {
     expect(view?.bbox && contains(view.bbox, [-100, 38, -97, 40])).toBe(true);
   }); // prettier-ignore
 
-  it('shows a small region whole even when zoomed out', () => {
-    expect(viewFor({ bbox: [-3, 50.5, 2, 52.5], zoom: 6.5 }, regions, null).reason).toBe('ok');
+  it('waits for the zoom threshold even for a small region (flat area until then)', () => {
+    expect(viewFor({ bbox: [-3, 50.5, 2, 52.5], zoom: 6.5 }, regions, null).reason).toBe('zoom_in');
+    expect(viewFor({ bbox: [-0.3, 51.4, 0.1, 51.6], zoom: 9.5 }, regions, null).reason).toBe('ok');
   });
 
   it('fetches mixed-resolution views once the coarser region is zoomed in', () => {

@@ -244,3 +244,18 @@ def test_regions_pass_marker_cells_through(client, monkeypatch) -> None:
         body[0]["marker_cells"] == ["841f1d5ffffffff"]
         and body[0]["marker_resolution"] == 4
     )
+
+
+def test_regions_pass_outline_through(client, monkeypatch) -> None:
+    """The dissolved GeoJSON outline reaches the client; nested regions keep null."""
+    from backend.api import main
+
+    outline = {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 0]]]}
+    regions = [
+        {"id": "a", "name": "A", "bbox": [0, 0, 1, 1], "resolution": 7, "cells": 1, "outline": outline},
+        {"id": "b", "name": "B", "bbox": [0, 0, 1, 1], "resolution": 8, "cells": 1,
+         "outline": None, "nested_in": "a"},
+    ]  # fmt: skip
+    monkeypatch.setattr(main.scoring, "list_regions", lambda: regions, raising=False)
+    body = client.get("/regions").json()
+    assert body[0]["outline"] == outline and body[1]["outline"] is None
