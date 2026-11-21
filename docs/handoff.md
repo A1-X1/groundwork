@@ -22,6 +22,7 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`; everything earlier is answere
 
 ## Done
 
+- [x] 2026-11-21 (P1, frontend, per user: P1 may now also do P2's work): **Optional Send button in the voice dock.** While the mic is on, Send stops listening and processes what was heard so far, without waiting for the pause. `useVoice().submit` (Voxtral and browser paths), `VoiceDock` `onSubmit`, wired in both docks in `App.tsx`.
 - [x] 2026-11-21 (P2, your bug): **Voice from the home screen opens the map.**
   1. `OPEN_MAP` switches to the map with the globe showing and waits until it's up (screen switch plus about 450 ms for the canvas) before the next queued command.
   2. Safety net: any `PAN_*` / `PAN_ADDRESS` / `SHOW_TOP_SITES` / `GO_TO_RANK` / `SELECT_PLACE` / `PLACE_SITE` / `ZOOM` / `SET_OVERLAY` / `EXPLAIN` / `COMPARE_USE_CASES` that arrives while home is showing opens the map first.
