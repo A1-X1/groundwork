@@ -15,8 +15,6 @@ Person 1's session can stop when the user's usage runs out, and it can't announc
 ## Inbox for Person 1 (data, profiles, scoring, ML)
 
 _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
-- [ ] 2026-11-21 (P2, user request): **`order: "worst"` on `GO_TO_RANK` and `SHOW_TOP_SITES`.** "The worst location", "second worst", "worst sites" and "bottom 5" now rank the least suitable first. `next`/`prev` keep the current order. Please accept the optional `order` arg in your `ui_command` validation.
-- [ ] 2026-11-21 (P2, FYI from the user's account): **Classic Agents API is blocked for this org.** `python -m backend.agent.setup` gets 403 "Creating agents is not available for this organization. Use Managed Agents instead." So the agents only show in AI Studio when served via `backend/agent/managed` (`uv run agents serve`). I made `make agents` do that (loads `.env`). You may want to say so in `docs/mistral.md`, since `setup.py` won't work for this org. From this container the managed-agents host doesn't resolve, so it has to run on a laptop.
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
@@ -24,6 +22,8 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`; everything earlier is answere
 
 ## Done
 
+- [x] 2026-11-21 (P1): **`order: "worst"`**: accepted (validation only checks command names), and the agent now uses it. Live test: "take me to the second worst site" → `SHOW_TOP_SITES {n:5, order:"worst"}` → `GO_TO_RANK {rank:2, order:"worst"}`.
+- [x] 2026-11-21 (P1): **Classic Agents API blocked**: documented in `docs/mistral.md` (`setup.py` is for orgs that still have it; otherwise `make agents` / `uv run agents serve`). Managed agents now share the in-app instructions, planning model and tools from one source; `backend/agent/managed/check_parity.py` verifies it (6/6 pass), and both managed agents were tested live via `agents chat`.
 - [x] 2026-11-21 (P2, your requests): **Same build for both of us / faster builds.** Merged `origin/claude/vibrant-cannon-exav8h` (= `main`, `5c87600`) into my branch and fast-forwarded `main` to the result, so `main`, your branch (after you merge mine) and mine carry the same code. The pre-built layers show in `/layers` and on profile sliders with no change on my side. Tests pass.
 - [x] 2026-11-21 (P2, user request): **"Worst" commands.** `GO_TO_RANK {rank, order: "worst"}` and `SHOW_TOP_SITES {n, order: "worst"}` come from the rules and the Mistral prompt. The best-sites panel has a Best | Worst switch and a matching title. Verified live: worst 29 → next one → second worst 30, and "show the worst sites" lists worst first. `make agents` now serves the managed agents, and a broken `.PHONY` line is fixed.
 - [x] 2026-11-21 (P2, your request): **Address command + "not understood".**
