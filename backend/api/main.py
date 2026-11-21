@@ -23,7 +23,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from backend.api import scoring_source
+from backend.api import assistant, scoring_source
 from backend.api.models import (
     CompareEntry,
     CompareResponse,
@@ -66,6 +66,7 @@ TAGS = [
     {"name": "profiles", "description": "Use cases: which layers matter, how much, and masks."},
     {"name": "layers", "description": "Per-hexagon data layers for map overlays."},
     {"name": "scores", "description": "Suitability for a profile, a point, or a comparison."},
+    {"name": "assistant", "description": "Natural-language / voice commands for the UI."},
 ]
 
 ERRORS: dict[int | str, dict[str, Any]] = {
@@ -293,7 +294,12 @@ def health() -> Health:
     real versus synthetic fallbacks."""
     layers: dict[str, str] = {layer["id"]: "unknown" for layer in scoring.list_layers()}
     generated_at = None
-    if hasattr(scoring, "data_status"):
+    if hasattr(scoring, "health"):
+        info = scoring.health() or {}
+        generated_at = info.get("data_generated_at")
+        for lid, status in (info.get("layers") or {}).items():
+            layers[lid] = status if status in {"real", "synthetic"} else "unknown"
+    elif hasattr(scoring, "data_status"):
         st = scoring.data_status() or {}
         generated_at = st.get("generated_at")
         for lid in st.get("real_layers") or []:
@@ -387,6 +393,28 @@ def parse_weights(raw: str | None) -> dict[str, float] | None:
     return validate_weights(out)
 
 
+def shap_explanation(res: dict[str, Any], raw: dict[str, float]) -> dict[str, Any] | None:
+    """Accept `shap_detail`, a structured `shap`, or a flat `{layer: value}` `shap`."""
+    detail = res.get("shap_detail")
+    if detail:
+        return detail  # type: ignore[no-any-return]
+    shap = res.get("shap")
+    if not shap:
+        return None
+    if "positive" in shap and "negative" in shap:
+        return shap  # type: ignore[no-any-return]
+    labels = {layer["id"]: layer["label"] for layer in scoring.list_layers()}
+    drivers = [
+        {"layer": k, "label": labels.get(k, k), "value": float(v), "raw": raw.get(k)}
+        for k, v in shap.items()
+    ]
+    return {
+        "base_value": 0.0,
+        "positive": sorted((d for d in drivers if d["value"] > 0), key=lambda d: -d["value"]),
+        "negative": sorted((d for d in drivers if d["value"] < 0), key=lambda d: d["value"]),
+    }
+
+
 def point_score(
     profile_id: str, lat: float, lon: float, weights: dict[str, float] | None
 ) -> PointScore:
@@ -405,11 +433,11 @@ def point_score(
         masked=bool(res.get("masked")),
         masks=res.get("masks") or [],
         sustainability=res.get("sustainability_score"),
-        feasibility=res.get("feasibility_score", res.get("feasibility")),
+        feasibility=res.get("feasibility") if res.get("model") else res.get("feasibility_score"),
         weights=res.get("weights") or {},
         breakdown=res.get("breakdown") or {},
         raw=res.get("raw") or {},
-        shap=res.get("shap"),
+        shap=shap_explanation(res, res.get("raw") or {}),
         model=res.get("model"),
         **rank,
     )
@@ -484,3 +512,18 @@ def compare(
             )
         )
     return CompareResponse(h3=h3_id, lat=lat, lon=lon, results=results)
+
+
+@app.post(
+    "/assistant/command",
+    response_model=assistant.AssistantResponse,
+    tags=["assistant"],
+    summary="Turn a spoken or typed request into UI commands",
+    responses=ERRORS,
+)
+def assistant_command(body: assistant.AssistantRequest) -> assistant.AssistantResponse:
+    """Uses Mistral when `MISTRAL_API_KEY` is set (environment or `.env`), otherwise a rule-based
+    parser. Output is always validated against the fixed command set (PAN_CITY, SET_PROFILE,
+    SET_OVERLAY, SET_WEIGHT, SHOW_TOP_SITES, PLACE_SITE, EXPLAIN, …), so the model can only ask
+    the frontend to do listed things. The key never leaves the server."""
+    return assistant.handle(body, scoring.list_profiles(), scoring.list_layers())

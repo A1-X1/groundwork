@@ -39,8 +39,9 @@ interface Props {
   focus: MapFocus | null;
   onHexClick: (h3: string, lat: number, lon: number) => void;
   onLowPower: () => void;
-  /** False while the globe intro plays: the map waits zoomed out, then flies in. */
-  introDone: boolean;
+  /** Set when the globe hands over: the map flies in to this point. */
+  arrival: { lat: number; lon: number; nonce: number } | null;
+  zoomCmd: { dir: 'in' | 'out'; nonce: number } | null;
 }
 
 export const ELEVATION_SCALE = 1800;
@@ -120,9 +121,9 @@ export function MapView(props: Props) {
       container: container as HTMLDivElement,
       style: STYLES[dark ? 'dark' : 'light'],
       center: CENTRE,
-      zoom: propsRef.current.introDone ? HOME.zoom : 5.2,
-      pitch: propsRef.current.introDone ? HOME.pitch : 0,
-      bearing: propsRef.current.introDone ? HOME.bearing : 0,
+      zoom: 5.2,
+      pitch: 0,
+      bearing: 0,
       maxPitch: 70,
       pixelRatio: Math.min(window.devicePixelRatio, 2),
       attributionControl: { compact: true },
@@ -179,18 +180,27 @@ export function MapView(props: Props) {
     };
   }, []);
 
-  // ---- hand-over from the globe intro
+  // ---- hand-over from the globe
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !props.introDone) return;
-    if (Math.abs(map.getZoom() - HOME.zoom) < 0.5) return;
+    const a = props.arrival;
+    if (!map || !a) return;
     map.flyTo({
-      center: CENTRE,
+      center: [a.lon, a.lat],
       ...HOME,
-      duration: prefersReducedMotion() ? 0 : 2200,
+      zoom:
+        Math.abs(a.lat - CENTRE[1]) < 0.3 && Math.abs(a.lon - CENTRE[0]) < 0.5 ? HOME.zoom : 10.8,
+      duration: prefersReducedMotion() ? 0 : 2000,
       essential: false,
     });
-  }, [props.introDone]);
+  }, [props.arrival]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !props.zoomCmd) return;
+    if (props.zoomCmd.dir === 'in') map.zoomIn();
+    else map.zoomOut();
+  }, [props.zoomCmd]);
 
   // ---- relief / terrain
   useEffect(() => {

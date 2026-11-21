@@ -119,3 +119,14 @@ export interface Health {
 export interface ApiErrorBody {
   error: { code: string; message: string; detail?: unknown };
 }
+
+export interface AssistantCommand {
+  type: string;
+  args: Record<string, unknown>;
+}
+
+export interface AssistantResponse {
+  commands: AssistantCommand[];
+  reply: string;
+  source: 'mistral' | 'rules';
+}

@@ -1,5 +1,6 @@
 import type {
   ApiErrorBody,
+  AssistantResponse,
   CompareResponse,
   Health,
   LayerMeta,
@@ -61,6 +62,11 @@ function fixtureOnly(): never {
 // ---------------------------------------------------------------- endpoints
 
 export const api = {
+  assistant: (text: string, context: Record<string, unknown>): Promise<AssistantResponse> =>
+    fixtures
+      ? Promise.reject(fixtureOnly())
+      : request('/assistant/command', { method: 'POST', body: JSON.stringify({ text, context }) }),
+
   health: (): Promise<Health> =>
     fixtures
       ? Promise.resolve({
