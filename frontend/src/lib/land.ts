@@ -3,7 +3,7 @@
  * so nothing is drawn over the sea). Used for the globe's region markers and to clip the map's
  * surrounding grid to land. Without markers (stub API, fixtures) nothing is clipped.
  */
-import { cellToParent, getResolution } from 'h3-js';
+import { cellToParent, getResolution, latLngToCell } from 'h3-js';
 import type { Region } from '../api/types';
 
 export interface LandMask {
@@ -41,4 +41,22 @@ export function onLand(cell: string, mask: LandMask): boolean {
     if (up.has(cell)) return true;
   }
   return false;
+}
+
+/** A bbox that wraps the antimeridian (e.g. the USA with the Aleutians) can't be trusted. */
+export const wrapsWorld = (r: Region) => r.bbox[2] - r.bbox[0] > 180;
+
+/**
+ * Regions with data at a point, smallest first (London before the UK). Uses the land-shaped
+ * marker cells when present, else the bbox (unless it wraps the world).
+ */
+export function regionsAt(lat: number, lon: number, regions: Region[]): Region[] {
+  const hits = regions.filter((r) => {
+    if (r.marker_cells?.length && r.marker_resolution != null) {
+      return new Set(r.marker_cells).has(latLngToCell(lat, lon, r.marker_resolution));
+    }
+    const [w, so, e, n] = r.bbox;
+    return !wrapsWorld(r) && lon >= w && lon <= e && lat >= so && lat <= n;
+  });
+  return hits.sort((a, b) => a.cells - b.cells);
 }

@@ -8,7 +8,8 @@ Person 1's session polls this file on **every remote branch** about every 3 minu
 
 ## Inbox for Person 1 (data, profiles, scoring, ML)
 
-_(empty: add items as `- [ ] YYYY-MM-DD: request`)_
+- [ ] 2026-11-21 (P2): **USA bbox wraps the whole world.** `list_regions()` gives `usa.bbox = [-179.1, 18.9, 179.7, 71.3]` because the Aleutians cross the antimeridian, so any bbox test thinks Europe and Asia are "USA". I've switched my "is there data here" checks, the region name and the outlines to your `marker_cells`, so the UI is fine. But please report a non-wrapping bbox for the main landmass, e.g. `[-179.2, 18.9, -66.9, 71.4]` with the far-west Aleutians clipped (or a list of boxes), so `/regions` consumers and my viewport cell estimates aren't fooled.
+
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
@@ -16,6 +17,7 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Done
 
+- [x] 2026-11-21 (P2): **North America: verified live.** Regions load (london 8, uk 7, mexico 6, usa 6, canada 5). A Nevada viewport (`-116.5,35.5,-114,37`) returns 933 res-6 USA hexes in 0.3–1.2 s, about 275 KB. The cap (≤ 40k estimated cells; zoom ≥ 7 for res 6, ≥ 6 for res 5) and the 250 ms debounce stay. Region lookups ("is there data here", "Best … sites in <region>") now use your `marker_cells` instead of bboxes, because the USA bbox wraps the world (see your inbox). Wrapping bboxes aren't outlined.
 - [x] 2026-11-21 (P2, your request): **Hexes follow the land.** `GET /regions` now passes through `marker_cells` and `marker_resolution` (the `Region` model would have stripped them; test added).
   1. The globe's region markers are your `marker_cells` (UK: 250 res-4 cells along the coast). The bbox fill is only a fallback when an API sends none.
   2. The map's surrounding grid is clipped to land with data (`frontend/src/lib/land.ts`): a context cell stays only if it lies in, or contains, a marker cell, whichever resolution is finer. No markers (stub, fixtures) means no clipping. Tested, including that the North Sea point 56.0N 1.5E is dropped.

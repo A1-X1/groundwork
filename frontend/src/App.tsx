@@ -17,7 +17,7 @@ import {
 import { AreaDetail, AreasPanel } from './panels/AreasPanel';
 import type { Area, AreaSummary, Region, StructureRecord } from './api/types';
 import type { BBox } from './lib/viewport';
-import { buildLandMask } from './lib/land';
+import { buildLandMask, regionsAt, wrapsWorld } from './lib/land';
 import type { Basemap, MapArea } from './map/MapView';
 import { HomeScreen } from './panels/HomeScreen';
 import { findPlace } from './lib/places';
@@ -288,13 +288,7 @@ export default function App() {
   const placeName = useMemo(() => {
     if (!mapBox) return null;
     const [w, so, e, n] = mapBox.bbox;
-    const lon = (w + e) / 2;
-    const lat = (so + n) / 2;
-    const hits = regions.filter(
-      ({ bbox: [rw, rs, re, rn] }) => lon >= rw && lon <= re && lat >= rs && lat <= rn,
-    );
-    hits.sort((a, b) => a.cells - b.cells);
-    return hits[0]?.name ?? null;
+    return regionsAt((so + n) / 2, (w + e) / 2, regions)[0]?.name ?? null;
   }, [mapBox, regions]);
   const poiKindsInView = useMemo(() => {
     if (globeVisible || screen !== 'explore' || !mapBox || mapBox.zoom < POI_MIN_ZOOM) return [];
@@ -306,8 +300,7 @@ export default function App() {
   }, [pois, mapBox, globeVisible, screen]);
   const hasDetail = useCallback(
     (lat: number, lon: number) =>
-      scoredIds.has(latLngToCell(lat, lon, 8)) ||
-      regions.some(({ bbox: [w, so, e, n] }) => lon >= w && lon <= e && lat >= so && lat <= n),
+      scoredIds.has(latLngToCell(lat, lon, 8)) || regionsAt(lat, lon, regions).length > 0,
     [scoredIds, regions],
   );
 
@@ -1068,7 +1061,9 @@ export default function App() {
           onZoomOut={onMapZoomOut}
           landMask={landMask}
           regionOutlines={
-            gw.viewReason === 'zoom_in' || gw.viewReason === 'no_data' ? regions : undefined
+            gw.viewReason === 'zoom_in' || gw.viewReason === 'no_data'
+              ? regions.filter((r) => !wrapsWorld(r))
+              : undefined
           }
         />
         <GlobeView
