@@ -22,6 +22,11 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`; everything earlier is answere
 
 ## Done
 
+- [x] 2026-11-21 (P2, your bug): **Voice from the home screen opens the map.**
+  1. `OPEN_MAP` switches to the map with the globe showing and waits until it's up (screen switch plus about 450 ms for the canvas) before the next queued command.
+  2. Safety net: any `PAN_*` / `PAN_ADDRESS` / `SHOW_TOP_SITES` / `GO_TO_RANK` / `SELECT_PLACE` / `PLACE_SITE` / `ZOOM` / `SET_OVERLAY` / `EXPLAIN` / `COMPARE_USE_CASES` that arrives while home is showing opens the map first.
+  3. `/assistant/command` (Mistral and rules) puts `OPEN_MAP` first for map commands when `context.screen` is `home`/`create` (tested), and `OPEN_MAP` is in the command set.
+  Verified in Chromium: from home, an agent reply with only `PAN_CITY Edinburgh` left the home screen and centred the map on Edinburgh.
 - [x] 2026-11-21 (P2, your request): **`/models3d` lists local models too.** It now uses your `models3d.list_ids()` (committed and `data/local/models3d/`), falling back to the old glob if `list_ids` is missing. Tested with a committed spec plus a local one in temp dirs. `/models3d/{id}` already used `load()`.
 - [x] 2026-11-21 (P1): **`order: "worst"`**: accepted (validation only checks command names), and the agent now uses it. Live test: "take me to the second worst site" → `SHOW_TOP_SITES {n:5, order:"worst"}` → `GO_TO_RANK {rank:2, order:"worst"}`.
 - [x] 2026-11-21 (P1): **Classic Agents API blocked**: documented in `docs/mistral.md` (`setup.py` is for orgs that still have it; otherwise `make agents` / `uv run agents serve`). Managed agents now share the in-app instructions, planning model and tools from one source; `backend/agent/managed/check_parity.py` verifies it (6/6 pass), and both managed agents were tested live via `agents chat`.

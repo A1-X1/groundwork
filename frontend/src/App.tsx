@@ -622,9 +622,23 @@ export default function App() {
   const runCommands = useCallback(
     async (cmds: AssistantCommand[]): Promise<string[]> => {
       const notes: string[] = [];
+      // Leave the home/create screen for the globe and wait until it is showing, so the next
+      // command (a fly-to, top sites…) acts on a visible map.
+      const openMap = async () => {
+        if (screenRef.current === 'explore') return;
+        setScreen('explore');
+        setGlobeVisible(true);
+        await waitFor(() => screenRef.current === 'explore', 2000);
+        await new Promise((r) => setTimeout(r, 450)); // globe canvas mounts and sizes
+      };
       for (const { type, args } of cmds) {
         const str = (k: string) => (typeof args[k] === 'string' ? (args[k] as string) : '');
+        // Safety net: map commands that arrive on the home screen open the map first.
+        if (MAP_COMMANDS.has(type) && screenRef.current !== 'explore') await openMap();
         switch (type) {
+          case 'OPEN_MAP':
+            await openMap();
+            break;
           case 'PAN_COUNTRY':
           case 'PAN_CITY':
           case 'PAN_REGION': {
@@ -1633,3 +1647,19 @@ function regionMarkers(regions: Region[]): RegionHex[] {
 }
 
 const keyRowCount = (kinds: string[]) => keyRows(kinds).length;
+
+/** Commands that act on the map: on the home screen they open it first. */
+const MAP_COMMANDS = new Set([
+  'PAN_COUNTRY',
+  'PAN_CITY',
+  'PAN_REGION',
+  'PAN_ADDRESS',
+  'SHOW_TOP_SITES',
+  'GO_TO_RANK',
+  'SELECT_PLACE',
+  'PLACE_SITE',
+  'ZOOM',
+  'SET_OVERLAY',
+  'EXPLAIN',
+  'COMPARE_USE_CASES',
+]);

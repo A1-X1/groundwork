@@ -285,3 +285,19 @@ def test_worst_commands() -> None:
         [{"type": "GO_TO_RANK", "args": {"rank": 1, "order": "sideways"}}], [], []
     )
     assert bad[0].args == {"rank": 1}
+
+
+def test_open_map_first_from_home(monkeypatch) -> None:
+    """On the home screen a map queue starts with OPEN_MAP; on the map it doesn't."""
+    from backend.api import assistant
+
+    monkeypatch.setattr(assistant, "mistral_key", lambda: None)
+    home = assistant.AssistantRequest(text="fly to Paris", context={"screen": "home"})
+    out = assistant.handle(home, [], [])
+    assert [c.type for c in out.commands] == ["OPEN_MAP", "PAN_CITY"]
+    on_map = assistant.AssistantRequest(
+        text="fly to Paris", context={"screen": "explore"}
+    )
+    assert [c.type for c in assistant.handle(on_map, [], []).commands] == ["PAN_CITY"]
+    help_home = assistant.AssistantRequest(text="help", context={"screen": "home"})
+    assert [c.type for c in assistant.handle(help_home, [], []).commands] == ["HELP"]

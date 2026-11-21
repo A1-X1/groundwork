@@ -61,6 +61,8 @@ COMMANDS: dict[str, list[str]] = {
     "SHOW_TOP_SITES": ["n", "profile", "order"],
     # fly to and select the n-th best scored hexagon in view; rank: 1, 2, … or "next"/"prev"
     "GO_TO_RANK": ["rank", "order"],
+    # leave the home/create screen and show the globe (first in any map queue from home)
+    "OPEN_MAP": [],
     # fly to a geocoded street address (the agent's find_address tool fills lat/lon)
     "PAN_ADDRESS": ["address", "lat", "lon"],
     "SELECT_PLACE": ["name", "lat", "lon"],
@@ -85,7 +87,7 @@ COMMANDS: dict[str, list[str]] = {
 CommandType = Literal[
     "PAN_COUNTRY", "PAN_CITY", "PAN_REGION", "ZOOM", "RESET_VIEW", "ROTATE_GLOBE",
     "SET_PROFILE", "SET_OVERLAY", "SET_WEIGHT", "RESET_WEIGHTS", "SHOW_TOP_SITES",
-    "GO_TO_RANK", "PAN_ADDRESS",
+    "GO_TO_RANK", "PAN_ADDRESS", "OPEN_MAP",
     "SELECT_PLACE", "PLACE_SITE", "REMOVE_SITE", "RENAME_SITE", "COMPARE_SITES",
     "COMPARE_USE_CASES", "EXPLAIN", "TOGGLE_MASKS", "TOGGLE_TERRAIN", "HELP",
     "OPEN_CREATE", "CREATE_STRUCTURE", "OPEN_STRUCTURE", "SHOW_MODEL", "SHOW_PROGRESS", "GO_HOME",
@@ -468,18 +470,42 @@ def _rules_part(text: str, profiles: list[dict], layers: list[dict]) -> list[dic
     return raw
 
 
+# Commands that need the map on screen; from the home/create screen they get OPEN_MAP first.
+_MAP_COMMANDS = {
+    "PAN_COUNTRY", "PAN_CITY", "PAN_REGION", "PAN_ADDRESS", "SHOW_TOP_SITES", "GO_TO_RANK",
+    "SELECT_PLACE", "PLACE_SITE", "ZOOM", "SET_OVERLAY", "EXPLAIN", "COMPARE_USE_CASES",
+}  # fmt: skip
+
+
+def open_map_first(cmds: list[Command], ctx: AssistantContext) -> list[Command]:
+    """Same rule as Person 1's agent: on home/create, a map queue starts with OPEN_MAP."""
+    if ctx.screen not in ("home", "create") or not cmds or cmds[0].type == "OPEN_MAP":
+        return cmds
+    if any(c.type in _MAP_COMMANDS for c in cmds):
+        return [Command(type="OPEN_MAP"), *cmds]
+    return cmds
+
+
 def handle(req: AssistantRequest, profiles: list[dict], layers: list[dict]) -> AssistantResponse:
     key = mistral_key()
     if key:
         try:
             cmds, reply, understood = ask_mistral(req.text, req.context, profiles, layers, key)
             return AssistantResponse(
-                commands=cmds, reply=reply, source="mistral", understood=understood
+                commands=open_map_first(cmds, req.context),
+                reply=reply,
+                source="mistral",
+                understood=understood,
             )
         except Exception as exc:  # network, quota, bad JSON: fall back to the offline parser
             log.warning("Mistral call failed (%s); using rule-based parser", exc)
     cmds, reply = rules(req.text, profiles, layers)
-    return AssistantResponse(commands=cmds, reply=reply, source="rules", understood=bool(cmds))
+    return AssistantResponse(
+        commands=open_map_first(cmds, req.context),
+        reply=reply,
+        source="rules",
+        understood=bool(cmds),
+    )
 
 
 # --------------------------------------------------------------------------- voxtral
