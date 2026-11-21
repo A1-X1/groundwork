@@ -23,6 +23,8 @@ export interface ModelSpec {
 type SpecPart = {
   position?: [number, number, number];
   rotation_y?: number;
+  /** Tilt in the x–y plane (e.g. turbine blades); pivots at the part's base centre. */
+  rotation_z?: number;
   color?: string;
 } & (
   | { shape: 'box'; size: [number, number, number] }
@@ -108,7 +110,13 @@ export function buildFromSpec(spec: ModelSpec): THREE.Group {
     const mesh = new THREE.Mesh(geo, specMaterial(hex.startsWith('#') ? hex : '#b8bcc2'));
     const [x, y, z] = part.position ?? [0, 0, 0];
     mesh.position.set(x, y, z);
-    mesh.rotation.y = THREE.MathUtils.degToRad(part.rotation_y ?? 0);
+    // Base sits at the local origin, so both rotations pivot on `position`. Three's default
+    // Euler order applies z (tilt) before y (heading).
+    mesh.rotation.set(
+      0,
+      THREE.MathUtils.degToRad(part.rotation_y ?? 0),
+      THREE.MathUtils.degToRad(part.rotation_z ?? 0),
+    );
     g.add(mesh);
   }
   return g;
@@ -232,6 +240,11 @@ const builders: Record<BuildingKind, () => THREE.Group> = {
   mine,
   generic,
 };
+
+/** A fresh model group: the agent's spec when there is one, else the built-in model. */
+export function buildModel(kind: BuildingKind, spec?: ModelSpec): THREE.Group {
+  return spec ? buildFromSpec(spec) : builders[kind]();
+}
 
 export function kindForProfile(profileId: string): BuildingKind {
   return profileId in builders ? (profileId as BuildingKind) : 'generic';

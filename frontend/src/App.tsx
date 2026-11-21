@@ -1027,6 +1027,8 @@ export default function App() {
               isAvailable={voice.engine !== null}
               onStart={voice.start}
               onStop={voice.stop}
+              muted={voice.muted}
+              onToggleMute={voice.toggleMute}
             />
           </HStack>
         </>
@@ -1044,6 +1046,7 @@ export default function App() {
         }}
       >
         <HStack
+          className="gw-nav"
           style={{
             pointerEvents: 'auto',
             borderRadius: 'var(--radius-full)',

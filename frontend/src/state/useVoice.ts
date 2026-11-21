@@ -36,6 +36,9 @@ export function useVoice(
   const [state, setState] = useState<VoiceState>('idle');
   const [message, setMessage] = useState<string | null>(null);
   const [engine, setEngine] = useState<'voxtral' | 'browser' | null>(null);
+  const [muted, setMuted] = useState(false);
+  const mutedRef = useRef(false);
+  mutedRef.current = muted;
   const level = useRef(0);
   const stopRef = useRef<(() => void) | null>(null);
   const handleRef = useRef(handle);
@@ -52,7 +55,7 @@ export function useVoice(
   }, []);
 
   const speak = useCallback((text: string) => {
-    if (!('speechSynthesis' in window) || !text) {
+    if (!('speechSynthesis' in window) || !text || mutedRef.current) {
       setState('idle');
       return;
     }
@@ -195,5 +198,12 @@ export function useVoice(
 
   const stop = useCallback(() => stopRef.current?.(), []);
 
-  return { state, level, message, engine, start, stop, speak, setMessage };
+  const toggleMute = useCallback(() => {
+    setMuted((m) => {
+      if (!m && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+      return !m;
+    });
+  }, []);
+
+  return { state, level, message, engine, start, stop, speak, setMessage, muted, toggleMute };
 }

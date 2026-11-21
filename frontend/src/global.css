@@ -99,5 +99,33 @@ p {
   filter: invert(1) brightness(0.9);
 }
 .maplibregl-ctrl-bottom-right {
-  margin: 0 max(var(--spacing-4), env(safe-area-inset-right)) max(var(--spacing-4), env(safe-area-inset-bottom)) 0;
+  margin: 0 max(var(--spacing-4), env(safe-area-inset-right))
+    max(var(--spacing-4), env(safe-area-inset-bottom)) 0;
+}
+
+/* Navbar: quiet hover feedback on top of Astryx's own button states. */
+.gw-nav {
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+.gw-nav:hover {
+  border-color: var(--color-border-emphasized) !important;
+}
+.gw-nav button,
+.gw-nav a {
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+.gw-nav a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .gw-nav button:hover svg {
+    transform: translateY(-1px);
+    transition: transform 140ms ease;
+  }
 }
