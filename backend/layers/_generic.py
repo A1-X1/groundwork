@@ -62,6 +62,8 @@ class LayerSpec(BaseModel):
                 raise ValueError(f"variable must be one of {sorted(OPENMETEO_DAILY)}")
             if v.get("aggregate", "mean") not in ("mean", "annual_sum", "annual_max"):
                 raise ValueError("aggregate must be mean | annual_sum | annual_max")
+            if not 1e-6 <= float(v.get("scale", 1.0)) <= 1e6:
+                raise ValueError("scale must be a positive unit-conversion factor")
         elif t == "usgs_earthquakes":
             if not 2.5 <= float(v.get("min_magnitude", 4.0)) <= 8:
                 raise ValueError("min_magnitude must be 2.5–8")
@@ -118,6 +120,7 @@ def _osm_share(spec: LayerSpec):
 
 def _openmeteo_daily(spec: LayerSpec):
     var, agg = spec.params["variable"], spec.params.get("aggregate", "mean")
+    scale = float(spec.params.get("scale", 1.0))
 
     def fetch() -> pd.DataFrame:
         start, end = _openmeteo.NORMALS
@@ -128,7 +131,7 @@ def _openmeteo_daily(spec: LayerSpec):
             s = pd.Series(np.asarray(loc["daily"][var], dtype=float), index=pd.to_datetime(loc["daily"]["time"]))
             yearly = s.groupby(s.index.year)
             value = {"mean": s.mean(), "annual_sum": yearly.sum().mean(), "annual_max": yearly.max().mean()}[agg]
-            rows.append({"lat": loc["latitude"], "lon": loc["longitude"], "value": float(value)})
+            rows.append({"lat": loc["latitude"], "lon": loc["longitude"], "value": float(value) * scale})
         return pd.DataFrame(rows)
 
     def to_hex(raw: pd.DataFrame, grid: pd.DataFrame) -> pd.Series:

@@ -1,0 +1,8 @@
+id: sunshine_hours
+label: Sunshine hours
+unit: h/yr
+kind: raster
+description: Mean yearly hours of bright sunshine (2016–2025), the direct driver of solar PV yield.
+template: openmeteo_daily
+params: {variable: sunshine_duration, aggregate: annual_sum, scale: 0.000277778}
+added_by: human

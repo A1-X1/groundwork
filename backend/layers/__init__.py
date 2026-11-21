@@ -21,6 +21,8 @@ BUILTIN_IDS: tuple[str, ...] = (
     "humidity_mean",
     "wind_speed_mean",
     "solar_irradiance",
+    "wind_speed_100m",
+    "wind_power_density",
     "precipitation_annual",
     "soil_moisture_mean",
     "evapotranspiration_annual",

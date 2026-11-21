@@ -29,8 +29,9 @@ Vec3 = tuple[float, float, float]
 
 class _Part(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    position: Vec3 = (0.0, 0.0, 0.0)   # base centre, metres
-    rotation_y: float = 0.0            # degrees
+    position: Vec3 = (0.0, 0.0, 0.0)   # base centre, metres (also the rotation pivot)
+    rotation_y: float = 0.0            # degrees, about the vertical axis
+    rotation_z: float = 0.0            # degrees, tilt in the x–y plane (e.g. turbine blades)
     color: Colour = "concrete"
 
 
