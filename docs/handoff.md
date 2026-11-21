@@ -12,78 +12,20 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
-- [ ] 2026-11-21 (P1, user request): **Floating panels and a detached navbar.** The user wants panels that look *in front of* the map, not docked to the side. Reference: https://github.com/JamesaCook5/eta.-WHACK (the user's pick; look at its panels).
-  - Left controls, right detail panel and top bar become **floating cards**: inset from the viewport edges (~16 px, respecting safe areas), fully rounded corners (inner radius = outer radius − padding), a subtle shadow/elevation on the dark theme, and the map visible all around them, edge to edge.
-  - **Navbar**: a rounded, pill-shaped bar floating at the top centre, not attached to the edges.
-  - Panels can collapse to a compact pill or icon so the map can take the whole screen. Keep the zero-layout-shift and motion rules (panels animate from their anchor, respect reduced motion), and keep Astryx components and the single accent colour.
-- [ ] 2026-11-21 (P1, user request): **Default use cases (home screen):** **Data centre, House, School, Solar farm, Wind farm** (ids `data_centre`, `house`, `school`, `solar_farm`, `wind_farm`). `scoring.default_profiles()` returns these ids in order. Other profiles (`mine`, `hospital`, `warehouse`, `office`, agent-made ones like `nuclear_power_plant`) stay available under "More". `wind_farm` and its data layers are now on my branch, with a 3D spec in `backend/profiles/models/wind_farm.json` (5 turbines). **Spec addition:** parts may set `rotation_z` (degrees, tilt in the x–y plane; used for turbine blades). The pivot for both rotations is the part's `position` (base centre), so build each mesh with its base at the local origin, then rotate and translate.
-- [ ] 2026-11-21 (P1): **Agent works live on Mistral** (`mistral-large-latest`). Prompt: "I'm looking for building a nuclear power plant". It made 15 tool calls: it added `seismic_activity` (real USGS data) and `dist_airport`, built both, created the `nuclear_power_plant` profile, designed its 3D model (2 cooling towers, reactor, dome, turbine hall and switchyard; 1,872 triangles), tried to train, found zero plants in London and stayed weights-only, previewed scores, and sent `SET_PROFILE`/`SET_OVERLAY`/`SHOW_TOP_SITES`/`PLACE_SITE`. The profile and `backend/profiles/models/nuclear_power_plant.json` are committed as the demo example. Note: `PLACE_SITE` carries `h3` (plus optionally `lat`/`lon`).
-- [ ] 2026-11-21 (P1): **Voice assistant UI: an interactive orb** (user request). A sphere in three.js with a smooth, flowing surface (a shader-displaced icosphere or soft gradient blob, in the spirit of modern voice-agent orbs, but our own design). It breathes slowly when idle, ripples and grows with mic input level while listening, swirls while thinking, and pulses with the TTS amplitude while speaking. Tap or press-and-hold to talk, hover to highlight, drag to spin it slightly. Use the single accent colour on the dark theme, respect `prefers-reduced-motion`, and keep it light (one mesh, no post-processing). Speech-to-text can use Mistral `voxtral-small-latest`; a Mistral key is already set up for P1's agent work.
-- [ ] 2026-11-21 (P1): **Planning agent (user request), in progress on P1's side in `backend/agent/`.** A Mistral tool-calling agent. Given e.g. "I'm looking for building a nuclear power plant", it:
-  1. identifies the use case
-  2. picks existing layers
-  3. adds new data sources from a vetted registry of free APIs as YAML layers (`backend/layers/generated/`, fixed templates such as OSM proximity, Open-Meteo daily and USGS seismic; no generated code)
-  4. writes and validates a profile YAML
-  5. writes a parametric three.js model spec
-  6. builds the new layers
-  7. trains the feasibility model in **Azure ML**, or locally if Azure isn't connected
-
-  P2 asks, once P1 publishes the Python interface (`backend.agent.run(prompt, on_event)` with streamed step events):
-  - `POST /agent/run` (SSE stream of steps and a final summary). The voice orb and the command palette both call it.
-  - A **Connections** screen with Mistral status and **Sign in to Azure ML** (subscription, resource group, workspace; browser or device-code login). When the agent returns `{"action": "connect_azure"}`, prompt the user to sign in, then resume.
-  - Render `backend/profiles/models/<profile>.json` parametric 3D specs as the placeable building (primitives: box, cylinder, cone, dome, hyperboloid cooling tower; spec format to follow).
-  - Keep `PAN_COUNTRY` / `PAN_CITY` etc. (earlier item) as the agent's UI commands.
-- [ ] 2026-11-21 (P1): **OSM downloads.** Public Overpass servers time out from the cloud container, and Geofabrik extracts also drop there, so OSM layers stay synthetic in cloud builds for now. Both usually work from a laptop. Nothing for you to do.
-
-- [ ] 2026-11-21 (P1): **`shap` shape stays structured:** `{base_value, positive[≤5], negative[≤5]}` of `{layer, label, value, raw}`, as your UI uses it. For about 30 minutes my branch briefly returned a flat dict there; that is reverted. The flat form is available as `shap_flat`. `feasibility` (null without a model) is also returned.
-- [ ] 2026-11-21 (P1): **Real data is arriving.** This environment can now reach the free data APIs. 10 of 34 layers are real in `data/sample` (elevation, slope, 2025 hourly weather layers, IXPs); the full online build is in progress. There are 4 new layers: `precipitation_annual`, `soil_moisture_mean`, `evapotranspiration_annual`, `temp_trend_decade` (10-year ERA5 normals). Endpoint status, sign-ups and the refresh policy are in `docs/data-sources.md`. The API never calls data sources; `make data` once a day is enough (caches expire per source).
-- [ ] 2026-11-21 (P1): **User direction: GLOBAL, real 3D Earth, Mistral voice commands.**
-
-  **1. Not just London: the product is global.** Person 1 is making the data side multi-region (details below). Frontend asks for you:
-  - **A real 3D Earth in three.js**: textured globe (day imagery + subtle atmosphere rim), starting zoomed out and rotating slowly. It flies to a country or city and hands over to the hex map at city zoom. `globe.gl` / `three-globe` are fine helpers, or raw three.js with `SphereGeometry` + GIBS/Blue Marble textures. Keep the minimal Meta-style dark UI (Astryx dark, one accent).
-  - **Hex layer at every zoom.** Coarse H3 (res 3–5) on the globe, res 8 when zoomed into a built region. Same `/score` and `/layers` calls with `bbox`; I'll make the scoring library pick regions by bbox, so the contract shape doesn't change.
-
-  **2. Mistral voice / natural-language commands (user plans to add).** Proposed command set. The LLM turns speech or text into a JSON list of these; the frontend executes them. Please own the parser endpoint (e.g. `POST /assistant/command`, with the Mistral key server-side in `.env`):
-
-  | Command | Args | Effect |
-  |---|---|---|
-  | `PAN_COUNTRY` | `name` | Fly the globe to a country's bounds |
-  | `PAN_CITY` | `name`, `country?` | Fly to a city (geocoded) |
-  | `PAN_REGION` | `bbox` or `name` | Fly to an arbitrary area |
-  | `ZOOM` | `direction: in\|out`, `levels?` | Zoom |
-  | `RESET_VIEW` | none | Back to the whole globe |
-  | `ROTATE_GLOBE` | `on\|off` | Idle spin |
-  | `SET_PROFILE` | `id` (data_centre, house, school, mine, …) | Switch use case |
-  | `SET_OVERLAY` | `layer` (suitability, thermal, height, flood, crime, air, or any layer id) | Switch overlay |
-  | `SET_WEIGHT` | `layer`, `weight` | Move a slider (re-scores) |
-  | `RESET_WEIGHTS` | none | Profile defaults |
-  | `SHOW_TOP_SITES` | `n?`, `profile?` | Highlight and list the best hexes in view |
-  | `SELECT_PLACE` | `name` or `lat,lon` | Open the detail panel there |
-  | `PLACE_SITE` | `profile?`, `name` or `lat,lon` | Drop a three.js building |
-  | `REMOVE_SITE` / `RENAME_SITE` | `id`, `name?` | Manage placed sites |
-  | `COMPARE_SITES` | `ids[2]` | Side-by-side |
-  | `COMPARE_USE_CASES` | `profiles[]`, place | Calls `/compare` |
-  | `EXPLAIN` | `place?` | Spoken "why this spot" from breakdown + SHAP |
-  | `TOGGLE_MASKS` / `TOGGLE_TERRAIN` | `on\|off` | Display toggles |
-  | `HELP` | none | List what it can do |
-
-  Geocoding for `PAN_COUNTRY` / `PAN_CITY`: Natural Earth admin-0 bounds (bundled, public domain) for countries, and Nominatim or GeoNames for cities. Person 1 will expose `scoring.list_regions()` so the assistant knows where detailed hexes exist.
-
-  **3. Free global data endpoints Person 1 is moving to** (most need no key; ⚠ = free key or manual download):
-  - Climate and air: Open-Meteo Historical Weather and Air Quality (global, no key, non-commercial use).
-  - Elevation: Open-Meteo Elevation (Copernicus GLO-90), or Copernicus DEM COGs on AWS Open Data.
-  - Population: WorldPop (100 m GeoTIFF, REST API) / JRC GHSL GHS-POP.
-  - Infrastructure (stations, substations, power lines, roads, water, parks, schools, data centres): OpenStreetMap via Overpass. Night lights: NASA Black Marble.
-  - Hazards: JRC global river flood maps; WRI Aqueduct floods and water stress; USGS earthquake catalogue API (new layer).
-  - Protected land: WDPA / Protected Planet (⚠ free token, or monthly download).
-  - Grid carbon intensity per country: Our World in Data energy CSV (GitHub, no key); Ember; Electricity Maps (⚠ free tier key).
-  - Minerals for the mine profile: USGS MRDS.
-  - Boundaries: Natural Earth (public domain), geoBoundaries API.
-  - Globe imagery for you: NASA GIBS WMTS / Blue Marble (public domain).
-  - Country-specific extras such as UK crime, IMD and Land Registry stay as optional per-region layers.
+_(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Done
 
+- [x] 2026-11-21 (P1): **`answer` content**: fixed in `runner._text()`. `answer.content` and the returned `content` are always a plain string with reasoning chunks dropped (if there's only reasoning, its text is used). Covered by `test_text_drops_reasoning_chunks`.
+- [x] 2026-11-21 (P1): **`default_profiles()` / `wind_farm`**: both on my branch. Defaults are `data_centre, house, school, solar_farm, wind_farm`. `wind_farm` uses real hub-height wind (`wind_speed_100m`, `wind_power_density`) and its 3D spec uses `rotation_z` for blades.
+- [x] 2026-11-21 (P1): **Real data**: the sample now has 27/41 real layers: WorldPop population, EA flood zones, Green Belt and SSSIs, police crime, CAMS air quality, grid carbon, ERA5 climate and wind. The OSM-derived layers are still synthetic from the cloud container (Overpass and Geofabrik refuse it); they become real on a laptop with `make data`.
+- [x] 2026-11-21 (P2): **Floating panels + detached navbar.** The map is now full-bleed. Controls and details are floating cards (inset `max(16px, safe-area)`, large radius, border and high shadow on dark), each collapsing to a pill at its own edge (state remembered; pops from its corner; still under reduced motion). The navbar is a pill at the top centre with the legend, Globe, Connections and API docs. The command bar sits between the cards, the voice assistant in its own hideable box at the bottom centre, and the basemap switch moved into Controls → Map. MapLibre controls are themed dark.
+- [x] 2026-11-21 (P2): **Default use cases.** The home screen builds its choices from `/profiles` (`is_default` first, the rest under "More"), so new and agent-made profiles appear without frontend changes. Icons exist for wind farm and nuclear plant.
+- [x] 2026-11-21 (P2): **Agent contract.** I pass `context` (profile, overlay, selection, globe/map), forward your events, ignore `thinking` in the UI, show `tool_call` messages as progress, treat `answer` as the reply, and send the single final `done {content, ui, actions, steps}`. Your UI commands (`{command, ...}`) run through the same executor as the assistant's, including `PLACE_SITE {h3}`. `connect_azure` / `connect_mistral` open Connections. After each run the API calls `scoring.reload()` and clears its score cache, and the frontend reloads profiles, layers and 3D model ids. Verified live with Mistral.
+- [x] 2026-11-21 (P2): **Azure credential.** After device-code sign-in the API calls `backend.agent.azure_ml.set_credential(cred)`. Connections also lets the user enter a Mistral key (validated against `/v1/models`, stored only in the gitignored `.env`).
+- [x] 2026-11-21 (P2): **3D specs.** `GET /models3d` and `/models3d/{id}`. The frontend builds box/cylinder/cone/dome/hyperboloid (lathed, cosine profile) meshes from your spec and uses them as the placed building for that profile, falling back to the built-in models.
+- [x] 2026-11-21 (P2): **`list_pois` / `list_regions`.** `/pois` uses yours per kind and falls back to my labelled seeds where you return `[]` (substations and stations in cloud builds). `GET /regions` is new; the globe treats any region bbox as "has detailed hexes".
+- [x] 2026-11-21 (P2): **Voice orb restyled (user request).** A soft, drifting multi-colour gradient (domain-warped noise) instead of a bumpy surface; it flows faster while thinking and ripples with the mic level.
 - [x] 2026-11-21 (P1): **Agent hook-up**: `backend.agent.run(prompt, on_event, context=None)` matches your route. Every event has `type` and a short `message` (shown as the latest step): `tool_call {name, args}`, `tool_result {name, result}`, `ui {commands}`, `thinking {content}`, `action_required {action, message}` (e.g. `action: "connect_azure"`), and finally `answer {content, steps}`. I don't emit `done`, so yours is the only one. The return value is small JSON: `{content, steps, ui, actions}`. `context` is passed to the model as UI context. Needs `MISTRAL_API_KEY` in the API's env, and `mistralai` from `backend/agent/requirements.txt`.
 - [x] 2026-11-21 (P1): **Azure ML config**: `backend.agent.azure_ml.config()` now reads `db.get_setting("azure_ml")` (env vars still win). Auth uses `DefaultAzureCredential` (shared token cache / `az login` / service principal). To reuse your device-code sign-in directly, call `backend.agent.azure_ml.set_credential(cred)` once it succeeds; that's the most reliable option. `train_model(backend="azure")` returns `{action_required: "connect_azure"}` while it isn't connected.
 - [x] 2026-11-21 (P1): **3D model spec format** (`backend/profiles/models/<profile_id>.json`, schema in `backend/agent/models3d.py`):

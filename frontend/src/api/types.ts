@@ -1,0 +1,217 @@
+/** Mirrors shared/contracts/score_response.schema.json and the API's pydantic models. */
+
+export type Better = 'higher' | 'lower';
+
+export interface ProfileLayer {
+  id: string;
+  weight: number;
+  better: Better;
+}
+
+export interface Profile {
+  id: string;
+  label: string;
+  description: string;
+  layers: ProfileLayer[];
+  masks: string[];
+  has_model: boolean;
+  /** Main option on the home screen; others go under "More". */
+  is_default?: boolean;
+}
+
+export interface Region {
+  id: string;
+  name: string;
+  bbox: [number, number, number, number];
+  resolution: number;
+  cells: number;
+}
+
+export interface LayerMeta {
+  id: string;
+  label: string;
+  unit: string;
+  kind: 'raster' | 'proximity' | 'aggregate';
+  description: string;
+  source: string;
+  min: number;
+  max: number;
+}
+
+export interface ScoredCell {
+  h3: string;
+  score: number | null;
+  masked: boolean;
+  breakdown: Record<string, number>;
+}
+
+export interface ScoreResponse {
+  profile: string;
+  resolution: number;
+  generated_at: string;
+  cells: ScoredCell[];
+}
+
+export interface LayerValue {
+  h3: string;
+  value: number;
+  raw: number;
+}
+
+export interface LayerValues {
+  layer: string;
+  resolution: number;
+  cells: LayerValue[];
+}
+
+export interface ShapDriver {
+  layer: string;
+  label: string;
+  value: number;
+  raw: number | null;
+}
+
+export interface ModelInfo {
+  type: string;
+  positives: string | null;
+  auc_spatial_cv: number | null;
+  n_positives: number | null;
+  positives_synthetic: boolean | null;
+  note: string | null;
+}
+
+export interface PointScore {
+  profile: string;
+  h3: string;
+  lat: number;
+  lon: number;
+  score: number | null;
+  masked: boolean;
+  masks: string[];
+  sustainability: number | null;
+  feasibility: number | null;
+  rank: number | null;
+  ranked_cells: number;
+  percentile: number | null;
+  weights: Record<string, number>;
+  breakdown: Record<string, number>;
+  raw: Record<string, number>;
+  shap: { base_value: number; positive: ShapDriver[]; negative: ShapDriver[] } | null;
+  model: ModelInfo | null;
+}
+
+export interface CompareEntry {
+  profile: string;
+  label: string;
+  score: number | null;
+  masked: boolean;
+  rank: number | null;
+  ranked_cells: number;
+  percentile: number | null;
+}
+
+export interface CompareResponse {
+  h3: string;
+  lat: number;
+  lon: number;
+  results: CompareEntry[];
+}
+
+export interface Health {
+  status: 'ok';
+  scoring_source: string;
+  data_generated_at: string | null;
+  layers: Record<string, 'real' | 'synthetic' | 'unknown'>;
+  real_layers: number;
+  synthetic_layers: number;
+}
+
+export interface ApiErrorBody {
+  error: { code: string; message: string; detail?: unknown };
+}
+
+export interface AssistantCommand {
+  type: string;
+  args: Record<string, unknown>;
+}
+
+export interface AssistantResponse {
+  commands: AssistantCommand[];
+  reply: string;
+  source: 'mistral' | 'rules';
+}
+
+export interface Poi {
+  id: string;
+  kind: 'substation' | 'ixp' | 'data_centre' | 'station' | 'water';
+  name: string;
+  lat: number;
+  lon: number;
+  source: string;
+}
+
+export interface GeoPolygon {
+  type: 'Polygon';
+  coordinates: [number, number][][];
+}
+
+export interface Area {
+  id: string;
+  name: string;
+  note: string;
+  geometry: GeoPolygon;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AreaSummary {
+  area_id: string;
+  profile: string;
+  cells: number;
+  area_km2: number;
+  scored_cells: number;
+  masked_cells: number;
+  mean_score: number | null;
+  best_h3: string | null;
+  best_score: number | null;
+}
+
+export interface StructureRecord {
+  id: string;
+  name: string;
+  type: string;
+  profile: string;
+  spec: Record<string, unknown> | null;
+  priorities: string[];
+  area_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AzureConfig {
+  subscription_id: string;
+  resource_group: string;
+  workspace: string;
+}
+
+export interface Connections {
+  mistral: { configured: boolean; chat_model: string | null; voxtral_model: string | null };
+  azure_ml: {
+    configured: boolean;
+    config: AzureConfig | null;
+    status: 'signed_out' | 'pending' | 'signed_in' | 'error' | 'unavailable';
+    message: string | null;
+    account: string | null;
+    verification_uri: string | null;
+    user_code: string | null;
+  };
+}
+
+export interface AgentEvent {
+  type: string;
+  step?: string;
+  message?: string;
+  action?: string;
+  result?: unknown;
+  [k: string]: unknown;
+}

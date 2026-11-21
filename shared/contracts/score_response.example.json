@@ -1,0 +1,35 @@
+{
+  "profile": "house",
+  "resolution": 8,
+  "generated_at": "2026-11-21T10:00:00Z",
+  "cells": [
+    {
+      "h3": "88195da49bfffff",
+      "score": 0.82,
+      "masked": false,
+      "breakdown": {
+        "crime_rate": 0.21,
+        "dist_station": -0.05,
+        "green_space_access": 0.08,
+        "median_house_price": -0.03
+      }
+    },
+    {
+      "h3": "88195da49dfffff",
+      "score": 0.47,
+      "masked": false,
+      "breakdown": {
+        "crime_rate": -0.04,
+        "dist_station": 0.06,
+        "green_space_access": -0.02,
+        "median_house_price": 0.01
+      }
+    },
+    {
+      "h3": "88195da4c3fffff",
+      "score": null,
+      "masked": true,
+      "breakdown": {}
+    }
+  ]
+}
