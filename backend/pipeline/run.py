@@ -145,9 +145,12 @@ def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--layers", help="comma-separated layer ids to (re)build; others are kept")
     ap.add_argument("--offline", action="store_true", help="never download; synthetic where not cached")
+    ap.add_argument("--refresh", action="store_true", help="re-download every cached source now")
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT, help="output directory (default data/processed)")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
+    if args.refresh:
+        os.environ["GROUNDWORK_REFRESH"] = "1"
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format="%(asctime)s %(levelname)-7s %(message)s", datefmt="%H:%M:%S")
     run([s.strip() for s in args.layers.split(",")] if args.layers else None, args.out, args.offline)

@@ -16,7 +16,8 @@ import pandas as pd
 from ._common import cached_json, http_get
 from ._geo import idw
 
-YEAR = 2025
+YEAR = 2025                       # hourly year (wet bulb, free-cooling hours)
+NORMALS = (2016, 2025)            # daily climate normals, inclusive
 LATS = np.linspace(51.29, 51.69, 5)
 LONS = np.linspace(-0.50, 0.32, 6)
 LAPSE_RATE = 0.0065  # °C per metre
@@ -29,11 +30,11 @@ def lattice() -> list[tuple[float, float]]:
     return [(float(la), float(lo)) for la in LATS for lo in LONS]
 
 
-def _batched(url: str, name: str, params: dict[str, Any]) -> list[dict[str, Any]]:
+def _batched(url: str, name: str, params: dict[str, Any], batch: int = 6) -> list[dict[str, Any]]:
     pts = lattice()
     out: list[dict[str, Any]] = []
-    for i in range(0, len(pts), 6):
-        chunk = pts[i:i + 6]
+    for i in range(0, len(pts), batch):
+        chunk = pts[i:i + batch]
         q = dict(params, latitude=",".join(f"{a:.4f}" for a, _ in chunk),
                  longitude=",".join(f"{b:.4f}" for _, b in chunk))
 
@@ -41,7 +42,8 @@ def _batched(url: str, name: str, params: dict[str, Any]) -> list[dict[str, Any]
             res = http_get(url, q, timeout=120)
             return res if isinstance(res, list) else [res]
 
-        out.extend(cached_json(f"open_meteo/{name}_{YEAR}_{i:02d}.json", produce))
+        # Fixed historical periods never change, so the cache never expires.
+        out.extend(cached_json(f"open_meteo/{name}_{i:02d}.json", produce))
     return out
 
 
@@ -54,7 +56,7 @@ def wet_bulb_stull(t: np.ndarray, rh: np.ndarray) -> np.ndarray:
 @lru_cache(maxsize=1)
 def weather_stats() -> pd.DataFrame:
     """Per-lattice-point climate statistics for ``YEAR``."""
-    raw = _batched(ARCHIVE_URL, "weather", {
+    raw = _batched(ARCHIVE_URL, f"weather_{YEAR}", {
         "start_date": f"{YEAR}-01-01", "end_date": f"{YEAR}-12-31",
         "hourly": "temperature_2m,relative_humidity_2m,wind_speed_10m,shortwave_radiation",
         "wind_speed_unit": "ms", "timezone": "UTC",
@@ -82,7 +84,7 @@ def weather_stats() -> pd.DataFrame:
 
 @lru_cache(maxsize=1)
 def air_stats() -> pd.DataFrame:
-    raw = _batched(AIR_URL, "air", {
+    raw = _batched(AIR_URL, f"air_{YEAR}", {
         "start_date": f"{YEAR}-01-01", "end_date": f"{YEAR}-12-31",
         "hourly": "nitrogen_dioxide,pm2_5", "timezone": "UTC",
     })
@@ -91,6 +93,33 @@ def air_stats() -> pd.DataFrame:
         "air_quality_no2": np.nanmean(np.asarray(loc["hourly"]["nitrogen_dioxide"], dtype=float)),
         "air_quality_pm25": np.nanmean(np.asarray(loc["hourly"]["pm2_5"], dtype=float)),
     } for loc in raw])
+
+
+@lru_cache(maxsize=1)
+def normals_stats() -> pd.DataFrame:
+    """Per-lattice-point 10-year climate normals from daily ERA5 data."""
+    start, end = NORMALS
+    raw = _batched(ARCHIVE_URL, f"normals_{start}_{end}", {
+        "start_date": f"{start}-01-01", "end_date": f"{end}-12-31",
+        "daily": "temperature_2m_mean,precipitation_sum,soil_moisture_0_to_7cm_mean,et0_fao_evapotranspiration",
+        "timezone": "UTC",
+    }, batch=3)
+    years = end - start + 1
+    rows = []
+    for loc in raw:
+        d = loc["daily"]
+        time = pd.to_datetime(d["time"])
+        t = pd.Series(np.asarray(d["temperature_2m_mean"], dtype=float), index=time)
+        annual = t.groupby(t.index.year).mean()
+        slope = np.polyfit(annual.index.to_numpy(dtype=float), annual.to_numpy(), 1)[0] if len(annual) > 2 else 0.0
+        rows.append({
+            "lat": loc["latitude"], "lon": loc["longitude"], "elevation": loc.get("elevation", 0.0),
+            "precipitation_annual": np.nansum(np.asarray(d["precipitation_sum"], dtype=float)) / years,
+            "soil_moisture_mean": np.nanmean(np.asarray(d["soil_moisture_0_to_7cm_mean"], dtype=float)),
+            "evapotranspiration_annual": np.nansum(np.asarray(d["et0_fao_evapotranspiration"], dtype=float)) / years,
+            "temp_trend_decade": float(slope * 10),
+        })
+    return pd.DataFrame(rows)
 
 
 def interpolate(stats: pd.DataFrame, column: str, grid: pd.DataFrame, *, lapse: bool = False) -> pd.Series:

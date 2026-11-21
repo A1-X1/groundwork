@@ -6,8 +6,8 @@
     "kind": "raster",
     "description": "Ground height above sea level at the hex centre.",
     "source": "Copernicus GLO-90 DEM via Open-Meteo Elevation API",
-    "min": 0.5,
-    "max": 205.21838767826728
+    "min": 0.0,
+    "max": 244.0
   },
   {
     "id": "slope",
@@ -16,8 +16,8 @@
     "kind": "raster",
     "description": "Steepest gradient from this hex to any neighbouring hex.",
     "source": "Derived from the elevation layer",
-    "min": 0.0,
-    "max": 2.6057185018249425
+    "min": 0.11395480620431245,
+    "max": 9.142294075778862
   },
   {
     "id": "mean_temp_annual",
@@ -26,8 +26,8 @@
     "kind": "raster",
     "description": "Mean of hourly 2 m air temperature over the year, lapse-rate corrected to hex elevation.",
     "source": "Open-Meteo Historical Weather API (ERA5 / ERA5-Land), 2025",
-    "min": 9.929686124110864,
-    "max": 12.380443857546853
+    "min": 10.35925507032356,
+    "max": 12.474259778068626
   },
   {
     "id": "summer_max_temp",
@@ -36,8 +36,8 @@
     "kind": "raster",
     "description": "Mean daily maximum temperature in June–August, lapse-rate corrected.",
     "source": "Open-Meteo Historical Weather API (ERA5 / ERA5-Land), 2025",
-    "min": 21.61843339848572,
-    "max": 25.50878808091767
+    "min": 21.799469802913798,
+    "max": 24.430741389002065
   },
   {
     "id": "wet_bulb_p99",
@@ -46,8 +46,8 @@
     "kind": "raster",
     "description": "99th percentile of hourly wet-bulb temperature (Stull 2011): the design point for evaporative cooling.",
     "source": "Open-Meteo Historical Weather API (ERA5 / ERA5-Land), 2025",
-    "min": 18.315515515478396,
-    "max": 19.846611553015407
+    "min": 17.945006857150165,
+    "max": 19.620474572946392
   },
   {
     "id": "free_cooling_hours",
@@ -56,8 +56,8 @@
     "kind": "raster",
     "description": "Hours per year with dry-bulb temperature below 18 °C, when air-side economisers can cool a data hall without chillers.",
     "source": "Open-Meteo Historical Weather API (ERA5 / ERA5-Land), 2025",
-    "min": 7547.958312430533,
-    "max": 8312.99239099505
+    "min": 6964.944382379209,
+    "max": 7734.577793152421
   },
   {
     "id": "humidity_mean",
@@ -66,8 +66,8 @@
     "kind": "raster",
     "description": "Mean hourly relative humidity at 2 m.",
     "source": "Open-Meteo Historical Weather API (ERA5 / ERA5-Land), 2025",
-    "min": 76.10148442497155,
-    "max": 81.86010507625012
+    "min": 73.59040054442579,
+    "max": 79.53640226321004
   },
   {
     "id": "wind_speed_mean",
@@ -76,8 +76,8 @@
     "kind": "raster",
     "description": "Mean hourly 10 m wind speed.",
     "source": "Open-Meteo Historical Weather API (ERA5 / ERA5-Land), 2025",
-    "min": 2.7669236425664945,
-    "max": 4.988208808115296
+    "min": 2.965606050119362,
+    "max": 4.046945943332674
   },
   {
     "id": "solar_irradiance",
@@ -86,8 +86,48 @@
     "kind": "raster",
     "description": "Annual global horizontal irradiance (sum of hourly shortwave radiation).",
     "source": "Open-Meteo Historical Weather API (ERA5 / ERA5-Land), 2025",
-    "min": 982.5541768745436,
-    "max": 1038.9550765448337
+    "min": 1204.3841450232978,
+    "max": 1229.5268970560728
+  },
+  {
+    "id": "precipitation_annual",
+    "label": "Annual precipitation",
+    "unit": "mm/yr",
+    "kind": "raster",
+    "description": "Mean yearly rainfall total over the normals period.",
+    "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
+    "min": 579.4244428219658,
+    "max": 709.2299033939631
+  },
+  {
+    "id": "soil_moisture_mean",
+    "label": "Soil moisture",
+    "unit": "m³/m³",
+    "kind": "raster",
+    "description": "Mean volumetric soil water content in the top 7 cm over the normals period (drainage, foundations, vegetation).",
+    "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
+    "min": 0.26518704033119816,
+    "max": 0.3462393978614273
+  },
+  {
+    "id": "evapotranspiration_annual",
+    "label": "Reference evapotranspiration",
+    "unit": "mm/yr",
+    "kind": "raster",
+    "description": "FAO-56 reference evapotranspiration per year: water demand of vegetation and evaporative cooling.",
+    "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
+    "min": 616.3043881781459,
+    "max": 663.6306910110973
+  },
+  {
+    "id": "temp_trend_decade",
+    "label": "Warming trend",
+    "unit": "°C/decade",
+    "kind": "raster",
+    "description": "Linear trend of annual mean temperature over the normals period (historical warming rate).",
+    "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
+    "min": 0.3662543596433851,
+    "max": 0.5371996486216808
   },
   {
     "id": "population_density",
@@ -147,7 +187,7 @@
     "description": "Weighted share of the hex in Environment Agency Flood Zone 3 (1.0) or Zone 2 (0.5). Zones ignore defences such as the Thames Barrier.",
     "source": "Environment Agency Flood Map for Planning via planning.data.gov.uk (flood-risk-zone)",
     "min": 0.0,
-    "max": 0.992850153740326
+    "max": 0.9943900233756633
   },
   {
     "id": "flood_zone_3",

@@ -81,8 +81,8 @@ def score_point(profile_id: str, lat: float, lon: float, weights: dict[str, floa
     sustainability_score, feasibility_score, rank (1 = best, None if masked), rank_of,
     percentile, weights, breakdown, layers (per profile layer: id, label, unit, value,
     raw, weight, better, contribution), raw and values (every layer), feasibility (None
-    without a model), shap (None or {layer: signed TreeSHAP value} for the top 5 positive
-    and top 5 negative drivers), shap_detail (None or {base_value, positive, negative}),
+    without a model), shap (None or {base_value, positive[≤5], negative[≤5]} of
+    {layer, label, value, raw}), shap_flat (None or {layer: signed TreeSHAP value}),
     model (None or metadata). Matches the proposed clarification in
     shared/contracts/scoring_interface.md and adds fields.
     """
@@ -114,15 +114,15 @@ def score_point(profile_id: str, lat: float, lon: float, weights: dict[str, floa
             "contribution": round(float(result.contributions[i, j]), 4),
         })
 
-    shap = shap_detail = model_info = None
+    shap = shap_flat = model_info = None
     if result.model is not None:
         contrib = result.model.contributions(frame.iloc[[i]])[0]
         pairs = [{"layer": f, "label": meta[f]["label"], "value": round(float(c), 4),
                   "raw": round(float(row[f"raw_{f}"]), 4)} for f, c in zip(result.model.features, contrib[:-1], strict=True)]
         pos = sorted((p for p in pairs if p["value"] > 0), key=lambda p: -p["value"])[:TOP_DRIVERS]
         neg = sorted((p for p in pairs if p["value"] < 0), key=lambda p: p["value"])[:TOP_DRIVERS]
-        shap_detail = {"base_value": round(float(contrib[-1]), 4), "positive": pos, "negative": neg}
-        shap = {d["layer"]: d["value"] for d in pos + neg}
+        shap = {"base_value": round(float(contrib[-1]), 4), "positive": pos, "negative": neg}
+        shap_flat = {d["layer"]: d["value"] for d in pos + neg}
         m = result.model.metrics
         model_info = {"type": "presence", "positives": m.get("positives"),
                       "auc_spatial_cv": m.get("auc_spatial_cv"), "n_positives": m.get("n_positives"),
@@ -151,7 +151,7 @@ def score_point(profile_id: str, lat: float, lon: float, weights: dict[str, floa
         "raw": {lid: round(float(row[f"raw_{lid}"]), 4) for lid in eng.data.layer_ids},
         "values": {lid: round(float(row[lid]), 4) for lid in eng.data.layer_ids},
         "shap": shap,
-        "shap_detail": shap_detail,
+        "shap_flat": shap_flat,
         "model": model_info,
     }
 

@@ -4,9 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from ._common import cached_json, http_get
+from ._common import MONTHLY, cached_json, http_get
 
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+# Tried in order; public instances rate-limit or refuse some networks, so fall back.
+OVERPASS_URLS = (
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+)
 # Greater London bbox padded by ~3 km so edge hexes see features just outside.
 BBOX = (51.26, -0.56, 51.72, 0.37)  # south, west, north, east (Overpass order)
 
@@ -22,9 +27,15 @@ def query(name: str, selectors: list[str], *, geometry: bool = True, timeout: in
     ql = f"[out:json][timeout:{timeout}];({body});{out}"
 
     def produce() -> Any:
-        return http_get(OVERPASS_URL, data={"data": ql}, timeout=timeout + 30)["elements"]
+        errors = []
+        for url in OVERPASS_URLS:
+            try:
+                return http_get(url, data={"data": ql}, timeout=timeout + 30, retries=2)["elements"]
+            except Exception as exc:  # noqa: BLE001 — try the next mirror
+                errors.append(f"{url}: {exc}")
+        raise RuntimeError("all Overpass mirrors failed: " + " | ".join(errors))
 
-    return cached_json(f"osm/{name}.json", produce)
+    return cached_json(f"osm/{name}.json", produce, MONTHLY)
 
 
 def element_points(elements: list[dict[str, Any]]) -> list[tuple[float, float]]:
