@@ -8,5 +8,6 @@
 # ≥ min_density people/km². Finer cells replace the parent's coarse cells; London keeps its own grid.
 - {id: uk_urban, name: UK towns and cities, country: GBR, resolution: 8, boundary: {urban_of: uk, min_density: 1000, exclude: [london]}, kind: national, order: 1}
 - {id: usa, name: United States, country: USA, resolution: 6, boundary: USA, kind: national, order: 2}
+- {id: usa_urban, name: US cities and towns, country: USA, resolution: 8, boundary: {urban_of: usa, min_density: 1000}, kind: national, order: 2}
 - {id: canada, name: Canada, country: CAN, resolution: 5, boundary: CAN, kind: national, order: 3}
 - {id: mexico, name: Mexico, country: MEX, resolution: 6, boundary: MEX, kind: national, order: 4}

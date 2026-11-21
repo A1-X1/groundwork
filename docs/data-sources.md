@@ -54,6 +54,8 @@ The API never calls data sources at request time; it only reads `grid.parquet`. 
 | London | 8 | 2,654 | 28 | 0.8 MB | everything below |
 | United Kingdom | 7 | 53,100 | 16 | 2.4 MB | global sources |
 | United States | 6 | 257,741 | 15 | 15 MB | global sources |
+| US cities and towns | 8 | 101,087 | 16 | 2.6 MB | global sources (density ≥ 1,000/km²) |
+| UK towns and cities | 8 | 24,705 | 16 | 0.8 MB | global sources (density ≥ 1,000/km²) |
 | Canada | 5 | 37,165 | 16 | 2.7 MB | global sources |
 | Mexico | 6 | 46,925 | 16 | 3.0 MB | global sources |
 

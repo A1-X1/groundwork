@@ -1,0 +1,234 @@
+{
+  "generated_at": "2026-11-21T14:24:12Z",
+  "region": "usa_urban",
+  "resolution": 8,
+  "boundary": "cells of usa with population density ≥ 1000/km² (WorldPop)",
+  "label": "US cities and towns",
+  "kind": "national",
+  "country": "USA",
+  "bbox": [
+    -158.0552,
+    20.7426,
+    -70.1883,
+    61.2687
+  ],
+  "normalised_dtype": "uint8",
+  "cells": 101087,
+  "layers": {
+    "elevation": {
+      "status": "real",
+      "source": "WorldClim 2.1 elevation (2.5′, from SRTM)",
+      "gap_filled_share": 0.001,
+      "seconds": 0.82
+    },
+    "slope": {
+      "status": "real",
+      "seconds": 3.19
+    },
+    "mean_temp_annual": {
+      "status": "real",
+      "source": "WorldClim 2.1 monthly normals 1970–2000 (5′)",
+      "gap_filled_share": 0.0005,
+      "seconds": 0.91
+    },
+    "summer_max_temp": {
+      "status": "real",
+      "source": "WorldClim 2.1 monthly normals 1970–2000 (5′)",
+      "gap_filled_share": 0.0005,
+      "seconds": 0.88
+    },
+    "wet_bulb_p99": {
+      "status": "real",
+      "source": "WorldClim 2.1 warmest-month design point, Stull (2011)",
+      "gap_filled_share": 0.0005,
+      "seconds": 0.7
+    },
+    "free_cooling_hours": {
+      "status": "real",
+      "source": "WorldClim 2.1 tmin/tmax, sinusoidal daily cycle",
+      "gap_filled_share": 0.0005,
+      "seconds": 1.93
+    },
+    "humidity_mean": {
+      "status": "real",
+      "source": "WorldClim 2.1 vapour pressure + temperature (5′)",
+      "gap_filled_share": 0.0005,
+      "seconds": 0.09
+    },
+    "wind_speed_mean": {
+      "status": "real",
+      "source": "WorldClim 2.1 wind speed (5′)",
+      "gap_filled_share": 0.0005,
+      "seconds": 0.68
+    },
+    "solar_irradiance": {
+      "status": "real",
+      "source": "WorldClim 2.1 solar radiation (5′)",
+      "gap_filled_share": 0.0005,
+      "seconds": 0.54
+    },
+    "wind_speed_100m": {
+      "status": "real",
+      "source": "WorldClim 2.1 wind, 1/7 power law to 100 m",
+      "gap_filled_share": 0.0005,
+      "seconds": 0.07
+    },
+    "wind_power_density": {
+      "status": "real",
+      "source": "WorldClim 2.1 wind, Rayleigh ½ρ⟨v³⟩ at 100 m",
+      "gap_filled_share": 0.0005,
+      "seconds": 0.07
+    },
+    "precipitation_annual": {
+      "status": "real",
+      "source": "WorldClim 2.1 precipitation (5′)",
+      "gap_filled_share": 0.0005,
+      "seconds": 0.39
+    },
+    "soil_moisture_mean": {
+      "status": "unavailable",
+      "reason": "no global source for soil_moisture_mean (available in London only)",
+      "seconds": 0.0
+    },
+    "evapotranspiration_annual": {
+      "status": "real",
+      "source": "WorldClim 2.1, Hargreaves–Samani",
+      "gap_filled_share": 0.0005,
+      "seconds": 0.09
+    },
+    "temp_trend_decade": {
+      "status": "unavailable",
+      "reason": "no global source for temp_trend_decade (available in London only)",
+      "seconds": 0.0
+    },
+    "population_density": {
+      "status": "real",
+      "source": "WorldPop 2020 1 km (per country)",
+      "seconds": 3.25
+    },
+    "land_use_residential": {
+      "status": "unavailable",
+      "reason": "region too large for Overpass (7744 tiles > 400); use a Geofabrik extract for this region",
+      "seconds": 0.0
+    },
+    "crime_rate": {
+      "status": "unavailable",
+      "reason": "no global source for crime_rate (available in London only)",
+      "seconds": 0.0
+    },
+    "deprivation_index": {
+      "status": "unavailable",
+      "reason": "no global source for deprivation_index (available in London only)",
+      "seconds": 0.0
+    },
+    "median_house_price": {
+      "status": "unavailable",
+      "reason": "no global source for median_house_price (available in London only)",
+      "seconds": 0.0
+    },
+    "flood_risk": {
+      "status": "unavailable",
+      "reason": "no global source for flood_risk (available in London only)",
+      "seconds": 0.0
+    },
+    "flood_zone_3": {
+      "status": "unavailable",
+      "reason": "no global source for flood_zone_3 (available in London only)",
+      "seconds": 0.0
+    },
+    "air_quality_no2": {
+      "status": "unavailable",
+      "reason": "no global source for air_quality_no2 (available in London only)",
+      "seconds": 0.0
+    },
+    "air_quality_pm25": {
+      "status": "unavailable",
+      "reason": "no global source for air_quality_pm25 (available in London only)",
+      "seconds": 0.0
+    },
+    "grid_carbon_intensity": {
+      "status": "real",
+      "source": "Our World in Data electricity carbon intensity (country)",
+      "seconds": 0.06
+    },
+    "dist_station": {
+      "status": "unavailable",
+      "reason": "region too large for Overpass (7744 tiles > 400); use a Geofabrik extract for this region",
+      "seconds": 0.0
+    },
+    "dist_substation": {
+      "status": "unavailable",
+      "reason": "region too large for Overpass (7744 tiles > 400); use a Geofabrik extract for this region",
+      "seconds": 0.0
+    },
+    "dist_hv_line": {
+      "status": "unavailable",
+      "reason": "region too large for Overpass (7744 tiles > 400); use a Geofabrik extract for this region",
+      "seconds": 0.0
+    },
+    "dist_fibre_ix": {
+      "status": "unavailable",
+      "reason": "no global source for dist_fibre_ix (available in London only)",
+      "seconds": 0.0
+    },
+    "dist_water_body": {
+      "status": "unavailable",
+      "reason": "region too large for Overpass (7744 tiles > 400); use a Geofabrik extract for this region",
+      "seconds": 0.0
+    },
+    "green_space_access": {
+      "status": "unavailable",
+      "reason": "region too large for Overpass (7744 tiles > 400); use a Geofabrik extract for this region",
+      "seconds": 0.0
+    },
+    "dist_major_road": {
+      "status": "unavailable",
+      "reason": "region too large for Overpass (7744 tiles > 400); use a Geofabrik extract for this region",
+      "seconds": 0.0
+    },
+    "dist_primary_school": {
+      "status": "unavailable",
+      "reason": "no global source for dist_primary_school (available in London only)",
+      "seconds": 0.0
+    },
+    "dist_secondary_school": {
+      "status": "unavailable",
+      "reason": "no global source for dist_secondary_school (available in London only)",
+      "seconds": 0.0
+    },
+    "school_quality_nearby": {
+      "status": "unavailable",
+      "reason": "no global source for school_quality_nearby (available in London only)",
+      "seconds": 0.0
+    },
+    "protected_land": {
+      "status": "unavailable",
+      "reason": "no global source for protected_land (available in London only)",
+      "seconds": 0.0
+    },
+    "cloud_cover_mean": {
+      "status": "unavailable",
+      "reason": "no global source for cloud_cover_mean (available in London only)",
+      "seconds": 0.0
+    },
+    "dist_airport": {
+      "status": "unavailable",
+      "reason": "region too large for Overpass (7744 tiles > 400); use a Geofabrik extract for this region",
+      "seconds": 0.0
+    },
+    "seismic_activity": {
+      "status": "real",
+      "seconds": 7.39
+    },
+    "sunshine_hours": {
+      "status": "unavailable",
+      "reason": "no global source for sunshine_hours (available in London only)",
+      "seconds": 0.0
+    },
+    "wind_gust_max": {
+      "status": "unavailable",
+      "reason": "no global source for wind_gust_max (available in London only)",
+      "seconds": 0.0
+    }
+  }
+}
