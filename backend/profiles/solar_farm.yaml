@@ -1,0 +1,15 @@
+id: solar_farm
+label: Solar farm
+description: >-
+  Maximum sunshine on flat, cheap, low-density land with a nearby grid
+  connection, avoiding flood plains and protected land. Panel output also falls
+  in heat, so cooler sites score slightly higher.
+layers:
+  solar_irradiance:      {weight: 0.25, better: higher}
+  dist_substation:       {weight: 0.20, better: lower}
+  slope:                 {weight: 0.15, better: lower}
+  population_density:    {weight: 0.15, better: lower}
+  median_house_price:    {weight: 0.10, better: lower}
+  dist_hv_line:          {weight: 0.10, better: lower}
+  summer_max_temp:       {weight: 0.05, better: lower}
+masks: [flood_zone_3, protected_land]

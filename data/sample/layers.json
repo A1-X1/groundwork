@@ -340,13 +340,23 @@
     "max": 1.0
   },
   {
+    "id": "dist_airport",
+    "label": "Distance to airport",
+    "unit": "m",
+    "kind": "proximity",
+    "description": "Straight-line distance from the hex centre to the nearest aerodrome (aeroway=aerodrome); nuclear siting keeps clear of aircraft crash hazard and airspace constraints.",
+    "source": "OpenStreetMap via Overpass API",
+    "min": 150.19009660070066,
+    "max": 12872.119923536065
+  },
+  {
     "id": "seismic_activity",
     "label": "Seismic activity",
-    "unit": "earthquakes M≥4 within 100 km, 30 yr",
+    "unit": "earthquakes (M≥3, 50 yr, 150 km)",
     "kind": "aggregate",
-    "description": "Number of M≥4 earthquakes within 100 km in the last 30 years.",
+    "description": "Number of USGS ComCat earthquakes of magnitude ≥ 3.0 within 150 km of the hex over the last 50 years — a proxy for seismic hazard at the site.",
     "source": "USGS ComCat earthquake catalogue (FDSN event API)",
-    "min": 0.0,
-    "max": 1.0
+    "min": 20.0,
+    "max": 29.0
   }
 ]

@@ -2,10 +2,12 @@
 
     python -m backend.agent "I'm looking for building a nuclear power plant"
 
-``run(prompt, on_event)`` streams events as dicts so the API can forward them (SSE):
-``{"type": "tool_call", "name", "args"}``, ``{"type": "tool_result", "name", "result"}``,
-``{"type": "ui", "commands"}``, ``{"type": "action_required", "action", "message"}``,
-``{"type": "message", "content"}`` and finally ``{"type": "done", "content", "steps"}``.
+``run(prompt, on_event, context=None)`` streams events as dicts (the API forwards them as
+SSE). Every event has ``type`` and a short human-readable ``message``:
+``tool_call {name, args}``, ``tool_result {name, result}``, ``ui {commands}``,
+``action_required {action, message}`` (e.g. ``action: "connect_azure"``),
+``thinking {content}`` and finally ``answer {content, steps}``. The API adds its own
+``done`` event wrapping the return value ``{content, steps, ui, actions}``.
 """
 
 from __future__ import annotations
@@ -38,13 +40,35 @@ def _trim(result: dict[str, Any], limit: int = 6000) -> str:
     return text if len(text) <= limit else text[:limit] + '…"(truncated)"'
 
 
+STEP_LABELS = {
+    "get_catalog": "Reading Groundwork's layers and profiles", "search_data_sources": "Searching free data sources",
+    "add_layer": "Adding a data layer", "build_layers": "Downloading and building layers",
+    "create_profile": "Creating the scoring profile", "design_3d_model": "Designing the 3D model",
+    "azure_status": "Checking Azure ML", "train_model": "Training the feasibility model",
+    "preview_scores": "Checking the best sites", "ui_command": "Updating the map",
+    "request_user_action": "Waiting for you",
+}
+
+
 def run(prompt: str, on_event: Callable[[Event], None] | None = None, history: list[dict] | None = None,
-        model: str = DEFAULT_MODEL, client: Any = None) -> dict[str, Any]:
-    """Run the agent to completion. Returns {content, steps, messages, ui, actions}."""
+        model: str = DEFAULT_MODEL, client: Any = None, context: dict[str, Any] | None = None,
+        return_messages: bool = False) -> dict[str, Any]:
+    """Run the agent to completion. Returns {content, steps, ui, actions} (+ messages if asked)."""
     emit = on_event or (lambda e: None)
     client = client or _client()
-    messages: list[dict[str, Any]] = [{"role": "system", "content": INSTRUCTIONS}, *(history or []),
-                                      {"role": "user", "content": prompt}]
+    messages: list[dict[str, Any]] = [{"role": "system", "content": INSTRUCTIONS}]
+    if context:
+        messages.append({"role": "system", "content": "Current UI context (what the user is looking at): "
+                         + json.dumps(context, default=str)[:2000]})
+    messages += [*(history or []), {"role": "user", "content": prompt}]
+
+    def finish(content: str, steps: int) -> dict[str, Any]:
+        emit({"type": "answer", "content": content, "steps": steps, "message": content[:200]})
+        out = {"content": content, "steps": steps, "ui": ui, "actions": actions}
+        if return_messages:
+            out["messages"] = messages
+        return out
+
     ui: list[dict[str, Any]] = []
     actions: list[dict[str, Any]] = []
     for step in range(MAX_STEPS):
@@ -56,29 +80,45 @@ def run(prompt: str, on_event: Callable[[Event], None] | None = None, history: l
                          "tool_calls": [{"id": c.id, "type": "function",
                                          "function": {"name": c.function.name, "arguments": _args_str(c)}}
                                         for c in calls] or None})
-        if msg.content and calls:
-            emit({"type": "message", "content": msg.content})
+        text = _text(msg.content)
+        if text and calls:
+            emit({"type": "thinking", "content": text, "message": text[:200]})
         if not calls:
-            content = msg.content if isinstance(msg.content, str) else json.dumps(msg.content, default=str)
-            emit({"type": "done", "content": content, "steps": step})
-            return {"content": content, "steps": step, "messages": messages, "ui": ui, "actions": actions}
+            return finish(text or "", step)
         for c in calls:
-            args = _args_dict(c)
-            emit({"type": "tool_call", "name": c.function.name, "args": args})
-            result = tools.call(c.function.name, args)
-            emit({"type": "tool_result", "name": c.function.name, "result": result})
+            name, args = c.function.name, _args_dict(c)
+            label = STEP_LABELS.get(name, name)
+            emit({"type": "tool_call", "name": name, "args": args, "message": f"{label}…"})
+            result = tools.call(name, args)
+            emit({"type": "tool_result", "name": name, "result": result,
+                  "message": f"{label}: {'error' if 'error' in result else 'done'}"})
             if "ui" in result:
                 ui.extend(result["ui"])
-                emit({"type": "ui", "commands": result["ui"]})
+                emit({"type": "ui", "commands": result["ui"], "message": "Updating the map"})
             if "action_required" in result:
                 actions.append(result)
                 emit({"type": "action_required", "action": result["action_required"],
                       "message": result.get("message", "")})
             messages.append({"role": "tool", "name": c.function.name, "tool_call_id": c.id,
                              "content": _trim(result)})
-    emit({"type": "done", "content": "Stopped: step limit reached.", "steps": MAX_STEPS})
-    return {"content": "Stopped: step limit reached.", "steps": MAX_STEPS, "messages": messages,
-            "ui": ui, "actions": actions}
+    return finish("Stopped: step limit reached.", MAX_STEPS)
+
+
+def _text(content: Any) -> str:
+    """Plain answer text from a string or a list of content chunks (reasoning chunks dropped)."""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    texts, thoughts = [], []
+    for chunk in content:
+        kind = getattr(chunk, "type", None) or (chunk.get("type") if isinstance(chunk, dict) else None)
+        if kind == "text":
+            texts.append(getattr(chunk, "text", None) or chunk.get("text", ""))
+        elif kind == "thinking":
+            inner = getattr(chunk, "thinking", None) or (chunk.get("thinking") if isinstance(chunk, dict) else [])
+            thoughts.extend(getattr(t, "text", "") or (t.get("text", "") if isinstance(t, dict) else "") for t in inner)
+    return "\n".join(t for t in texts if t).strip() or "\n".join(thoughts).strip()
 
 
 def _args_dict(call: Any) -> dict[str, Any]:
@@ -113,7 +153,7 @@ def main() -> None:
             print(f"  ← {_trim(e['result'], 400)}")
         elif e["type"] == "action_required":
             print(f"!! ACTION REQUIRED [{e['action']}]: {e['message']}")
-        elif e["type"] == "done":
+        elif e["type"] == "answer":
             print("\n" + e["content"])
 
     run(" ".join(args.prompt), show, model=args.model)

@@ -39,8 +39,29 @@ class AzureNotConnected(RuntimeError):
     """Raised when training needs Azure ML but no workspace is connected."""
 
 
+_credential_override: Any = None
+
+
+def set_credential(credential: Any) -> None:
+    """Let the API hand over the credential its device-code sign-in produced."""
+    global _credential_override
+    _credential_override = credential
+
+
+def _api_setting() -> dict[str, str]:
+    """Workspace settings saved by the API's Connections screen (backend.api.db), if present."""
+    try:
+        from backend.api import db  # Person 2's module; optional
+
+        return db.get_setting("azure_ml") or {}
+    except Exception:  # noqa: BLE001 — API not installed or DB not initialised
+        return {}
+
+
 def config() -> dict[str, str]:
+    """Env vars > API Connections settings > data/processed/connections.json."""
     saved = json.loads(CONNECTIONS.read_text()).get("azure_ml", {}) if CONNECTIONS.exists() else {}
+    saved = {**saved, **{k: v for k, v in _api_setting().items() if v}}
     out = {k: os.environ.get(env) or saved.get(k, "") for k, env in ENV_KEYS.items()}
     return {k: v for k, v in out.items() if v}
 
@@ -70,6 +91,8 @@ def status() -> dict[str, Any]:
 def _credential(interactive: bool = False) -> Any:
     from azure.identity import DefaultAzureCredential, DeviceCodeCredential, InteractiveBrowserCredential
 
+    if _credential_override is not None:
+        return _credential_override
     if not interactive:
         return DefaultAzureCredential(exclude_interactive_browser_credential=True)
     try:

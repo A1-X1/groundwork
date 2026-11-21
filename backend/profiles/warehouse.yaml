@@ -1,0 +1,14 @@
+id: warehouse
+label: Warehouse
+description: >-
+  Large flat sites next to the strategic road network, away from housing to
+  limit night-time HGV noise, with grid power for automation and EV fleets.
+layers:
+  dist_major_road:       {weight: 0.30, better: lower}
+  slope:                 {weight: 0.15, better: lower}
+  land_use_residential:  {weight: 0.15, better: lower}
+  population_density:    {weight: 0.12, better: lower}
+  dist_substation:       {weight: 0.10, better: lower}
+  median_house_price:    {weight: 0.10, better: lower}
+  flood_risk:            {weight: 0.08, better: lower}
+masks: [flood_zone_3, protected_land]

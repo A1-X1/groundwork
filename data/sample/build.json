@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-21T11:22:59Z",
+  "generated_at": "2026-11-21T11:32:04Z",
   "region": "london",
   "resolution": 8,
   "boundary": "simplified built-in outline",
@@ -7,15 +7,15 @@
   "layers": {
     "elevation": {
       "status": "real",
-      "seconds": 0.01
+      "seconds": 0.0
     },
     "slope": {
       "status": "real",
-      "seconds": 0.11
+      "seconds": 0.09
     },
     "mean_temp_annual": {
       "status": "real",
-      "seconds": 0.32
+      "seconds": 0.24
     },
     "summer_max_temp": {
       "status": "real",
@@ -49,7 +49,7 @@
     "soil_moisture_mean": {
       "status": "synthetic",
       "reason": "offline and no cache at data/raw/open_meteo/normals_2016_2025_00.json",
-      "seconds": 0.22
+      "seconds": 0.16
     },
     "evapotranspiration_annual": {
       "status": "synthetic",
@@ -64,7 +64,7 @@
     "population_density": {
       "status": "synthetic",
       "reason": "missing data/raw/ons/lsoa_population.csv. Download Census 2021 TS001 (usual residents) by LSOA from Nomis and save as data/raw/ons/lsoa_population.csv",
-      "seconds": 0.03
+      "seconds": 0.02
     },
     "land_use_residential": {
       "status": "synthetic",
@@ -73,7 +73,7 @@
     },
     "crime_rate": {
       "status": "synthetic",
-      "reason": "offline: refusing to fetch https://data.police.uk/api/crime-last-updated",
+      "reason": "offline and no cache at data/raw/police/last_updated.json",
       "seconds": 0.02
     },
     "deprivation_index": {
@@ -89,7 +89,7 @@
     "flood_risk": {
       "status": "synthetic",
       "reason": "offline and no cache at data/raw/planning/api_flood-risk-zone.json",
-      "seconds": 0.01
+      "seconds": 0.0
     },
     "flood_zone_3": {
       "status": "synthetic",
@@ -114,7 +114,7 @@
     "dist_station": {
       "status": "synthetic",
       "reason": "offline and no cache at data/raw/osm/stations/0_1.json",
-      "seconds": 0.01
+      "seconds": 0.0
     },
     "dist_substation": {
       "status": "synthetic",
@@ -138,17 +138,17 @@
     "green_space_access": {
       "status": "synthetic",
       "reason": "offline and no cache at data/raw/osm/parks/0_0.json",
-      "seconds": 0.0
+      "seconds": 0.03
     },
     "dist_major_road": {
       "status": "synthetic",
       "reason": "offline and no cache at data/raw/osm/major_roads/0_0.json",
-      "seconds": 0.03
+      "seconds": 0.02
     },
     "dist_primary_school": {
       "status": "synthetic",
       "reason": "offline and no cache at data/raw/osm/schools/0_0.json",
-      "seconds": 0.04
+      "seconds": 0.0
     },
     "dist_secondary_school": {
       "status": "synthetic",
@@ -165,9 +165,14 @@
       "reason": "offline and no cached protected-land sources",
       "seconds": 0.0
     },
+    "dist_airport": {
+      "status": "synthetic",
+      "reason": "offline and no cache at data/raw/osm/gen_dist_airport/0_0.json",
+      "seconds": 0.01
+    },
     "seismic_activity": {
       "status": "real",
-      "seconds": 0.0
+      "seconds": 0.01
     }
   }
 }

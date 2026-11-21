@@ -20,7 +20,7 @@ from . import data as _data
 from .profiles import ProfileError, load_profiles
 from .scorer import Scorer, validate_bbox
 
-__all__ = ["ProfileError", "data_status", "get_layer", "health", "list_layers", "list_profiles",
+__all__ = ["ProfileError", "data_status", "get_layer", "health", "list_pois", "list_regions", "list_layers", "list_profiles",
            "reload", "score", "score_point"]
 
 BBox = tuple[float, float, float, float]
@@ -154,6 +154,31 @@ def score_point(profile_id: str, lat: float, lon: float, weights: dict[str, floa
         "shap_flat": shap_flat,
         "model": model_info,
     }
+
+
+def list_pois(kinds: list[str] | None = None, bbox: BBox | None = None) -> list[dict]:
+    """Map icons: [{id, kind, name, lat, lon, source: osm|seeded}]. Kinds: substation, ixp,
+    data_centre, station, water. Only real (cached OSM) or seeded locations, never synthetic."""
+    from .pois import list_pois as _list
+
+    return _list(kinds, bbox)
+
+
+def list_regions() -> list[dict[str, Any]]:
+    """Regions with detailed hexes: [{id, name, bbox, resolution, cells, is_sample, generated_at}]."""
+    eng = _engine()
+    f = eng.data.frame
+    pad = 0.01
+    names = {"london": "Greater London"}
+    region = eng.data.build.get("region", "london")
+    return [{
+        "id": region, "name": names.get(region, region.replace("_", " ").title()),
+        "bbox": [round(float(f["lon"].min()) - pad, 4), round(float(f["lat"].min()) - pad, 4),
+                 round(float(f["lon"].max()) + pad, 4), round(float(f["lat"].max()) + pad, 4)],
+        "resolution": eng.data.resolution, "cells": int(len(f)),
+        "is_sample": eng.data.directory.resolve() == _data.SAMPLE_DIR.resolve(),
+        "generated_at": eng.data.build.get("generated_at"),
+    }]
 
 
 def health() -> dict[str, Any]:

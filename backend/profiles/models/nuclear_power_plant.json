@@ -1,0 +1,138 @@
+{
+  "id": "nuclear_power_plant",
+  "label": "Nuclear power plant",
+  "footprint_m": [
+    500.0,
+    400.0
+  ],
+  "parts": [
+    {
+      "position": [
+        -150.0,
+        0.0,
+        -100.0
+      ],
+      "rotation_y": 0.0,
+      "color": "concrete",
+      "shape": "hyperboloid",
+      "radius_bottom": 52.0,
+      "radius_waist": 36.0,
+      "radius_top": 40.0,
+      "height": 130.0,
+      "waist_at": 0.65
+    },
+    {
+      "position": [
+        -150.0,
+        0.0,
+        100.0
+      ],
+      "rotation_y": 0.0,
+      "color": "concrete",
+      "shape": "hyperboloid",
+      "radius_bottom": 52.0,
+      "radius_waist": 36.0,
+      "radius_top": 40.0,
+      "height": 130.0,
+      "waist_at": 0.65
+    },
+    {
+      "position": [
+        60.0,
+        0.0,
+        0.0
+      ],
+      "rotation_y": 0.0,
+      "color": "concrete",
+      "shape": "cylinder",
+      "radius": 40.0,
+      "height": 45.0
+    },
+    {
+      "position": [
+        60.0,
+        45.0,
+        0.0
+      ],
+      "rotation_y": 0.0,
+      "color": "concrete",
+      "shape": "dome",
+      "radius": 40.0
+    },
+    {
+      "position": [
+        170.0,
+        0.0,
+        0.0
+      ],
+      "rotation_y": 0.0,
+      "color": "steel",
+      "shape": "box",
+      "size": [
+        100.0,
+        25.0,
+        30.0
+      ]
+    },
+    {
+      "position": [
+        170.0,
+        25.0,
+        0.0
+      ],
+      "rotation_y": 0.0,
+      "color": "accent",
+      "shape": "box",
+      "size": [
+        20.0,
+        3.0,
+        6.0
+      ]
+    },
+    {
+      "position": [
+        40.0,
+        0.0,
+        130.0
+      ],
+      "rotation_y": 0.0,
+      "color": "steel",
+      "shape": "box",
+      "size": [
+        80.0,
+        8.0,
+        50.0
+      ]
+    },
+    {
+      "position": [
+        -40.0,
+        0.0,
+        0.0
+      ],
+      "rotation_y": 0.0,
+      "color": "white",
+      "shape": "box",
+      "size": [
+        40.0,
+        12.0,
+        25.0
+      ]
+    }
+  ],
+  "palette": {
+    "concrete": "#b8bcc2",
+    "steel": "#8a94a3",
+    "glass": "#5b7fa6",
+    "roof": "#3d4450",
+    "brick": "#9c5b46",
+    "white": "#e8eaed",
+    "accent": "#0064e0",
+    "earth": "#7a6a52",
+    "green": "#4f7d5a",
+    "dark": "#2a2f37",
+    "warning": "#e0a100"
+  },
+  "segments": 24,
+  "triangles": 1872
+}

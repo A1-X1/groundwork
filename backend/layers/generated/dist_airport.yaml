@@ -1,0 +1,12 @@
+id: dist_airport
+label: Distance to airport
+unit: m
+kind: proximity
+description: Straight-line distance from the hex centre to the nearest aerodrome (aeroway=aerodrome);
+  nuclear siting keeps clear of aircraft crash hazard and airspace constraints.
+template: osm_proximity
+params:
+  selectors:
+  - nwr["aeroway"="aerodrome"]
+added_by: agent
+is_mask: false

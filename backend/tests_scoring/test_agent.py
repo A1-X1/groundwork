@@ -54,6 +54,15 @@ def test_add_layer_validates_and_registers(sandbox):
     assert "dist_power_plant" in layers.LAYER_IDS
 
 
+def test_add_layer_does_not_overwrite_human_layers(sandbox):
+    (_generic.GENERATED_DIR / "seismic_x.yaml").write_text(
+        "id: seismic_x\nlabel: Seismic\nunit: n\nkind: aggregate\ndescription: d\n"
+        "template: usgs_earthquakes\nparams: {min_magnitude: 4}\nadded_by: human\n")
+    r = tools.call("add_layer", {"id": "seismic_x", "label": "Seismic", "unit": "n", "kind": "aggregate",
+                                 "description": "d", "template": "usgs_earthquakes", "params": {"min_magnitude": 3}})
+    assert "already exists" in r["error"]
+
+
 def test_add_layer_refuses_builtin_ids(sandbox):
     r = tools.call("add_layer", {"id": "slope", "label": "Slope", "unit": "%", "kind": "raster",
                                  "description": "d", "template": "usgs_earthquakes", "params": {}})
@@ -151,10 +160,41 @@ def test_runner_executes_tool_calls_and_streams_events():
     events = []
     out = runner.run("show me London", events.append, client=_FakeClient())
     assert out["content"] == "Showing London." and out["ui"] == [{"command": "PAN_CITY", "name": "London"}]
-    assert [e["type"] for e in events] == ["tool_call", "tool_result", "ui", "done"]
+    assert [e["type"] for e in events] == ["tool_call", "tool_result", "ui", "answer"]
+    assert all(e.get("message") for e in events)
+    assert "messages" not in out
+    json.dumps(out)  # the API sends the return value as JSON
+
+
+def test_runner_accepts_ui_context():
+    client = _FakeClient()
+    seen = []
+    orig = client.chat.complete
+    client.chat = SimpleNamespace(complete=lambda **kw: (seen.append(kw["messages"]), orig(**kw))[1])
+    runner.run("where am I", client=client, context={"profile": "house", "view": "london"})
+    assert "Current UI context" in seen[0][1]["content"]
 
 
 @pytest.mark.skipif(not os.environ.get("GROUNDWORK_LIVE_MISTRAL"), reason="set GROUNDWORK_LIVE_MISTRAL=1 to hit the API")
 def test_live_mistral_navigation():
     out = runner.run("Take me to London and show the best data centre sites")
     assert any(c["command"] in ("PAN_CITY", "SET_PROFILE", "SHOW_TOP_SITES") for c in out["ui"])
+
+
+def test_text_drops_reasoning_chunks():
+    chunks = [SimpleNamespace(type="thinking", thinking=[SimpleNamespace(text="plan…")]),
+              SimpleNamespace(type="text", text="Final answer.")]
+    assert runner._text(chunks) == "Final answer."
+    assert runner._text([{"type": "thinking", "thinking": [{"text": "only thoughts"}]}]) == "only thoughts"
+
+
+def test_generated_profile_with_unbuilt_layer_is_skipped(tmp_path):
+    from backend.scoring.profiles import ProfileError, load_profiles
+
+    (tmp_path / "ok.yaml").write_text("id: ok\nlabel: OK\ndescription: d\nlayers:\n  slope: {weight: 1, better: lower}\n")
+    (tmp_path / "gen.yaml").write_text(tools.GENERATED_HEADER + "id: gen\nlabel: G\ndescription: d\n"
+                                       "layers:\n  not_built: {weight: 1, better: lower}\n")
+    assert set(load_profiles({"slope"}, tmp_path)) == {"ok"}
+    (tmp_path / "bad.yaml").write_text("id: bad\nlabel: B\ndescription: d\nlayers:\n  nope: {weight: 1, better: lower}\n")
+    with pytest.raises(ProfileError):
+        load_profiles({"slope"}, tmp_path)
