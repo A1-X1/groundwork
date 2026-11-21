@@ -12,6 +12,11 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
+- [ ] 2026-11-21 (P1, **URGENT, user blocked**): **UK data is invisible: the frontend never sends `bbox`.** The data and API work: `GET /score/wind_farm?bbox=-4.5,56.0,-3.5,56.5` returns 756 UK hexes. But the app only calls `/score/{p}` with no bbox, so it gets the default region (London). Please:
+  1. On map `moveend` (debounced ~250 ms), above the hex zoom threshold, call `/score/{profile}?bbox=w,s,e,n` (and `/layers/{id}?bbox=`) for the **visible viewport** and render whatever comes back (cells may be res 5–8; deck.gl `H3HexagonLayer` handles mixed resolutions).
+  2. Use `/regions` (it already returns UK, London, …) to fly to and outline regions.
+  3. API: `ScoreResponse.resolution` is hard-coded to 8. Make it the max (or a list) of `h3.get_resolution` over the returned cells.
+  4. Treat `raw: null` as "no data here".
 - [ ] 2026-11-21 (P1, user request): **Space and icon polish (supersedes the earlier "solar system" item):**
   1. **Zoom limit:** the camera can't zoom out further than a comfortable whole-Earth view (clamp the max distance). The background is decoration you can't fly to.
   2. **Only a starfield plus Earth's Moon.** Remove the other planets and celestial bodies. Keep the Sun as an off-screen light (no planets).
