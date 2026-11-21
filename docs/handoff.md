@@ -8,18 +8,26 @@ Person 1's session polls this file on **every remote branch** about every 3 minu
 
 ## Inbox for Person 1 (data, profiles, scoring, ML)
 
-- [ ] 2026-11-21 (P2): **`scoring.default_profiles()` and `wind_farm`**: the API already uses `default_profiles()` when present (falling back to `data_centre, house, school, solar_farm, wind_farm`) and adds `is_default` to `/profiles`, defaults first. Wind farm appears on the home screen as soon as its profile exists, and it needs a 3D spec too (`backend/profiles/models/wind_farm.json`).
-- [ ] 2026-11-21 (P2): **`answer` content.** If `answer.content` is ever a chunk list (reasoning models), please flatten it to the answer text. The API strips `thinking=` chunks defensively, but the source is the right place.
+_(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
+- [ ] 2026-11-21 (P1, user request): **Voice agent from the very start: create absolutely any building.** Please show the assistant orb (and the command bar) on the **home screen** too, sending prompts to `POST /agent/run` with `context: {"screen": "home"}`. The agent now accepts any building type and drives the UI with these new `ui` commands (alongside the existing PAN_*, SET_*, PLACE_SITE…):
+  - `OPEN_CREATE`: go to "What are you building?"
+  - `CREATE_STRUCTURE {profile, name}`: same as submitting the Create form for that profile (new agent profiles appear in `/profiles` once created; refetch on this command), then open the map.
+  - `OPEN_STRUCTURE {name}`: reopen a saved structure.
+  - `SHOW_MODEL {profile}`: preview the 3D spec (`/models3d/{profile}`).
+  - `SHOW_PROGRESS {title, step}`: a progress card while the agent works (steps: choosing data → profile → 3D model → training → results). Hide it on `answer`/`done`.
+  - `GO_HOME`.
+
+  A run that creates a new type takes ~1–3 minutes (data builds), so keep the stream open and show `message` updates.
 _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Done
 
-- [x] 2026-11-21 (P2): **`wind_farm` + `rotation_z`.** Merged. The spec builder applies `rotation_z` (tilt) then `rotation_y` (heading), both pivoting on the part's base `position`, so the 5-turbine model renders with tilted blades. Wind farm shows on the home screen as a default use case (`/profiles` `is_default`, from your `default_profiles()`). `make test`: API 57/57 on stub and real, scoring 68 (1 skipped), web 10/10.
-- [x] 2026-11-21 (P2, user requests): the voice assistant box is less rounded, with more padding and controls (Talk/Stop, mute spoken replies, Voice Lab). The orb has audio-reactive ripples. There is a **Voice Lab** at `/#voice-lab` (Voxtral transcript, timings, parser and command JSON; mic or uploaded clip), verified end to end in Chromium with a fake mic plus live Mistral. Navbar hover polish. The home screen keeps icons (the user preferred them to 3D previews).
-
+- [x] 2026-11-21 (P1): **`answer` content**: fixed in `runner._text()`. `answer.content` and the returned `content` are always a plain string with reasoning chunks dropped (if there's only reasoning, its text is used). Covered by `test_text_drops_reasoning_chunks`.
+- [x] 2026-11-21 (P1): **`default_profiles()` / `wind_farm`**: both on my branch. Defaults are `data_centre, house, school, solar_farm, wind_farm`. `wind_farm` uses real hub-height wind (`wind_speed_100m`, `wind_power_density`) and its 3D spec uses `rotation_z` for blades.
+- [x] 2026-11-21 (P1): **Real data**: the sample now has 27/41 real layers: WorldPop population, EA flood zones, Green Belt and SSSIs, police crime, CAMS air quality, grid carbon, ERA5 climate and wind. The OSM-derived layers are still synthetic from the cloud container (Overpass and Geofabrik refuse it); they become real on a laptop with `make data`.
 - [x] 2026-11-21 (P2): **Floating panels + detached navbar.** The map is now full-bleed. Controls and details are floating cards (inset `max(16px, safe-area)`, large radius, border and high shadow on dark), each collapsing to a pill at its own edge (state remembered; pops from its corner; still under reduced motion). The navbar is a pill at the top centre with the legend, Globe, Connections and API docs. The command bar sits between the cards, the voice assistant in its own hideable box at the bottom centre, and the basemap switch moved into Controls → Map. MapLibre controls are themed dark.
 - [x] 2026-11-21 (P2): **Default use cases.** The home screen builds its choices from `/profiles` (`is_default` first, the rest under "More"), so new and agent-made profiles appear without frontend changes. Icons exist for wind farm and nuclear plant.
 - [x] 2026-11-21 (P2): **Agent contract.** I pass `context` (profile, overlay, selection, globe/map), forward your events, ignore `thinking` in the UI, show `tool_call` messages as progress, treat `answer` as the reply, and send the single final `done {content, ui, actions, steps}`. Your UI commands (`{command, ...}`) run through the same executor as the assistant's, including `PLACE_SITE {h3}`. `connect_azure` / `connect_mistral` open Connections. After each run the API calls `scoring.reload()` and clears its score cache, and the frontend reloads profiles, layers and 3D model ids. Verified live with Mistral.

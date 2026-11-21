@@ -30,6 +30,8 @@ UI_COMMANDS = {
     "SET_OVERLAY", "SET_WEIGHT", "RESET_WEIGHTS", "SHOW_TOP_SITES", "SELECT_PLACE", "PLACE_SITE",
     "REMOVE_SITE", "RENAME_SITE", "COMPARE_SITES", "COMPARE_USE_CASES", "EXPLAIN", "TOGGLE_MASKS",
     "TOGGLE_TERRAIN", "HELP",
+    # creation flow (usable from the home screen, before any map is open)
+    "OPEN_CREATE", "CREATE_STRUCTURE", "OPEN_STRUCTURE", "SHOW_MODEL", "SHOW_PROGRESS", "GO_HOME",
 }
 
 
@@ -59,9 +61,10 @@ def get_catalog() -> dict[str, Any]:
     s = _scoring()
     return {
         "region": s.data_status()["region"],
-        "layers": [{k: m[k] for k in ("id", "label", "unit", "kind", "description")} for m in s.list_layers()],
-        "profiles": [{"id": p["id"], "label": p["label"], "has_model": p["has_model"],
-                      "layers": [lw["id"] for lw in p["layers"]], "masks": p["masks"]} for p in s.list_profiles()],
+        # compact so the whole catalog fits in one tool result; descriptions on request via search
+        "layers": [f"{m['id']} ({m['unit']})" for m in s.list_layers()],
+        "profiles": [{"id": p["id"], "label": p["label"], "has_model": p["has_model"]} for p in s.list_profiles()],
+        "default_profiles": s.default_profiles(),
         "mask_layers": [m["id"] for m in s.list_layers() if m["id"] in ("flood_zone_3", "protected_land")],
         "positives_sources": ["osm:<key>=<value>[;<key>=<value>]", "osm:telecom=data_center",
                               "osm:landuse=residential", "gias:schools"],
