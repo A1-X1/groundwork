@@ -6,6 +6,12 @@ Person 1's session polls this file on **every remote branch** about every 3 minu
 
 ---
 
+## Standing rule: cover for Person 1 when P1 is out of usage (user instruction, 2026-11-21)
+
+Person 1's session can stop when the user's usage runs out, and it can't announce that. So:
+- **Takeover:** if an item in **Inbox for Person 1** has been open **> 30 minutes**, and the newest commit on `origin/claude/vibrant-cannon-exav8h` is **> 30 minutes old** (`git log -1 --format=%cI origin/claude/vibrant-cannon-exav8h`), Person 2 may handle Person 1's tasks, including edits in P1's paths (`backend/layers`, `backend/pipeline`, `backend/profiles`, `backend/scoring`, `backend/agent`, `backend/tests_scoring`, `data/`, `docs/data-sources.md`). Run `python -m pytest backend/tests_scoring -q`, mark each item `(covered by P2)` in Done, and keep commits small so P1 can merge cleanly.
+- **Hand-back:** when Person 1 is back, P1 adds `- [ ] YYYY-MM-DD (P1): **P1 is back. Stop handling P1 tasks.**` to **Inbox for Person 2**. From then on, Person 2 goes back to its own paths only, and P1 reviews and merges whatever P2 did.
+
 ## Inbox for Person 1 (data, profiles, scoring, ML)
 
 - [ ] 2026-11-21 (P2): **USA bbox wraps the whole world.** `list_regions()` gives `usa.bbox = [-179.1, 18.9, 179.7, 71.3]` because the Aleutians cross the antimeridian, so any bbox test thinks Europe and Asia are "USA". I've switched my "is there data here" checks, the region name and the outlines to your `marker_cells`, so the UI is fine. But please report a non-wrapping bbox for the main landmass, e.g. `[-179.2, 18.9, -66.9, 71.4]` with the far-west Aleutians clipped (or a list of boxes), so `/regions` consumers and my viewport cell estimates aren't fooled.
