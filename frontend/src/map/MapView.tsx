@@ -49,6 +49,8 @@ interface Props {
   arrival: { lat: number; lon: number; nonce: number } | null;
   zoomCmd: { dir: 'in' | 'out'; nonce: number } | null;
   pois: Poi[];
+  /** Outlines of the regions with data, drawn while zoomed out past the hex threshold. */
+  regionOutlines?: { name: string; bbox: [number, number, number, number] }[];
   /** False while hidden behind the home screen; the map resizes when it becomes visible. */
   isActive: boolean;
   basemap: Basemap;
@@ -565,8 +567,19 @@ export function MapView(props: Props) {
           }),
         ]
       : [];
+    const outlines = props.regionOutlines ?? [];
+    const outlineLayer = new PathLayer<{ name: string; bbox: [number, number, number, number] }>({
+      id: 'region-outlines',
+      data: outlines,
+      getPath: ({ bbox: [w, so, e, n] }) => [[w, so], [e, so], [e, n], [w, n], [w, so]],
+      getColor: [...ACCENT, 200],
+      getWidth: 1.5,
+      widthUnits: 'pixels',
+      visible: outlines.length > 0,
+      parameters: { depthCompare: 'always' },
+    }); // prettier-ignore
     overlay.setProps({
-      layers: [contextLayer, layer, areaLayer, poiLayer, ...draftLayers],
+      layers: [contextLayer, layer, areaLayer, outlineLayer, poiLayer, ...draftLayers],
       getTooltip: ({ object }: PickingInfo<HexDatum | Poi | MapArea>) =>
         object && !propsRef.current.isDrawing
           ? {
@@ -602,6 +615,7 @@ export function MapView(props: Props) {
     props.selectedAreaId,
     props.draft,
     props.isDrawing,
+    props.regionOutlines,
   ]);
 
   return (

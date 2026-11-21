@@ -211,3 +211,13 @@ def test_profiles_carry_layer_notes(client, monkeypatch) -> None:
     assert body["notes"] == {"crime_rate": f"note for {pid}"}
     monkeypatch.setattr(main.scoring, "profile_notes", lambda p: 1 / 0, raising=False)
     assert client.get(f"/profiles/{pid}").json()["notes"] == {}
+
+
+def test_resolution_matches_returned_cells(client) -> None:
+    """ScoreResponse.resolution is the finest resolution of the cells actually returned."""
+    import h3
+
+    pid = client.get("/profiles").json()[0]["id"]
+    body = client.get(f"/score/{pid}").json()
+    if body["cells"]:
+        assert body["resolution"] == max(h3.get_resolution(c["h3"]) for c in body["cells"])

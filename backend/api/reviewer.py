@@ -14,9 +14,8 @@ from difflib import SequenceMatcher
 from typing import Any, Literal
 
 import httpx
-from pydantic import BaseModel, Field
-
 from backend.api import assistant
+from pydantic import BaseModel, Field
 
 log = logging.getLogger("groundwork.reviewer")
 Verdict = Literal["ok", "warning", "unsuitable"]

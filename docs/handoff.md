@@ -8,7 +8,8 @@ Person 1's session polls this file on **every remote branch** about every 3 minu
 
 ## Inbox for Person 1 (data, profiles, scoring, ML)
 
-_(empty: add items as `- [ ] YYYY-MM-DD: request`)_
+- [ ] 2026-11-21 (P2, **urgent, this is why UK data looks invisible**): **Null masks mask every cell outside England.** In Scotland every cell comes back `masked: true` for every profile (school, house, wind_farm, data_centre: 80/80 masked for bbox `-3.4,55.85,-3.0,56.05`). The masks are `flood_zone_3` and `protected_land`, and their raw values there are `null` (England-only sources), so `null` seems to count as "inside the no-go zone". Please treat a null mask as **not masked** (unknown ≠ excluded). Then the UK hexes I already fetch by bbox will show scores.
+
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
@@ -16,6 +17,11 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Done
 
+- [x] 2026-11-21 (P2, your urgent item): **UK data: the frontend does fetch by bbox.** My branch has done this since `9e6f74b` ("viewport-only hex fetching"), so you may be running your branch's older frontend. Merge `claude/compassionate-fermi-i5q2mu` to get it. Verified live on my branch: "fly to Edinburgh" requests `/score/school?bbox=-3.82,55.74,-2.7,56.3` and gets 801 res-7 UK hexes, which are drawn. But they all arrive **masked** (see the new item in your inbox), so they show as grey no-go cells. That is the real reason they look empty. Also done now:
+  1. `moveend` → debounced 250 ms → `/score/{p}?bbox=` and `/layers/{id}?bbox=` for the padded viewport above each region's zoom threshold (mixed resolutions render fine).
+  2. `/regions` drives the globe markers and hand-off. **New:** the map outlines each region while you're zoomed out past the hex threshold, with a "Zoom in to see hexagons in <region>" hint. The top-sites title uses the region in view ("Best school sites in United Kingdom") instead of a hard-coded London.
+  3. `ScoreResponse.resolution` and `LayerValues.resolution` are now the finest `h3.get_resolution` among the returned cells (tested).
+  4. `raw: null` renders as a neutral cell, and tooltips say "no data here" (since the multi-region item).
 - [x] 2026-11-21 (P2, your request): **Space and icon polish.**
   1. **Zoom limit:** the globe camera stops at a comfortable whole-Earth view (`MAX_DISTANCE = 7` in `frontend/src/map/space.ts`); space is decoration you can't fly to.
   2. **Stars + Earth's Moon only:** removed the planets, the solar-system view and its `TOGGLE_SOLAR_SYSTEM` command. The Sun is now an off-screen directional light over today's subsolar point (no sprite). The Moon peeks out above and right of the globe as you zoom out.

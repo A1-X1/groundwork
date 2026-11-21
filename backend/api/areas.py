@@ -6,10 +6,9 @@ import math
 from typing import Any, Literal
 
 import h3
+from backend.api import db
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field, field_validator
-
-from backend.api import db
 
 router = APIRouter()
 RESOLUTION = 8

@@ -1,5 +1,6 @@
 import { Banner } from '@astryxdesign/core/Banner';
 import { ProgressBar } from '@astryxdesign/core/ProgressBar';
+import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
 import { HStack } from '@astryxdesign/core/HStack';
 import { cellToLatLng, latLngToCell, polygonToCells } from 'h3-js';
@@ -281,6 +282,18 @@ export default function App() {
   );
   // The globe marks where data exists (from /regions), never the detailed hexes themselves.
   const regionHexes: RegionHex[] = useMemo(() => regionMarkers(regions), [regions]);
+  /** The smallest data region containing the map centre (London inside the UK → London). */
+  const placeName = useMemo(() => {
+    if (!mapBox) return null;
+    const [w, so, e, n] = mapBox.bbox;
+    const lon = (w + e) / 2;
+    const lat = (so + n) / 2;
+    const hits = regions.filter(
+      ({ bbox: [rw, rs, re, rn] }) => lon >= rw && lon <= re && lat >= rs && lat <= rn,
+    );
+    hits.sort((a, b) => a.cells - b.cells);
+    return hits[0]?.name ?? null;
+  }, [mapBox, regions]);
   const poiKindsInView = useMemo(() => {
     if (globeVisible || screen !== 'explore' || !mapBox || mapBox.zoom < POI_MIN_ZOOM) return [];
     const [w, so, e, n] = mapBox.bbox;
@@ -1051,6 +1064,9 @@ export default function App() {
             settleCamera();
           }}
           onZoomOut={onMapZoomOut}
+          regionOutlines={
+            gw.viewReason === 'zoom_in' || gw.viewReason === 'no_data' ? regions : undefined
+          }
         />
         <GlobeView
           isVisible={globeVisible}
@@ -1071,6 +1087,29 @@ export default function App() {
           enterLabel={regions[0] ? `Open ${regions[0].name} map` : undefined}
           onUserInteract={() => setSpinning(false)}
         />
+        {!globeVisible && screen === 'explore' && gw.viewReason === 'zoom_in' && (
+          <HStack
+            justify="center"
+            style={{
+              position: 'absolute',
+              insetInline: 0,
+              insetBlockEnd: 'var(--spacing-12, 48px)',
+              pointerEvents: 'none',
+            }}
+          >
+            <Text
+              type="supporting"
+              color="secondary"
+              style={{
+                padding: 'var(--spacing-2) var(--spacing-4)',
+                borderRadius: 'var(--radius-full)',
+                ...SURFACE,
+              }}
+            >
+              Zoom in to see hexagons{placeName ? ` in ${placeName}` : ''}
+            </Text>
+          </HStack>
+        )}
         <VStack
           style={{
             position: 'absolute',
@@ -1259,6 +1298,7 @@ export default function App() {
                 profile={gw.profile}
                 cells={scoreData?.cells}
                 isLoading={gw.score.status === 'loading'}
+                placeName={placeName}
                 onPick={(c) => {
                   const [lat, lon] = cellToLatLng(c.h3);
                   select({ h3: c.h3, lat, lon });
