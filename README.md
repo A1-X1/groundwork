@@ -128,7 +128,9 @@ logged in [docs/handoff.md](docs/handoff.md).
   cd frontend; npm ci; cd ..
   ```
 
-  Then each time, in two PowerShell windows (Ctrl+C stops each):
+  Then each time, run `.\dev.ps1` from the repo folder. It installs anything missing, opens the
+  API in its own window and runs the web app; Ctrl+C stops both. Or by hand, in two PowerShell
+  windows (Ctrl+C stops each):
 
   ```powershell
   .venv\Scripts\python.exe -m uvicorn backend.api.main:app --port 8000
