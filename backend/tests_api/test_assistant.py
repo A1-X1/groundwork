@@ -216,3 +216,24 @@ def test_clean_sorts_by_seq() -> None:
         {"type": "RESET_VIEW", "seq": 0},
     ]
     assert [c.type for c in assistant.clean(raw, [], [])] == ["RESET_VIEW", "ZOOM"]
+
+
+def test_go_to_rank_rules() -> None:
+    """'best location', 'second best', 'number 5', 'next one' zoom to one ranked site."""
+    from backend.api.assistant import clean, rules
+
+    def first(t: str):
+        cmds, _ = rules(t, [], [])
+        return (cmds[0].type, cmds[0].args) if cmds else None
+
+    assert first("take me to the best location") == ("GO_TO_RANK", {"rank": 1})
+    assert first("zoom into the second best site") == ("GO_TO_RANK", {"rank": 2})
+    assert first("go to number 5") == ("GO_TO_RANK", {"rank": 5})
+    assert first("next one") == ("GO_TO_RANK", {"rank": "next"})
+    assert first("previous") == ("GO_TO_RANK", {"rank": "prev"})
+    assert first("best house sites") == ("SHOW_TOP_SITES", {"n": 10})
+    bad = clean([{"type": "GO_TO_RANK", "args": {"rank": "banana"}}], [], [])
+    assert bad == []
+    assert clean([{"type": "GO_TO_RANK", "args": {"rank": "9999"}}], [], [])[
+        0
+    ].args == {"rank": 500}

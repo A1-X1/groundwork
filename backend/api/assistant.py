@@ -56,6 +56,8 @@ COMMANDS: dict[str, list[str]] = {
     "SET_WEIGHT": ["layer", "weight"],
     "RESET_WEIGHTS": [],
     "SHOW_TOP_SITES": ["n", "profile"],
+    # fly to and select the n-th best scored hexagon in view; rank: 1, 2, … or "next"/"prev"
+    "GO_TO_RANK": ["rank"],
     "SELECT_PLACE": ["name", "lat", "lon"],
     "PLACE_SITE": ["profile", "name", "lat", "lon"],
     "REMOVE_SITE": ["id"],
@@ -77,7 +79,7 @@ COMMANDS: dict[str, list[str]] = {
 
 CommandType = Literal[
     "PAN_COUNTRY", "PAN_CITY", "PAN_REGION", "ZOOM", "RESET_VIEW", "ROTATE_GLOBE",
-    "SET_PROFILE", "SET_OVERLAY", "SET_WEIGHT", "RESET_WEIGHTS", "SHOW_TOP_SITES",
+    "SET_PROFILE", "SET_OVERLAY", "SET_WEIGHT", "RESET_WEIGHTS", "SHOW_TOP_SITES", "GO_TO_RANK",
     "SELECT_PLACE", "PLACE_SITE", "REMOVE_SITE", "RENAME_SITE", "COMPARE_SITES",
     "COMPARE_USE_CASES", "EXPLAIN", "TOGGLE_MASKS", "TOGGLE_TERRAIN", "HELP",
     "OPEN_CREATE", "CREATE_STRUCTURE", "OPEN_STRUCTURE", "SHOW_MODEL", "SHOW_PROGRESS", "GO_HOME",
@@ -205,6 +207,15 @@ def clean(raw: Any, profiles: list[str], layers: list[str]) -> list[Command]:
             lay = str(args.get("layer", ""))
             if lay not in OVERLAY_VIEWS and lay not in layers:
                 continue
+        if t == "GO_TO_RANK":
+            r = args.get("rank", 1)
+            if isinstance(r, str) and r.lower() in ("next", "prev", "previous"):
+                args["rank"] = "prev" if r.lower().startswith("prev") else "next"
+            else:
+                try:
+                    args["rank"] = max(1, min(500, int(r)))
+                except (TypeError, ValueError):
+                    continue
         if t == "SET_WEIGHT":
             if args.get("layer") not in layers:
                 continue
@@ -235,6 +246,9 @@ def _system_prompt(profiles: list[dict], layers: list[dict]) -> str:
         f"Profile ids: {profs}.\n"
         f"Overlay views: {', '.join(OVERLAY_VIEWS)}; or any layer id: {lays}.\n"
         "Weights are 0-100. state is 'on' or 'off'. direction is 'in' or 'out'. "
+        "GO_TO_RANK zooms into one ranked site: 'take me to the best location' -> rank 1, "
+        "'the second best' -> 2, 'next one' -> 'next', 'previous' -> 'prev'. Use SHOW_TOP_SITES "
+        "only for a list ('best sites', 'top 10'). "
         'For compound requests ("pan to X then show Y") return the commands in the order '
         "they must run. "
         "If the user is already looking at the place they ask for (context.center/zoom/place), "
@@ -331,6 +345,33 @@ def rules(text: str, profiles: list[dict], layers: list[dict]) -> tuple[list[Com
     return cmds, "OK: " + ", ".join(c.type.replace("_", " ").lower() for c in cmds) + "."
 
 
+_ORDINALS = {
+    "first": 1, "1st": 1, "second": 2, "2nd": 2, "third": 3, "3rd": 3, "fourth": 4, "4th": 4,
+    "fifth": 5, "5th": 5, "sixth": 6, "6th": 6, "seventh": 7, "7th": 7, "eighth": 8, "8th": 8,
+    "ninth": 9, "9th": 9, "tenth": 10, "10th": 10,
+}  # fmt: skip
+_ONE_SITE = r"(?:site|location|spot|place|one|hexagon|hex|area|option)\b(?!s)"
+
+
+def _rank_intent(t: str) -> int | str | None:
+    """'best location' → 1, 'second best' → 2, 'number 5' → 5, 'next one' → 'next'."""
+    if re.search(r"\b(next|following)\b(?: one| site| location| best)?", t) and not re.search(
+        r"\bnext to\b", t
+    ):
+        return "next"
+    if re.search(r"\b(previous|prev|go back one|back one|last one)\b", t):
+        return "prev"
+    m = re.search(r"\b(" + "|".join(_ORDINALS) + r")\b(?:\s+(?:best|top|ranked|place))?", t)
+    if m and re.search(r"\b(best|top|ranked|site|location|spot|place|one|option)\b", t):
+        return _ORDINALS[m[1]]
+    m = re.search(r"\b(?:number|no\.?|rank|#)\s*(\d{1,3})\b", t)
+    if m:
+        return int(m[1])
+    if re.search(rf"\b(?:the\s+)?(?:very\s+)?(?:best|top|highest[- ]scoring)\s+{_ONE_SITE}", t):
+        return 1
+    return None
+
+
 def _rules_part(text: str, profiles: list[dict], layers: list[dict]) -> list[dict[str, Any]]:
     t = " " + re.sub(r"\s+", " ", text.lower()).strip() + " "
     raw: list[dict[str, Any]] = []
@@ -367,7 +408,10 @@ def _rules_part(text: str, profiles: list[dict], layers: list[dict]) -> list[dic
             if re.search(r"\b(overlay|layer|show)\b", t) and (lid := _find_layer(t, layers)):
                 raw.append({"type": "SET_OVERLAY", "args": {"layer": lid}})
 
-    if re.search(r"\b(best|top)\b", t):
+    rank = _rank_intent(t)
+    if rank is not None:
+        raw.append({"type": "GO_TO_RANK", "args": {"rank": rank}})
+    elif re.search(r"\b(best|top)\b", t):
         n = re.search(r"\b(?:top|best)\s+(\d+)\b", t)
         raw.append({"type": "SHOW_TOP_SITES", "args": {"n": int(n[1]) if n else 10}})
     if re.search(r"\b(why|explain)\b", t):

@@ -151,6 +151,9 @@ def review(req: ReviewRequest) -> Review:
     # Nothing to build (navigation, views, questions): nothing to judge.
     if not _fuzzy_hit(re.findall(r"[a-z]+", req.text.lower()), _BUILD_WORDS):
         return quick
+    # Moving between ranked sites ("the third best site", "next one") isn't a build request.
+    if assistant._rank_intent(" " + req.text.lower() + " ") is not None:
+        return quick
     key = assistant.mistral_key()
     if key:
         try:

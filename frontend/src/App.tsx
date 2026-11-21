@@ -537,6 +537,17 @@ export default function App() {
   scoreRef.current = gw.score;
   const layerValuesRef = useRef(gw.layerValues);
   layerValuesRef.current = gw.layerValues;
+  /** The ranking used by "best / second best / next": captured before zooming in, so the
+   *  order doesn't shift as the loaded area shrinks. Reused while the profile and weights
+   *  are unchanged and the map stays inside the area it was taken from. */
+  const rankSnapRef = useRef<{
+    profile: string;
+    weights: string;
+    bbox: BBox;
+    cells: { h3: string; score: number | null }[];
+  } | null>(null);
+  const selectionRef = useRef(gw.selection);
+  selectionRef.current = gw.selection;
   const pointRef = useRef(gw.point);
   pointRef.current = gw.point;
 
@@ -683,6 +694,72 @@ export default function App() {
           case 'TOGGLE_TERRAIN':
             setTerrain(args.state !== 'off');
             break;
+          case 'GO_TO_RANK': {
+            // Zoom into the n-th best scored hexagon in view ("best location", "second best",
+            // "next one"); ranks are within the area currently loaded.
+            if (!gw.profile) {
+              notes.push('Pick what you’re building first, e.g. “show school sites”.');
+              break;
+            }
+            const sc = scoreRef.current;
+            const fresh =
+              sc.status === 'ready'
+                ? sc.data.cells
+                    .filter((c) => !c.masked && c.score != null)
+                    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+                : [];
+            const weightsKey = JSON.stringify(gw.weights);
+            const centre = mapViewRef.current?.center;
+            const snap = rankSnapRef.current;
+            const reuse =
+              !!snap &&
+              snap.profile === gw.profile.id &&
+              snap.weights === weightsKey &&
+              !!centre &&
+              centre[0] >= snap.bbox[0] &&
+              centre[0] <= snap.bbox[2] &&
+              centre[1] >= snap.bbox[1] &&
+              centre[1] <= snap.bbox[3] &&
+              snap.cells.length >= fresh.length;
+            const ranked = reuse ? snap!.cells : fresh;
+            if (!reuse && fresh.length && mapViewRef.current)
+              rankSnapRef.current = {
+                profile: gw.profile.id,
+                weights: weightsKey,
+                bbox: mapViewRef.current.bbox,
+                cells: fresh,
+              };
+            if (!ranked.length) {
+              notes.push('Zoom into a region first, so I can rank the sites there.');
+              break;
+            }
+            const sel = selectionRef.current;
+            const current = sel ? ranked.findIndex((c) => c.h3 === sel.h3) + 1 : 0;
+            const want =
+              args.rank === 'next'
+                ? current + 1
+                : args.rank === 'prev'
+                  ? current - 1
+                  : Number(args.rank) || 1;
+            if (want < 1) {
+              notes.push('That’s already the best site in view.');
+              break;
+            }
+            if (want > ranked.length) {
+              notes.push(`There are only ${ranked.length} scored sites in view.`);
+              break;
+            }
+            const cell = ranked[want - 1]!;
+            const [lat, lon] = cellToLatLng(cell.h3);
+            select({ h3: cell.h3, lat, lon });
+            setFocus({ lat, lon, nonce: Date.now(), zoom: 13.5 });
+            await waitForCamera(3000);
+            const ord = ['best', 'second best', 'third best'][want - 1] ?? `number ${want}`;
+            notes.push(
+              `Here’s the ${ord} ${gw.profile.label.toLowerCase()} site in view: score ${formatScore(cell.score)}.`,
+            );
+            break;
+          }
           case 'SHOW_TOP_SITES':
             if (typeof args.profile === 'string') gw.chooseProfile(args.profile);
             gw.setSelection(null);

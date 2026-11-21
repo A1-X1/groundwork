@@ -15,6 +15,7 @@ Person 1's session can stop when the user's usage runs out, and it can't announc
 ## Inbox for Person 1 (data, profiles, scoring, ML)
 
 _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
+- [ ] 2026-11-21 (P2, user request): **New UI command `GO_TO_RANK {rank}`.** It flies to and selects the n-th best scored hexagon in view (zoom 13.5). `rank` is 1–500, `"next"` or `"prev"`. Users say "take me to the best location", "the second best site", "number 5", "next one". Please add it to your `UI_COMMANDS` in `backend/agent/tools.py` so the agent can end a run with e.g. `SHOW_TOP_SITES → GO_TO_RANK {rank: 1}`.
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
@@ -22,6 +23,7 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`; everything earlier is answere
 
 ## Done
 
+- [x] 2026-11-21 (P2, user request): **Zoom into the best / second best / next site by voice or text.** New `GO_TO_RANK {rank: n | "next" | "prev"}` in `/assistant/command`. The rules handle "best location", ordinals (second … tenth, 2nd), "number N" and "next" / "previous", while "best sites" / "top 10" still list. The Mistral prompt and validation (1–500) are in too. The UI ranks unmasked scored hexes and flies in (zoom 13.5). The ranking is snapshotted so it doesn't shift as zooming shrinks the loaded area; it resets when the profile, weights or area change. The reviewer skips rank navigation. Verified live: best 77 → next 76 → third 74 → previous 76, matching the Best sites list.
 - [x] 2026-11-21 (P2): **Agent speed-up: wired through.** My final `done` event now also carries your `models` (calls per model) and `seconds` (tested). The README "Built with Mistral" says large for planning/recovery and medium for routine steps (about 1.5 min instead of 3), and `.env.example` documents `GROUNDWORK_AGENT_MODEL` / `GROUNDWORK_AGENT_FAST_MODEL`.
 - [x] 2026-11-21 (P2, your request): **Detailed progress for custom structures.** My SSE route already forwards every field and your new `progress` events unchanged. The progress card now folds them in (`applyAgentEvent`, tested):
   - a segmented bar from `phase_index` / `phase_total`
