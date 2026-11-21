@@ -31,6 +31,7 @@ class World:
         self.default = DEFAULT_REGION if DEFAULT_REGION in grids else next(iter(grids))
         self.visible = self._visibility()
         self._shapes: dict[str, tuple[int, list[str]]] = {}
+        self._outlines: dict[str, Any] = {}
 
     def _visibility(self) -> dict[str, np.ndarray]:
         """Hide coarse cells that a finer region covers (London's res-8 hexes replace UK res-7)."""
@@ -115,6 +116,19 @@ class World:
             self._shapes[rid] = (r, cells, nested[rid])
         return self._shapes
 
+    def outline(self, rid: str) -> dict[str, Any] | None:
+        """Region area as one dissolved GeoJSON (Multi)Polygon in lon/lat, built from its outline
+        cells (or its own cells if nested), so the globe can draw a flat blue area with no hexes."""
+        key = f"outline:{rid}"
+        if key not in self._outlines:
+            res, cells, nested = self._markers()[rid]
+            if nested:  # drawn as part of its parent region's area
+                self._outlines[key] = None
+                return None
+            shape = h3.cells_to_h3shape(cells)
+            self._outlines[key] = shape.__geo_interface__ if cells else None
+        return self._outlines[key]
+
     def shape(self, rid: str) -> tuple[int, list[str]]:
         res, cells, _ = self._markers()[rid]
         return res, cells
@@ -133,5 +147,6 @@ class World:
                 "generated_at": b.get("generated_at"), "directory": str(g.directory),
                 "marker_resolution": self._markers()[rid][0], "marker_cells": self._markers()[rid][1],
                 "nested_in": self._markers()[rid][2],
+                "outline": self.outline(rid),
             })
         return out

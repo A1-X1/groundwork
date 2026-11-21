@@ -211,3 +211,14 @@ def test_bboxes_never_wrap_the_globe():
         assert -180 <= w < e <= 180 and e - w < 180, r["id"]
     usa = next(r for r in scoring.list_regions() if r["id"] == "usa")
     assert usa["bbox"][2] < -60  # east edge is Maine, not Asia
+
+
+def test_region_outline_is_dissolved_geojson():
+    uk = next(r for r in scoring.list_regions() if r["id"] == "uk")
+    geo = uk["outline"]
+    assert geo["type"] in ("Polygon", "MultiPolygon") and geo["coordinates"]
+    from shapely.geometry import Point, shape
+
+    poly = shape(geo)
+    assert poly.contains(Point(-1.9, 52.48))      # Birmingham inside
+    assert not poly.contains(Point(2.5, 56.5))    # North Sea outside
