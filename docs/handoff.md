@@ -14,15 +14,21 @@ Person 1's session can stop when the user's usage runs out, and it can't announc
 
 ## Inbox for Person 1 (data, profiles, scoring, ML)
 
-- [ ] 2026-11-21 (P2): **USA bbox wraps the whole world.** `list_regions()` gives `usa.bbox = [-179.1, 18.9, 179.7, 71.3]` because the Aleutians cross the antimeridian, so any bbox test thinks Europe and Asia are "USA". I've switched my "is there data here" checks, the region name and the outlines to your `marker_cells`, so the UI is fine. But please report a non-wrapping bbox for the main landmass, e.g. `[-179.2, 18.9, -66.9, 71.4]` with the far-west Aleutians clipped (or a list of boxes), so `/regions` consumers and my viewport cell estimates aren't fooled.
-
+_(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
-_(empty: add items as `- [ ] YYYY-MM-DD: request`)_
+- [ ] 2026-11-21 (P1, user request): **Street View-style preview on hex click.** Clicking a hex shows a small **preview image** of that place in the detail panel; clicking the preview opens a **full-screen street-level viewer** you can move around in (arrows / drag, like Google Street View), with a close button back to the map.
+  - **Google Street View** (what the user named) needs a **Google Maps Platform key** with the Maps JavaScript API (Street View) and the Street View Static API enabled; the monthly free credit covers a demo. Read `GOOGLE_MAPS_API_KEY` from `.env` server-side, and expose only what the browser needs (a referrer-restricted browser key).
+    - Preview: Street View Static API `https://maps.googleapis.com/maps/api/streetview?size=640x360&location=LAT,LNG&key=…`.
+    - Viewer: `google.maps.StreetViewPanorama`. Check the Street View metadata endpoint first and show "No street imagery here" if nothing is within ~200 m.
+  - **Free fallback without a key:** Mapillary (free account token, `MAPILLARY_TOKEN`). Thumbnails come from the Graph API `images?fields=thumb_1024_url&bbox=…` and navigation from MapillaryJS. Choose whichever key is present; show the provider credit.
+  - Coordinates: use the hex centre (`score_point` returns `lat`/`lon`).
+- [ ] 2026-11-21 (P1, **user-reported bug**): **Voice still waits for the stop button.** With the mic on, each utterance must **send automatically** when you stop speaking (VAD: ~700–900 ms of silence after speech, a minimum of ~0.4 s of speech). Run the task without pressing stop. Keep the mic toggle as the only control. It resumes listening after the reply and stays paused while TTS speaks.
 
 ## Done
 
+- [x] 2026-11-21 (P2, your request): **Smaller hexes in UK towns and cities.** `uk_urban` loads (res 8, 24,705 cells). A Manchester bbox returns 220 res-8 + 1 res-7 cells, which render together. My viewport rule now fetches once **any** region in view passes its zoom threshold (it used to be **all**, so res-8 `uk_urban` would have hidden rural res-7 UK until zoom 9). The ≤ 40k-cell cap still applies. Your non-wrapping USA bbox is in, thanks. Also: read-only API calls now retry for about 20 s while the API starts, so `make dev` no longer shows "Can't reach the API" while uvicorn is still loading the regions.
 - [x] 2026-11-21 (P2): **Map key items for every region.** `/pois` accepts all your kinds (it reads `scoring.pois.POI_KINDS`; `station, substation, power_plant, water, port, ixp, data_centre, airport` as fallback) and passes `region` and `detail` through (NaN → null). The frontend asks per padded, snapped viewport (`/pois?bbox=`), refetching only when that box changes, and shows icons from zoom 7.5 (was 10.8: national sets are sparse). The API caps a response at 4,000 points, shared round-robin across kinds so no category vanishes. London seed points are dropped wherever real points of that kind exist. Colours: power_plant yellow (with substation), port blue (water family, anchor icon), airport grey/white. Tooltips show `detail` (fuel, MW). Tests added.
 - [x] 2026-11-21 (P2): **North America: verified live.** Regions load (london 8, uk 7, mexico 6, usa 6, canada 5). A Nevada viewport (`-116.5,35.5,-114,37`) returns 933 res-6 USA hexes in 0.3–1.2 s, about 275 KB. The cap (≤ 40k estimated cells; zoom ≥ 7 for res 6, ≥ 6 for res 5) and the 250 ms debounce stay. Region lookups ("is there data here", "Best … sites in <region>") now use your `marker_cells` instead of bboxes, because the USA bbox wraps the world (see your inbox). Wrapping bboxes aren't outlined.
 - [x] 2026-11-21 (P2, your request): **Hexes follow the land.** `GET /regions` now passes through `marker_cells` and `marker_resolution` (the `Region` model would have stripped them; test added).
@@ -104,3 +110,4 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 - [x] 2026-11-21 (P2): **Design requests.** Done: a dark-only Astryx theme (`frontend/themes/groundwork`, Meta blue `#0064E0` as the single accent, `#76acff` on dark) and a three.js dotted globe intro that turns to London and dives into the hex grid. It's skippable, replayable from the "Globe" button, and skipped under reduced motion.
 - [x] 2026-11-21 (P2): **Branching.** Merged your `main` into the P2 branch. See the item in your inbox.
 - [x] 2026-11-21 (P2): **Folder skeleton.** Removed the `.gitkeep` files in my folders.
+- [x] 2026-11-21 (P1): **USA bbox wrapping**: fixed. Region bboxes never span the globe: cells straddling the antimeridian are shifted and clamped, so USA is now `[-180.0, 18.96, -67.02, 71.30]`. Grid attrs use the same logic. Test: `test_bboxes_never_wrap_the_globe`.

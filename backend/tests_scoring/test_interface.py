@@ -146,9 +146,13 @@ def test_unavailable_masks_do_not_mask():
 
 
 def test_multi_region_routing():
+    import h3
+
     # Edinburgh is in the UK grid only; central London resolves to the finer London grid
     edinburgh = scoring.score_point("wind_farm", 55.95, -3.19)
-    assert edinburgh["region"] == "uk" and edinburgh["score"] is not None or edinburgh["masked"]
+    assert edinburgh["region"] == "uk_urban"  # towns and cities get res-8 hexes
+    rural = scoring.score_point("wind_farm", 57.3, -4.5)
+    assert rural["region"] == "uk" and h3.get_resolution(rural["h3"]) == 7
     assert "crime_rate" in edinburgh["unavailable"] and edinburgh["raw"]["crime_rate"] is None
     assert scoring.score_point("house", 51.5074, -0.1278)["region"] == "london"
     # a bbox over Greater London returns London res-8 cells, not the UK res-7 cells beneath them
@@ -158,7 +162,7 @@ def test_multi_region_routing():
     assert cells and {h3.get_resolution(c["h3"]) for c in cells} == {8}
     # a bbox over Scotland returns UK cells
     scot = scoring.score("wind_farm", bbox=(-4.5, 56.0, -3.5, 56.5))
-    assert scot and {h3.get_resolution(c["h3"]) for c in scot} == {7}
+    assert scot and {h3.get_resolution(c["h3"]) for c in scot} <= {7, 8}
 
 
 def test_list_pois_real_or_seeded_only():
@@ -186,3 +190,11 @@ def test_default_profiles_have_their_data():
         prof = next(p for p in scoring.list_profiles() if p["id"] == pid)
         assert {lw["id"] for lw in prof["layers"]} | set(prof["masks"]) <= layer_ids, pid
         assert any(c["score"] is not None for c in scoring.score(pid)), pid
+
+
+def test_bboxes_never_wrap_the_globe():
+    for r in scoring.list_regions():
+        w, s_, e, n = r["bbox"]
+        assert -180 <= w < e <= 180 and e - w < 180, r["id"]
+    usa = next(r for r in scoring.list_regions() if r["id"] == "usa")
+    assert usa["bbox"][2] < -60  # east edge is Maine, not Asia

@@ -34,15 +34,29 @@ export class ApiError extends Error {
   }
 }
 
+/** Read-only requests retry while the API is still starting (make dev starts both at once). */
+const RETRY_DELAYS_MS = [500, 1000, 1500, 2000, 3000, 4000, 5000, 5000];
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  let res: Response;
-  try {
-    res = await fetch(`${API_URL}${path}`, {
-      ...init,
-      headers: { 'Content-Type': 'application/json', ...init?.headers },
-    });
-  } catch {
-    throw new ApiError(0, 'network', `Can't reach the API at ${API_URL}. Is \`make api\` running?`);
+  let res: Response | null = null;
+  const retries = !init?.method || init.method === 'GET' ? RETRY_DELAYS_MS : [];
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await fetch(`${API_URL}${path}`, {
+        ...init,
+        headers: { 'Content-Type': 'application/json', ...init?.headers },
+      });
+      break;
+    } catch {
+      const wait = retries[attempt];
+      if (wait == null)
+        throw new ApiError(
+          0,
+          'network',
+          `Can't reach the API at ${API_URL}. Is \`make dev\` (or \`make api\`) running? Check its terminal for errors.`,
+        );
+      await new Promise((r) => setTimeout(r, wait));
+    }
   }
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as ApiErrorBody | null;

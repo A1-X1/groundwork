@@ -88,7 +88,9 @@ export function viewFor(
   if (hits.length === 0) return { view: null, reason: 'no_data' };
   const box = padAndSnap(vp.bbox, vp.zoom);
   const estimate = hits.reduce((n, r) => n + cellsIn(r, box), 0);
-  const zoomedIn = hits.every((r) => vp.zoom >= minZoomFor(r.resolution));
+  // Any region in view that's zoomed in enough is reason to fetch: the response mixes
+  // resolutions (e.g. res-7 rural UK with res-8 towns), and the cell cap still applies.
+  const zoomedIn = hits.some((r) => vp.zoom >= minZoomFor(r.resolution));
   if (!(estimate <= SMALL_VIEW_CELLS || (zoomedIn && estimate <= MAX_VIEW_CELLS)))
     return { view: null, reason: 'zoom_in' };
   if (prev?.bbox && contains(prev.bbox, vp.bbox) && area(prev.bbox) <= area(box) * 4)

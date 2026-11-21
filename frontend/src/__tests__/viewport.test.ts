@@ -45,6 +45,12 @@ describe('viewport data view', () => {
     expect(viewFor({ bbox: [-3, 50.5, 2, 52.5], zoom: 6.5 }, regions, null).reason).toBe('ok');
   });
 
+  it('fetches mixed-resolution views once the coarser region is zoomed in', () => {
+    const uk: Region = { id: 'uk', name: 'UK', bbox: [-8.6, 50, 1.7, 60.8], resolution: 7, cells: 53100 };
+    const urban: Region = { id: 'uk_urban', name: 'UK towns', bbox: [-7.5, 50.1, 1.8, 59], resolution: 8, cells: 24705 };
+    expect(viewFor({ bbox: [-2.6, 53.3, -1.9, 53.6], zoom: 7.5 }, [uk, urban], null).reason).toBe('ok');
+  }); // prettier-ignore
+
   it('reuses the fetched box for small pans (no refetch)', () => {
     const first = viewFor({ bbox: [-100, 38, -97, 40], zoom: 7.5 }, regions, null).view;
     const next = viewFor({ bbox: [-99.8, 38.1, -96.9, 40.1], zoom: 7.5 }, regions, first).view;
