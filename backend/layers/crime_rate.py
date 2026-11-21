@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from . import _synthetic
-from ._common import RAW_DIR, LayerMeta, cached_json, http_get, is_offline
+from ._common import DAILY, RAW_DIR, LayerMeta, cached_json, http_get, is_offline
 
 META = LayerMeta(
     id="crime_rate", label="Crime rate", unit="crimes/1,000 residents/yr", kind="aggregate",
@@ -31,7 +31,7 @@ def _bulk_csvs() -> list[Path]:
 
 def _api_points() -> tuple[list[tuple[float, float]], int]:
     """One month of crime points via the API, splitting busy hexes until under the cap."""
-    month = http_get(f"{API}/crime-last-updated")["date"][:7]
+    month = cached_json("police/last_updated.json", lambda: http_get(f"{API}/crime-last-updated"), DAILY)["date"][:7]
     from backend.pipeline.build_grid import build_grid
 
     parents = sorted({h3.cell_to_parent(c, 6) for c in build_grid().index})

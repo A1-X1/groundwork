@@ -1,0 +1,71 @@
+# Vetted, free data sources the planning agent may add as layers.
+# Every entry maps to a fixed template in backend/layers/_generic.py; the agent fills
+# in params (e.g. OSM tags), never code. key: none | free_signup.
+- id: osm_features
+  title: OpenStreetMap features (any tag)
+  provider: OpenStreetMap contributors via Overpass API
+  coverage: global
+  key: none
+  licence: ODbL 1.0
+  templates: [osm_proximity, osm_share]
+  use_for: >-
+    Distance to, or coverage by, anything mapped in OSM: power plants
+    (power=plant, plant:source=*), substations, lines, rail, ports
+    (harbour=yes, landuse=port), airports (aeroway=aerodrome), hospitals,
+    military land (landuse=military), industrial land (landuse=industrial),
+    quarries (landuse=quarry), water (natural=water, waterway=river), coastline
+    (natural=coastline), forests (landuse=forest), pipelines (man_made=pipeline),
+    telecom (telecom=data_center), fire stations (amenity=fire_station).
+  examples:
+    - {template: osm_proximity, selectors: ['nwr["power"="plant"]["plant:source"="nuclear"]']}
+    - {template: osm_proximity, selectors: ['way["natural"="coastline"]']}
+    - {template: osm_share, selectors: ['nwr["landuse"="industrial"]']}
+- id: open_meteo_daily
+  title: Open-Meteo historical daily climate (ERA5), 10-year normals
+  provider: Open-Meteo / ECMWF ERA5
+  coverage: global
+  key: none
+  licence: CC BY 4.0
+  templates: [openmeteo_daily]
+  use_for: >-
+    Long-term climate per site: temperature (mean/max/min), precipitation,
+    rain, snowfall, humidity, dew point, wind (mean/max/gusts), solar radiation,
+    soil moisture and soil temperature, evapotranspiration, cloud cover, sunshine.
+  examples:
+    - {template: openmeteo_daily, variable: wind_gusts_10m_max, aggregate: annual_max}
+    - {template: openmeteo_daily, variable: snowfall_sum, aggregate: annual_sum}
+- id: usgs_earthquakes
+  title: USGS earthquake catalogue (ComCat)
+  provider: US Geological Survey
+  coverage: global
+  key: none
+  licence: public domain
+  templates: [usgs_earthquakes]
+  use_for: Seismic hazard proxy - count of earthquakes above a magnitude within a radius over N years.
+  examples:
+    - {template: usgs_earthquakes, min_magnitude: 4.0, years: 30, radius_km: 100}
+# Known but not yet templated (the agent should mention them as future sources):
+- id: worldpop
+  title: WorldPop population grids (100 m)
+  provider: WorldPop, University of Southampton
+  coverage: global
+  key: none
+  licence: CC BY 4.0
+  templates: []
+  use_for: Population counts outside the UK (built-in population_density covers the UK).
+- id: wdpa
+  title: World Database on Protected Areas
+  provider: UNEP-WCMC / Protected Planet
+  coverage: global
+  key: free_signup
+  licence: WDPA terms (non-commercial)
+  templates: []
+  use_for: Protected areas worldwide (built-in protected_land covers England).
+- id: aqueduct
+  title: WRI Aqueduct water risk and floods
+  provider: World Resources Institute
+  coverage: global
+  key: none
+  licence: CC BY 4.0
+  templates: []
+  use_for: Baseline water stress, riverine and coastal flood depth (download).
