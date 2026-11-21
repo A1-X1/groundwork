@@ -229,6 +229,12 @@ def test_runner_accepts_ui_context():
     assert "Current UI context" in seen[0][1]["content"]
 
 
+def test_context_hides_raw_coordinates():
+    ctx = runner._context_for_model({"screen": "map", "place": "London", "center": [-0.12, 51.5], "zoom": 10,
+                                     "bbox": [1, 2, 3, 4], "profile": "house"})
+    assert ctx == {"screen": "map", "place": "London", "profile": "house", "view": "city"}
+
+
 @pytest.mark.skipif(not os.environ.get("GROUNDWORK_LIVE_MISTRAL"), reason="set GROUNDWORK_LIVE_MISTRAL=1 to hit the API")
 def test_live_mistral_navigation():
     out = runner.run("Take me to London and show the best data centre sites")
@@ -296,3 +302,10 @@ def test_runner_routes_routine_steps_to_fast_model():
     out = runner.run("help", client=Client(), model="big", fast_model="fast")
     assert seen == ["big", "big", "fast"]
     assert out["models"] == {"big": 2, "fast": 1}
+
+
+def test_build_layers_refuses_whole_countries(sandbox):
+    assert set(tools.city_regions()) >= {"london", "uk_urban", "usa_urban"}
+    assert "uk" not in tools.city_regions() and "usa" not in tools.city_regions()
+    r = tools.call("build_layers", {"layer_ids": ["slope"], "region": "usa"})
+    assert "too big" in r["error"]

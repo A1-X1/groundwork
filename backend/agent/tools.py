@@ -83,6 +83,7 @@ def get_catalog() -> dict[str, Any]:
         "profiles": [{"id": p["id"], "label": p["label"], "has_model": p["has_model"]} for p in s.list_profiles()],
         "default_profiles": s.default_profiles(),
         "regions": [{k: r[k] for k in ("id", "name", "resolution", "cells")} for r in s.list_regions()],
+        "custom_build_regions": city_regions(),
         "mask_layers": [m["id"] for m in s.list_layers() if m["id"] in ("flood_zone_3", "protected_land")],
         "positives_sources": ["osm:<key>=<value>[;<key>=<value>]", "osm:telecom=data_center",
                               "osm:landuse=residential", "gias:schools"],
@@ -190,6 +191,10 @@ def build_layers(layer_ids: list[str], region: str = "london") -> dict[str, Any]
         raise ToolError(f"unknown layers {unknown}; add them with add_layer first")
     if region not in region_ids():
         raise ToolError(f"unknown region {region!r}; known: {region_ids()}")
+    cities = city_regions()
+    if region not in cities:
+        raise ToolError(f"{region!r} is a whole country, too big for a one-off building; build for a city-scale "
+                        f"region instead: {cities} (e.g. london, uk_urban for UK towns, usa_urban for US cities)")
     out = region_dir(region, _data.PROCESSED_DIR)
     if not (out / "grid.parquet").exists():
         src = _data.region_dirs().get(region)
@@ -206,12 +211,21 @@ def build_layers(layer_ids: list[str], region: str = "london") -> dict[str, Any]
                 f"({status.get('status')}, {status.get('seconds', 0):.1f}s)", done=done, total=total, layer=lid,
                 status=status.get("status"))
 
-    _report(type="progress", phase="build", detail=f"Downloading and building {len(layer_ids)} layer(s) for {region}…",
-            done=0, total=len(layer_ids))
-    run(layer_ids, out=out, region=region, progress=on_layer)
+    _report(type="progress", phase="build", detail=f"Checking {len(layer_ids)} layer(s) for {region}…")
+    import pandas as pd
+
+    have = set(pd.read_parquet(out / "grid.parquet").columns)
+    prev = json.loads((out / "build.json").read_text()).get("layers", {}) if (out / "build.json").exists() else {}
+    reuse = [i for i in layer_ids if i in have and prev.get(i, {}).get("status") in ("real", "synthetic")]
+    todo = [i for i in layer_ids if i not in reuse]
+    if reuse:
+        _report(type="progress", phase="build", detail=f"Reusing {len(reuse)} layer(s) already built for {region}")
+    if todo:
+        run(todo, out=out, region=region, progress=on_layer)
     _scoring().reload()
     build = json.loads((out / "build.json").read_text())["layers"]
     return {"region": region, "built": {i: build.get(i, {}).get("status") for i in layer_ids},
+            "reused": reuse,
             "reasons": {i: build[i].get("reason") for i in layer_ids if build.get(i, {}).get("reason")}}
 
 
@@ -240,6 +254,14 @@ def layer_stats(layer_ids: list[str], region: str = "london") -> dict[str, Any]:
         out[lid] = {"label": meta[lid]["label"], "unit": meta[lid]["unit"], "status": status,
                     "p10": round(float(p10), 3), "median": round(float(med), 3), "p90": round(float(p90), 3)}
     return {"region": region, "layers": out}
+
+
+def city_regions() -> list[str]:
+    """Regions small enough for custom buildings: city grids and the derived towns/cities layers."""
+    from backend.pipeline.region import definitions
+
+    return [d["id"] for d in definitions()
+            if d.get("kind") == "city" or isinstance(d.get("boundary"), dict)]
 
 
 def azure_status() -> dict[str, Any]:
