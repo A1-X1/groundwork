@@ -1166,6 +1166,26 @@ export default function App() {
             onRemove={removeProject}
             openCreateNonce={createNonce}
             assistant={<CommandBar onSubmit={ask} />}
+            regions={regions.filter((r) => !r.nested_in)}
+            onBuildCustom={(prompt, region) => {
+              setProgress({
+                title: 'Building your custom structure',
+                step: 0,
+                message: 'Starting the planning agent…',
+              });
+              voice.setMessage('Building it…');
+              void runPlanningAgent(prompt, (m) => voice.setMessage(m), {
+                screen: 'create',
+                region,
+              })
+                .then((reply) => {
+                  voice.setMessage(reply);
+                  voice.speak(reply);
+                })
+                .catch((e: unknown) =>
+                  voice.setMessage(e instanceof Error ? e.message : 'The agent failed.'),
+                );
+            }}
           />
         </VStack>
       )}

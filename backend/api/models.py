@@ -55,6 +55,9 @@ class Profile(BaseModel):
     is_default: bool = Field(
         default=False, description="Shown as a main option on the home screen (else under More)."
     )
+    generated: bool = Field(
+        default=False, description="Made by the planning agent (Custom), not built in."
+    )
     notes: dict[str, str] = Field(
         default_factory=dict,
         description="Per-layer meaning for this profile, e.g. 'Higher crime per 1,000 residents "
