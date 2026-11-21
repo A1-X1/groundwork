@@ -606,15 +606,17 @@ def list_pois(
     kinds: Annotated[
         str | None,
         Query(
-            description="Comma-separated kinds: substation, ixp, data_centre, station, water.",
+            description="Comma-separated kinds: station, substation, power_plant, water, port, "
+            "ixp, data_centre, airport.",
             examples=["substation,ixp"],
         ),
     ] = None,
     bbox: BBoxQuery = None,
 ) -> list[dict[str, Any]]:
-    """Substations, internet exchanges, existing data centres, stations and reservoirs, for
-    minimal icons on the map. Each item says where its location comes from. Display only:
-    scoring uses the layers, not these points."""
+    """Stations, substations, power plants, water, ports, internet exchanges, data centres and
+    airports for map icons, in every region. Ask per viewport (`bbox`): at most 4,000 points
+    come back. Each item says where its location comes from. Display only: scoring uses the
+    layers, not these points."""
     ks = [k.strip() for k in kinds.split(",") if k.strip()] if kinds else None
     return pois.list_pois(scoring, ks, parse_bbox(bbox))
 

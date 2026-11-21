@@ -9,7 +9,7 @@ import type { StyleSpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Poi } from '../api/types';
-import { POI_LABEL, poiIconUrl } from './poiIcons';
+import { categoryOf, POI_LABEL, poiIconUrl } from './poiIcons';
 import { MASKED_RGB, RAMPS, sample, type RampId } from '../lib/colour';
 import { BuildingsLayer, type SiteRender } from './buildings';
 import { GLOBE_ZOOM } from '../lib/viewport';
@@ -84,7 +84,7 @@ export interface MapArea {
 
 export const ELEVATION_SCALE = 1800;
 /** Points of interest appear once the map is zoomed in past this level. */
-export const POI_MIN_ZOOM = 10.8;
+export const POI_MIN_ZOOM = 7.5; // national POI sets are sparse enough to show early
 const CENTRE: [number, number] = [-0.11, 51.5];
 const DEM_TILES = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
 const STYLES = {
@@ -591,7 +591,8 @@ export function MapView(props: Props) {
           ? {
               text:
                 'kind' in object
-                  ? `${POI_LABEL[object.kind]}: ${object.name}\n${object.source}`
+                  ? `${POI_LABEL[object.kind] ?? categoryOf(object.kind).label}: ${object.name}` +
+                    `${object.detail ? `\n${object.detail}` : ''}\n${object.source}`
                   : 'ring' in object
                     ? object.name
                     : object.tooltip,

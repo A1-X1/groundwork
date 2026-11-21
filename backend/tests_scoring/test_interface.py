@@ -163,8 +163,15 @@ def test_multi_region_routing():
 
 def test_list_pois_real_or_seeded_only():
     pois = scoring.list_pois(["ixp", "data_centre", "water"])
-    assert pois and all(p["source"] in {"osm", "seeded"} for p in pois)
-    assert all(set(p) == {"id", "kind", "name", "lat", "lon", "source"} for p in pois)
+    assert pois and all(p["source"] != "synthetic" for p in pois)
+    assert all({"id", "kind", "name", "lat", "lon", "source"} <= set(p) for p in pois)
+
+
+def test_uk_pois_cover_the_country():
+    edinburgh = scoring.list_pois(["station"], (-3.3, 55.9, -3.1, 56.0))
+    assert any("Edinburgh" in p["name"] for p in edinburgh)
+    plants = scoring.list_pois(["power_plant"], (-6.5, 49.8, 2.0, 59.0))
+    assert len(plants) > 1000 and all(p.get("detail") for p in plants[:10])
     docklands = scoring.list_pois(["ixp"], (-0.05, 51.49, 0.03, 51.52))
     assert docklands and all(-0.05 <= p["lon"] <= 0.03 for p in docklands)
     with pytest.raises(KeyError):

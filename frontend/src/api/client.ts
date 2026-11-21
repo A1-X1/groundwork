@@ -205,7 +205,9 @@ export const api = {
     return (await res.json()) as { text: string };
   },
 
-  pois: (): Promise<Poi[]> => (fixtures ? Promise.resolve([]) : request('/pois')),
+  /** Points of interest, for the visible area when `bbox` is given (the API caps at 4,000). */
+  pois: (bbox?: BBox | null): Promise<Poi[]> =>
+    fixtures ? Promise.resolve([]) : request(`/pois${bbox ? `?bbox=${bbox.join(',')}` : ''}`),
 
   assistant: (text: string, context: Record<string, unknown>): Promise<AssistantResponse> =>
     fixtures

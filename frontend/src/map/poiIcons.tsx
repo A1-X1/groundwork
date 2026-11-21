@@ -8,6 +8,7 @@
  */
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
+  Anchor,
   Factory,
   Hospital,
   MapPin,
@@ -31,7 +32,7 @@ export interface PoiCategory {
 
 export const CATEGORIES: PoiCategory[] = [
   { id: 'transport', label: 'Stations', oklch: [0.6, 0.21, 27] }, // red
-  { id: 'water', label: 'Water and reservoirs', oklch: [0.64, 0.16, 245] }, // blue
+  { id: 'water', label: 'Water, reservoirs and ports', oklch: [0.64, 0.16, 245] }, // blue
   { id: 'power', label: 'Electricity (substations, power plants, HV lines)', oklch: [0.87, 0.17, 95] }, // yellow
   { id: 'network', label: 'Internet exchanges and data centres', oklch: [0.6, 0.2, 305] }, // purple
   { id: 'education', label: 'Schools', oklch: [0.8, 0.18, 150] }, // green
@@ -49,7 +50,7 @@ const SPARE: [number, number, number][] = [
 
 const KIND_CATEGORY: Record<string, string> = {
   station: 'transport', rail: 'transport', subway: 'transport',
-  water: 'water', reservoir: 'water',
+  water: 'water', reservoir: 'water', port: 'water',
   substation: 'power', power_plant: 'power', hv_line: 'power', power: 'power',
   ixp: 'network', data_centre: 'network',
   school: 'education',
@@ -59,7 +60,7 @@ const KIND_CATEGORY: Record<string, string> = {
 
 const GLYPH: Record<string, LucideIcon> = {
   station: TrainFront, rail: TrainFront, subway: TrainFront,
-  water: Waves, reservoir: Waves,
+  water: Waves, reservoir: Waves, port: Anchor,
   substation: Zap, hv_line: Zap, power: Zap, power_plant: Factory,
   ixp: Network, data_centre: Server,
   school: School,
@@ -76,6 +77,7 @@ export const POI_LABEL: Record<string, string> = {
   station: 'Station',
   water: 'Water',
   reservoir: 'Reservoir',
+  port: 'Port',
   school: 'School',
   hospital: 'Hospital',
   airport: 'Airport',

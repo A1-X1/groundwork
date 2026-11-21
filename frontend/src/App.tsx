@@ -16,7 +16,7 @@ import {
 } from './lib/structures';
 import { AreaDetail, AreasPanel } from './panels/AreasPanel';
 import type { Area, AreaSummary, Region, StructureRecord } from './api/types';
-import type { BBox } from './lib/viewport';
+import { padAndSnap, type BBox } from './lib/viewport';
 import { buildLandMask, regionsAt, wrapsWorld } from './lib/land';
 import type { Basemap, MapArea } from './map/MapView';
 import { HomeScreen } from './panels/HomeScreen';
@@ -155,10 +155,6 @@ export default function App() {
 
   useEffect(() => {
     api
-      .pois()
-      .then(setPois)
-      .catch(() => setPois([]));
-    api
       .models3d()
       .then(setModelIds)
       .catch(() => setModelIds([]));
@@ -295,6 +291,23 @@ export default function App() {
     const [lon, lat] = mapBox.center;
     return regionsAt(lat, lon, regions)[0]?.name ?? null;
   }, [mapBox, regions]);
+  // ---- POIs for the visible area (every region has thousands), refetched when the padded,
+  // snapped viewport changes; nothing while zoomed out.
+  const poiKey = useMemo(() => {
+    if (globeVisible || !mapBox || mapBox.zoom < POI_MIN_ZOOM) return null;
+    return padAndSnap(mapBox.bbox, mapBox.zoom).join(',');
+  }, [mapBox, globeVisible]);
+  useEffect(() => {
+    if (!poiKey) return;
+    let alive = true;
+    api
+      .pois(poiKey.split(',').map(Number) as BBox)
+      .then((ps) => alive && setPois(ps))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [poiKey]);
   const poiKindsInView = useMemo(() => {
     if (globeVisible || screen !== 'explore' || !mapBox || mapBox.zoom < POI_MIN_ZOOM) return [];
     const [w, so, e, n] = mapBox.bbox;
