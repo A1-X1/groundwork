@@ -14,7 +14,7 @@ Person 1's session can stop when the user's usage runs out, and it can't announc
 
 ## Inbox for Person 1 (data, profiles, scoring, ML)
 
-- [ ] 2026-11-21 (P2, user request): **New UI command `GO_TO_RANK {rank}`.** It flies to and selects the n-th best scored hexagon in view (zoom 13.5). `rank` is 1–500, `"next"` or `"prev"`. Users say "take me to the best location", "the second best site", "number 5", "next one". Please add it to your `UI_COMMANDS` in `backend/agent/tools.py` so the agent can end a run with e.g. `SHOW_TOP_SITES → GO_TO_RANK {rank: 1}`.
+_(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
@@ -22,6 +22,11 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`; everything earlier is answere
 
 ## Done
 
+- [x] 2026-11-21 (P2, your request): **Address command + "not understood".**
+  1. `PAN_ADDRESS {address, lat, lon}`: the map shows (leaving the globe if needed), flies to zoom 16, drops a pin whose popup shows the full address, and selects the hexagon there. It's also in the `/assistant/command` set. Verified in Chromium with a stubbed reply for 10 Downing Street: zoom 16, popup "10 Downing Street, Westminster, London SW1A 2AA".
+  2. Agent context now carries `selection: {lat, lon, h3}` for the clicked hexagon.
+  3. My rule parser answers exactly "Sorry, I don't understand that command." when nothing matches, the same wording as your agent, and the voice dock speaks it (tested). The Mistral parser is told to set `understood=false` for street addresses and address questions, so they go to your agent.
+- [x] 2026-11-21 (P2, user request): **Street View removed.** The user's Google key didn't work, so per the user `/streetview/*`, the preview in the hex details, the full-screen viewer and the Connections row are gone. Nothing of yours depended on them.
 - [x] 2026-11-21 (P2): **Theme park: verified end to end.** `/profiles` lists `theme_park` with `generated: true` and 9 weight notes, so it shows under "More" and in the Custom tab's "Generated before", with the notes under its sliders. `/models3d/theme_park` loads (29 parts: box/cylinder/cone/dome, all supported by my builder), and a south-London bbox scores 346 hexes. Added a Ferris-wheel icon for it on the home screen.
 - [x] 2026-11-21 (P2, your request after the macOS 500): **`Layer.min` / `max` are now `float | None`** in the API model (default null), so a layer without a built range can't 500 `GET /layers` any more (test reproduces it with null min/max). The frontend legend shows "—" for a missing range.
 - [x] 2026-11-21 (P2, user request): **Zoom into the best / second best / next site by voice or text.** New `GO_TO_RANK {rank: n | "next" | "prev"}` in `/assistant/command`. The rules handle "best location", ordinals (second … tenth, 2nd), "number N" and "next" / "previous", while "best sites" / "top 10" still list. The Mistral prompt and validation (1–500) are in too. The UI ranks unmasked scored hexes and flies in (zoom 13.5). The ranking is snapshotted so it doesn't shift as zooming shrinks the loaded area; it resets when the profile, weights or area change. The reviewer skips rank navigation. Verified live: best 77 → next 76 → third 74 → previous 76, matching the Best sites list.
@@ -139,3 +144,4 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`; everything earlier is answere
 - [x] 2026-11-21 (P2): **Branching.** Merged your `main` into the P2 branch. See the item in your inbox.
 - [x] 2026-11-21 (P2): **Folder skeleton.** Removed the `.gitkeep` files in my folders.
 - [x] 2026-11-21 (P1): **USA bbox wrapping**: fixed. Region bboxes never span the globe: cells straddling the antimeridian are shifted and clamped, so USA is now `[-180.0, 18.96, -67.02, 71.30]`. Grid attrs use the same logic. Test: `test_bboxes_never_wrap_the_globe`.
+- [x] 2026-11-21 (P1): **`GO_TO_RANK {rank}`**: added to the agent's `UI_COMMANDS` and instructions (rank 1–500, "next"/"prev"). Live test: "take me to the second best site" → `GO_TO_RANK {rank: 2}`, "You're now at the second best site."

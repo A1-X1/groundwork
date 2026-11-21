@@ -43,6 +43,9 @@ SPEAKER_TONES: dict[str, set[str]] = {
 Tone = Literal["neutral", "curious", "cheerful", "confident", "excited"]
 TIMEOUT_S = 12.0
 
+# Same words as Person 1's agent, so typed, spoken and agent replies agree.
+NOT_UNDERSTOOD = "Sorry, I don't understand that command."
+
 # Command set agreed with Person 1 (shared/handoff/p1-to-p2.md): name → argument names.
 COMMANDS: dict[str, list[str]] = {
     "PAN_COUNTRY": ["name"],
@@ -58,6 +61,8 @@ COMMANDS: dict[str, list[str]] = {
     "SHOW_TOP_SITES": ["n", "profile"],
     # fly to and select the n-th best scored hexagon in view; rank: 1, 2, … or "next"/"prev"
     "GO_TO_RANK": ["rank"],
+    # fly to a geocoded street address (the agent's find_address tool fills lat/lon)
+    "PAN_ADDRESS": ["address", "lat", "lon"],
     "SELECT_PLACE": ["name", "lat", "lon"],
     "PLACE_SITE": ["profile", "name", "lat", "lon"],
     "REMOVE_SITE": ["id"],
@@ -79,7 +84,8 @@ COMMANDS: dict[str, list[str]] = {
 
 CommandType = Literal[
     "PAN_COUNTRY", "PAN_CITY", "PAN_REGION", "ZOOM", "RESET_VIEW", "ROTATE_GLOBE",
-    "SET_PROFILE", "SET_OVERLAY", "SET_WEIGHT", "RESET_WEIGHTS", "SHOW_TOP_SITES", "GO_TO_RANK",
+    "SET_PROFILE", "SET_OVERLAY", "SET_WEIGHT", "RESET_WEIGHTS", "SHOW_TOP_SITES",
+    "GO_TO_RANK", "PAN_ADDRESS",
     "SELECT_PLACE", "PLACE_SITE", "REMOVE_SITE", "RENAME_SITE", "COMPARE_SITES",
     "COMPARE_USE_CASES", "EXPLAIN", "TOGGLE_MASKS", "TOGGLE_TERRAIN", "HELP",
     "OPEN_CREATE", "CREATE_STRUCTURE", "OPEN_STRUCTURE", "SHOW_MODEL", "SHOW_PROGRESS", "GO_HOME",
@@ -249,6 +255,8 @@ def _system_prompt(profiles: list[dict], layers: list[dict]) -> str:
         "GO_TO_RANK zooms into one ranked site: 'take me to the best location' -> rank 1, "
         "'the second best' -> 2, 'next one' -> 'next', 'previous' -> 'prev'. Use SHOW_TOP_SITES "
         "only for a list ('best sites', 'top 10'). "
+        "Street addresses ('take me to 10 Downing Street') and questions about an address "
+        "('what's the address of this site?') need geocoding: set understood=false, no commands. "
         'For compound requests ("pan to X then show Y") return the commands in the order '
         "they must run. "
         "If the user is already looking at the place they ask for (context.center/zoom/place), "
@@ -341,7 +349,7 @@ def rules(text: str, profiles: list[dict], layers: list[dict]) -> tuple[list[Com
         raw.extend(_rules_part(part, profiles, layers))
     cmds = clean(raw, [p["id"] for p in profiles], [layer["id"] for layer in layers])
     if not cmds:
-        return [], "I didn't catch an action. Try “show the best data centre sites” or “help”."
+        return [], NOT_UNDERSTOOD
     return cmds, "OK: " + ", ".join(c.type.replace("_", " ").lower() for c in cmds) + "."
 
 

@@ -237,3 +237,25 @@ def test_go_to_rank_rules() -> None:
     assert clean([{"type": "GO_TO_RANK", "args": {"rank": "9999"}}], [], [])[
         0
     ].args == {"rank": 500}
+
+
+def test_not_understood_matches_agent_wording() -> None:
+    """Gibberish gets the same sentence as Person 1's agent, and no commands."""
+    from backend.api.assistant import NOT_UNDERSTOOD, clean, rules
+
+    cmds, reply = rules("flibber jabber wobble", [], [])
+    assert (
+        cmds == []
+        and reply == NOT_UNDERSTOOD == "Sorry, I don't understand that command."
+    )
+    pan = clean(
+        [
+            {
+                "type": "PAN_ADDRESS",
+                "args": {"address": "10 Downing St", "lat": 51.5, "lon": -0.13},
+            }
+        ],
+        [],
+        [],
+    )
+    assert pan[0].type == "PAN_ADDRESS" and pan[0].args["address"] == "10 Downing St"

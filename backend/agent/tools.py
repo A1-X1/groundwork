@@ -32,6 +32,8 @@ UI_COMMANDS = {
     "TOGGLE_TERRAIN", "HELP",
     # creation flow (usable from the home screen, before any map is open)
     "OPEN_CREATE", "CREATE_STRUCTURE", "OPEN_STRUCTURE", "SHOW_MODEL", "SHOW_PROGRESS", "GO_HOME",
+    "PAN_ADDRESS",  # {address, lat, lon}: fly to an exact address and drop a pin
+    "GO_TO_RANK",   # {rank: 1–500 | "next" | "prev"}: fly to and select the n-th best hex in view
 }
 
 
@@ -333,6 +335,21 @@ def _centre(cell: str) -> tuple[float, float]:
     return h3.cell_to_latlng(cell)
 
 
+def find_address(query: str | None = None, lat: float | None = None, lon: float | None = None) -> dict[str, Any]:
+    """Look up an address: by text (forward geocode) or at coordinates (reverse geocode)."""
+    from backend.layers import _geocode
+
+    if query:
+        hit = _geocode.lookup(query)
+        if not hit:
+            return {"found": False, "message": f"No address found for “{query}”."}
+        return {"found": True, **hit}
+    if lat is not None and lon is not None:
+        addr = _geocode.address_at(float(lat), float(lon))
+        return {"found": bool(addr), "address": addr, "lat": lat, "lon": lon}
+    raise ToolError("give either query (an address or place) or lat and lon")
+
+
 def ui_command(commands: list[dict[str, Any]]) -> dict[str, Any]:
     """An ordered queue: the UI runs each command after the previous one finishes."""
     if not commands:
@@ -358,7 +375,7 @@ TOOLS: dict[str, Callable[..., dict[str, Any]]] = {
     "get_catalog": get_catalog, "search_data_sources": search_data_sources, "add_layer": add_layer,
     "build_layers": build_layers, "create_profile": create_profile, "design_3d_model": design_3d_model,
     "azure_status": azure_status, "train_model": train_model, "layer_stats": layer_stats, "preview_scores": preview_scores,
-    "ui_command": ui_command, "request_user_action": request_user_action,
+    "ui_command": ui_command, "request_user_action": request_user_action, "find_address": find_address,
 }
 
 
@@ -421,6 +438,9 @@ SCHEMAS: list[dict[str, Any]] = [
         "the previous to finish (e.g. PAN_CITY then SET_PROFILE then SHOW_TOP_SITES).",
         {"commands": {"type": "array", "items": {"type": "object", "description": "{command: NAME, ...args}"}}},
         ["commands"]),
+    _fn("find_address", "Look up an address: pass `query` (e.g. '10 Downing Street, London') to get its full address "
+        "and coordinates, or `lat`+`lon` to get the street address at a point. Then fly there with PAN_ADDRESS.",
+        {"query": {"type": "string"}, "lat": {"type": "number"}, "lon": {"type": "number"}}, []),
     _fn("request_user_action", "Ask the user to do something only they can (sign in to Azure ML, add a key, confirm).",
         {"action": {"type": "string", "enum": ["connect_azure", "choose_training", "connect_mistral", "confirm",
                                                "provide_api_key"]},
@@ -428,7 +448,7 @@ SCHEMAS: list[dict[str, Any]] = [
 ]
 
 
-AGGREGATOR_TOOLS = ("get_catalog", "search_data_sources", "add_layer", "build_layers", "layer_stats",
+AGGREGATOR_TOOLS = ("find_address", "get_catalog", "search_data_sources", "add_layer", "build_layers", "layer_stats",
                     "create_profile", "design_3d_model", "preview_scores", "ui_command", "request_user_action")
 
 

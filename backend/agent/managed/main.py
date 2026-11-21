@@ -111,7 +111,13 @@ async def request_user_action(action: str, message: str) -> dict[str, Any]:
     return await _call("request_user_action", action=action, message=message)
 
 
-AGGREGATOR_TOOLS = [get_catalog, search_data_sources, add_layer, build_layers, layer_stats, create_profile,
+@agents.tool
+async def find_address(query: str | None = None, lat: float | None = None, lon: float | None = None) -> dict[str, Any]:
+    """Look up an address: `query` (e.g. '10 Downing Street, London') → full address + coordinates, or `lat`+`lon` → the street address there. Then fly there with PAN_ADDRESS."""
+    return await _call("find_address", query=query, lat=lat, lon=lon)
+
+
+AGGREGATOR_TOOLS = [find_address, get_catalog, search_data_sources, add_layer, build_layers, layer_stats, create_profile,
                     design_3d_model, preview_scores, ui_command, request_user_action]
 
 aggregator = agents.Subagent(

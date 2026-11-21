@@ -169,6 +169,9 @@ def _context_for_model(context: dict[str, Any]) -> dict[str, Any]:
     """Only the human-meaningful parts of the UI state. Raw coordinates and zoom stay out, so the
     model reasons (and talks) in place names; the zoom level becomes a coarse 'view' word."""
     out = {k: context[k] for k in VIEW_KEYS if context.get(k) not in (None, "", [])}
+    sel = context.get("selection")
+    if isinstance(sel, dict) and {"lat", "lon"} <= set(sel):  # the clicked site, for address lookups only
+        out["selection"] = {"lat": sel["lat"], "lon": sel["lon"], **({"h3": sel["h3"]} if "h3" in sel else {})}
     zoom = context.get("zoom")
     if isinstance(zoom, (int, float)):
         out["view"] = "globe" if zoom < 4 else "country" if zoom < 7 else "city" if zoom < 11 else "street"

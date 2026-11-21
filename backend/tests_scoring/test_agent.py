@@ -309,3 +309,16 @@ def test_build_layers_refuses_whole_countries(sandbox):
     assert "uk" not in tools.city_regions() and "usa" not in tools.city_regions()
     r = tools.call("build_layers", {"layer_ids": ["slope"], "region": "usa"})
     assert "too big" in r["error"]
+
+
+def test_find_address_validates_and_ui_accepts_pan_address():
+    assert "error" in tools.call("find_address", {})
+    q = tools.call("ui_command", {"commands": [{"command": "PAN_ADDRESS", "address": "x", "lat": 51.5, "lon": -0.1}]})
+    assert q["ui"][0]["command"] == "PAN_ADDRESS"
+    ctx = runner._context_for_model({"place": "London", "selection": {"lat": 51.5, "lon": -0.12, "h3": "abc"}})
+    assert ctx["selection"] == {"lat": 51.5, "lon": -0.12, "h3": "abc"}
+
+
+def test_go_to_rank_command_allowed():
+    q = tools.call("ui_command", {"commands": [{"command": "SHOW_TOP_SITES", "n": 5}, {"command": "GO_TO_RANK", "rank": 1}]})
+    assert [c["command"] for c in q["ui"]] == ["SHOW_TOP_SITES", "GO_TO_RANK"]

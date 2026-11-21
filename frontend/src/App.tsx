@@ -84,6 +84,12 @@ export default function App() {
   const [arrival, setArrival] = useState<{ lat: number; lon: number; nonce: number } | null>(null);
   const [globeNotice, setGlobeNotice] = useState<string | null>(null);
   const [screen, setScreen] = useState<'home' | 'explore'>('home');
+  const [addressPin, setAddressPin] = useState<{
+    lat: number;
+    lon: number;
+    label: string;
+    nonce: number;
+  } | null>(null);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [connectionsReason, setConnectionsReason] = useState<string | null>(null);
   /** Azure isn't connected and the agent asks how to train: the original prompt and message. */
@@ -695,6 +701,25 @@ export default function App() {
           case 'TOGGLE_TERRAIN':
             setTerrain(args.state !== 'off');
             break;
+          case 'PAN_ADDRESS': {
+            // A geocoded street address from the agent's find_address tool: fly there, drop a
+            // pin with the full address and select the hexagon under it.
+            const lat = Number(args.lat);
+            const lon = Number(args.lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+              notes.push(`I couldn’t find ${str('address') || 'that address'}.`);
+              break;
+            }
+            const label = str('address') || `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+            if (screenRef.current !== 'explore') setScreen('explore');
+            setGlobeVisible(false);
+            setAddressPin({ lat, lon, label, nonce: Date.now() });
+            select({ h3: latLngToCell(lat, lon, 8), lat, lon });
+            setFocus({ lat, lon, nonce: Date.now(), zoom: 16 });
+            lastPlaceRef.current = label;
+            await waitForCamera(4000);
+            break;
+          }
           case 'GO_TO_RANK': {
             // Zoom into the n-th best scored hexagon in view ("best location", "second best",
             // "next one"); ranks are within the area currently loaded.
@@ -956,6 +981,14 @@ export default function App() {
             profile: gw.profile?.id ?? null,
             overlay: gw.overlayId,
             selected_h3: gw.selection?.h3 ?? null,
+            // the clicked hexagon, so the agent can answer "what's the address of this site?"
+            selection: selectionRef.current
+              ? {
+                  lat: selectionRef.current.lat,
+                  lon: selectionRef.current.lon,
+                  h3: selectionRef.current.h3,
+                }
+              : null,
             view: screenRef.current === 'home' ? 'home' : globeVisibleRef.current ? 'globe' : 'map',
             structures: projectsRef.current.map((x) => x.name),
             ...extraContext,
@@ -1174,6 +1207,7 @@ export default function App() {
             settleCamera();
           }}
           onZoomOut={onMapZoomOut}
+          pin={addressPin}
           regionAreas={
             gw.viewReason === 'zoom_in' || gw.viewReason === 'no_data' ? regionAreas : undefined
           }
@@ -1426,12 +1460,6 @@ export default function App() {
                 }}
                 onPlace={() => gw.selection && gw.placeSite(gw.selection)}
                 onChooseProfile={gw.chooseProfile}
-                onConnectStreetView={() => {
-                  setConnectionsReason(
-                    'Add a Google Maps key or a free Mapillary token to see street-level imagery for any hexagon.',
-                  );
-                  setConnectionsOpen(true);
-                }}
               />
             ) : (
               <TopSites

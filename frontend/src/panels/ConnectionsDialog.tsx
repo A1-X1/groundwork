@@ -11,7 +11,6 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { api } from '../api/client';
 import type { AzureConfig, Connections } from '../api/types';
 import { MicrosoftLogo, MistralLogo } from './BrandLogos';
-import { StreetViewConnections } from './StreetView';
 import { Selector } from '@astryxdesign/core/Selector';
 import { getVoice, setVoice, VOICES, type VoiceId } from '../lib/speech';
 
@@ -300,7 +299,6 @@ export function ConnectionsDialog({ isOpen, onOpenChange, reason }: Props) {
                 {error}
               </Text>
             )}
-            <StreetViewConnections />
           </>
         )}
       </VStack>
