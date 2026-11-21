@@ -113,8 +113,8 @@ const TARGETS: Record<VoiceState, { amp: number; freq: number; swirl: number; sc
 };
 
 const LABEL: Record<VoiceState, string> = {
-  idle: 'Tap to talk, or hold',
-  listening: 'Listening… tap to stop',
+  idle: 'Tap to turn the mic on',
+  listening: 'Listening… just speak; I send when you pause. Tap to turn off.',
   thinking: 'Thinking…',
   speaking: 'Speaking',
 };
@@ -259,7 +259,7 @@ export function VoiceOrb({ state, level, message, isAvailable, onStart, onStop }
       const quick = performance.now() - downAt < HOLD_MS;
       downAt = 0;
       if (holding) {
-        onStopRef.current();
+        // The mic stays on after a hold: the utterance sends itself when you pause.
         return;
       }
       if (quick && moved < 6) {
