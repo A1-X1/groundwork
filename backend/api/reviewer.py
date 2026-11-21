@@ -52,6 +52,12 @@ SYSTEM = (
     "warning when it is physically possible but faces serious legal, safety or planning "
     "constraints: a nuclear plant in a dense city, building on a protected nature reserve, a "
     "wind farm next to an airport, homes on a flood plain. "
+    "Only warn about a specific, serious conflict between that structure and that named place; "
+    "general requirements (needs space, needs power, cities are expensive or have planning "
+    "rules) and requests without a specific place ('here', 'near Manchester', 'where should "
+    "I…') are ok, because Groundwork's scoring already weighs them; e.g. a data centre in "
+    "London or homes in Manchester are ok. Possible-but-restricted cases (a nuclear plant in a "
+    "city) are warning, never unsuitable. "
     "ok for everything else; most requests are ok. Never moralise. Be brief and friendly, and "
     "suggest the closest sensible option."
 )
