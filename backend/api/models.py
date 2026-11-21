@@ -55,6 +55,9 @@ class Profile(BaseModel):
     is_default: bool = Field(
         default=False, description="Shown as a main option on the home screen (else under More)."
     )
+    generated: bool = Field(
+        default=False, description="Made by the planning agent (Custom), not built in."
+    )
     notes: dict[str, str] = Field(
         default_factory=dict,
         description="Per-layer meaning for this profile, e.g. 'Higher crime per 1,000 residents "
@@ -245,6 +248,11 @@ class Region(BaseModel):
         default_factory=list,
         description="Coarse H3 cells tracing the region's land (no sea), for globe markers and "
         "for clipping the map's surrounding grid.",
+    )
+    nested_in: str | None = Field(
+        default=None,
+        description="Parent region id when this region sits inside another (e.g. london in uk); "
+        "nested regions have no marker_cells and get no outline.",
     )
     marker_resolution: int | None = Field(
         default=None, description="H3 resolution of marker_cells."

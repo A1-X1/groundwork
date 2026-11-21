@@ -14,6 +14,15 @@ London is the demo region.
 > (`data/sample/`) still uses deterministic **synthetic** fallbacks for most layers until `make data`
 > is run with network access. `GET /health` and the app both say which layers are real.
 
+## Who it's for
+
+The same engine serves different audiences, each with its own scoring profile. The full guide is [docs/use-cases.md](docs/use-cases.md).
+
+- **Business:** data centres and compute-heavy sites (power, cooling, fibre, grid carbon), with an ML feasibility model trained locally or on Azure ML.
+- **Consumers:** where to live (homes), weighing safety, transport, schools, green space and prices.
+- **Government and public bodies:** schools, hospitals and renewables (solar and wind farms), for siting public infrastructure.
+- **Custom:** describe any building ("a hydrogen refuelling station near motorways"). The Mistral agents find the data, build the profile and a 3D model, and score it.
+
 ## Features
 
 - A three.js globe that turns to London and dives into its hex grid, in a dark, single-accent theme.

@@ -18,7 +18,7 @@ from typing import Annotated, Any, TypeVar
 
 import h3
 import httpx
-from backend.api import agent_routes, areas, assistant, pois, reviewer, scoring_source
+from backend.api import agent_routes, areas, assistant, pois, reviewer, scoring_source, streetview
 from backend.api.models import (
     CompareEntry,
     CompareResponse,
@@ -123,6 +123,7 @@ app.add_middleware(
 areas.scoring = scoring
 app.include_router(areas.router, responses=ERRORS)
 app.include_router(agent_routes.router, responses=ERRORS)
+app.include_router(streetview.router)
 
 
 def _reload_after_agent() -> None:
@@ -165,6 +166,8 @@ async def _validation_error(_: Request, exc: RequestValidationError) -> JSONResp
 
 @app.exception_handler(StarletteHTTPException)
 async def _http_error(_: Request, exc: StarletteHTTPException) -> JSONResponse:
+    if isinstance(exc.detail, dict) and "code" in exc.detail:  # routers that set their own code
+        return _error(exc.status_code, str(exc.detail["code"]), str(exc.detail.get("message", "")))
     code = {404: "not_found", 405: "method_not_allowed"}.get(exc.status_code, "http_error")
     return _error(exc.status_code, code, str(exc.detail))
 

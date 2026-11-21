@@ -59,7 +59,7 @@ def test_agent_error_event(client, monkeypatch) -> None:
 
 def test_connections_and_azure_config(client, monkeypatch) -> None:
     monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
-    monkeypatch.setattr(assistant, "_read_dotenv", lambda: {})
+    monkeypatch.setattr(assistant, "_read_dotenv", dict)
     c = client.get("/connections").json()
     assert c["mistral"]["configured"] is False
     assert c["azure_ml"]["configured"] is False

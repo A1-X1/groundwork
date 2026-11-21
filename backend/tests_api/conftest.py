@@ -9,16 +9,16 @@ sys.path.insert(0, str(ROOT))
 # Tests run against the stub unless told otherwise (GROUNDWORK_SCORING=real make test-api).
 os.environ.setdefault("GROUNDWORK_SCORING", "stub")
 
-import tempfile  # noqa: E402
+import tempfile
 
 # Tests never touch the real app database.
 os.environ["GROUNDWORK_DB"] = os.path.join(
     tempfile.mkdtemp(prefix="gw-test-"), "test.db"
 )
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from backend.api.main import app, score_cache  # noqa: E402
+from backend.api.main import app, score_cache
 
 CONTRACTS = ROOT / "shared" / "contracts"
 

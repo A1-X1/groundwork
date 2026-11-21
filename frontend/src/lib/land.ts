@@ -56,6 +56,9 @@ export function regionsAt(lat: number, lon: number, regions: Region[]): Region[]
       return new Set(r.marker_cells).has(latLngToCell(lat, lon, r.marker_resolution));
     }
     const [w, so, e, n] = r.bbox;
+    // A nested region with no markers (London, uk_urban) counts only when its bbox is small:
+    // uk_urban's bbox covers the whole UK, London's is the city.
+    if (r.nested_in && (e - w) * (n - so) > 4) return false;
     return !wrapsWorld(r) && lon >= w && lon <= e && lat >= so && lat <= n;
   });
   return hits.sort((a, b) => a.cells - b.cells);

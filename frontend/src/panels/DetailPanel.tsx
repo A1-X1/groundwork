@@ -1,4 +1,5 @@
 import { Banner } from '@astryxdesign/core/Banner';
+import { StreetPreview } from './StreetView';
 import { Button } from '@astryxdesign/core/Button';
 import { Collapsible } from '@astryxdesign/core/Collapsible';
 import { Heading } from '@astryxdesign/core/Heading';
@@ -272,6 +273,8 @@ export function CellDetail(p: DetailProps) {
           collapsible={false}
         />
       )}
+
+      <StreetPreview lat={data?.lat ?? p.selection.lat} lon={data?.lon ?? p.selection.lon} />
 
       <Button
         label={p.site ? 'Placed here' : `Place ${p.profile?.label.toLowerCase() ?? 'site'} here`}

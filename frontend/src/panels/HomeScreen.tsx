@@ -15,6 +15,7 @@ import { Selector } from '@astryxdesign/core/Selector';
 import { Slider } from '@astryxdesign/core/Slider';
 import { Switch } from '@astryxdesign/core/Switch';
 import { Text } from '@astryxdesign/core/Text';
+import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { VStack } from '@astryxdesign/core/VStack';
 import {
@@ -77,6 +78,10 @@ interface Props {
   openCreateNonce: number;
   /** Command bar for the planning agent ("describe what you want to build"). */
   assistant: ReactNode;
+  /** Regions with data, for the Custom tab's region choice. */
+  regions?: { id: string; name: string }[];
+  /** Custom tab: hand a free-text description to the planning agent. */
+  onBuildCustom?: (prompt: string, region: string | null) => void;
 }
 
 type Step = { kind: 'home' } | { kind: 'type' } | { kind: 'details'; type: StructureType };
@@ -233,6 +238,9 @@ function DataCentreForm({
 
 export function HomeScreen(props: Props) {
   const [step, setStep] = useState<Step>({ kind: 'home' });
+  const [tab, setTab] = useState<'builtin' | 'custom'>('builtin');
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [customRegion, setCustomRegion] = useState('');
   useEffect(() => {
     if (props.openCreateNonce) setStep({ kind: 'type' });
   }, [props.openCreateNonce]);
@@ -240,6 +248,14 @@ export function HomeScreen(props: Props) {
   const [spec, setSpec] = useState<DataCentreSpec>(DEFAULT_DC_SPEC);
   const [priorities, setPriorities] = useState<string[]>([]);
   const typeGroups = useMemo(() => structureTypesFrom(props.profiles), [props.profiles]);
+  /** Use cases the planning agent generated earlier (Custom tab). */
+  const generated = useMemo(
+    () =>
+      structureTypesFrom(props.profiles.filter((p) => p.generated)).main.concat(
+        structureTypesFrom(props.profiles.filter((p) => p.generated)).more,
+      ),
+    [props.profiles],
+  );
   const typeCard = (t: StructureType, i: number) => (
     <ClickableCard
       key={t.id}
@@ -379,18 +395,73 @@ export function HomeScreen(props: Props) {
                 What are you building?
               </Heading>
             </HStack>
-            <Grid columns={{ minWidth: 190, max: 4 }} gap={3}>
-              {typeGroups.main.map((t, i) => typeCard(t, i))}
-            </Grid>
-            {typeGroups.more.length > 0 && (
-              <Collapsible
-                trigger={<Text weight="medium">More ({typeGroups.more.length})</Text>}
-                defaultIsOpen={false}
-              >
+            <SegmentedControl
+              label="Kind of structure"
+              value={tab}
+              onChange={(v) => setTab(v as 'builtin' | 'custom')}
+            >
+              <SegmentedControlItem value="builtin" label="Built-in" />
+              <SegmentedControlItem value="custom" label="Custom" />
+            </SegmentedControl>
+            {tab === 'custom' ? (
+              <VStack gap={5}>
+                <TextArea
+                  label="Describe what you want to build"
+                  placeholder="e.g. a hydrogen refuelling station near motorways"
+                  description="The Mistral planning agent finds the data, builds a scoring profile and a 3D model, then opens it on the map."
+                  value={customPrompt}
+                  onChange={(v: string) => setCustomPrompt(v)}
+                  rows={4}
+                  hasAutoFocus
+                />
+                {(props.regions?.length ?? 0) > 0 && (
+                  <Selector
+                    label="Region"
+                    options={[
+                      { value: '', label: 'Wherever the data is' },
+                      ...(props.regions ?? []).map((r) => ({ value: r.id, label: r.name })),
+                    ]}
+                    value={customRegion}
+                    onChange={(v) => setCustomRegion(v ?? '')}
+                    width="100%"
+                  />
+                )}
+                <Button
+                  label="Build it"
+                  variant="primary"
+                  size="lg"
+                  isDisabled={!customPrompt.trim() || !props.onBuildCustom}
+                  onClick={() => {
+                    props.onBuildCustom?.(customPrompt.trim(), customRegion || null);
+                    setCustomPrompt('');
+                    setStep({ kind: 'home' });
+                  }}
+                />
+                {generated.length > 0 && (
+                  <VStack gap={3}>
+                    <Heading level={3}>Generated before</Heading>
+                    <Grid columns={{ minWidth: 190, max: 4 }} gap={3}>
+                      {generated.map((t, i) => typeCard(t, i))}
+                    </Grid>
+                  </VStack>
+                )}
+              </VStack>
+            ) : (
+              <>
                 <Grid columns={{ minWidth: 190, max: 4 }} gap={3}>
-                  {typeGroups.more.map((t, i) => typeCard(t, i))}
+                  {typeGroups.main.map((t, i) => typeCard(t, i))}
                 </Grid>
-              </Collapsible>
+                {typeGroups.more.length > 0 && (
+                  <Collapsible
+                    trigger={<Text weight="medium">More ({typeGroups.more.length})</Text>}
+                    defaultIsOpen={false}
+                  >
+                    <Grid columns={{ minWidth: 190, max: 4 }} gap={3}>
+                      {typeGroups.more.map((t, i) => typeCard(t, i))}
+                    </Grid>
+                  </Collapsible>
+                )}
+              </>
             )}
           </VStack>
         )}

@@ -11,7 +11,7 @@ from backend.api import assistant, reviewer
 @pytest.fixture(autouse=True)
 def _no_key(monkeypatch) -> None:
     monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
-    monkeypatch.setattr(assistant, "_read_dotenv", lambda: {})
+    monkeypatch.setattr(assistant, "_read_dotenv", dict)
 
 
 @pytest.mark.parametrize(
