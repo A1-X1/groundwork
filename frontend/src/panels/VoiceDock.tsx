@@ -5,7 +5,7 @@ import { IconButton } from '@astryxdesign/core/IconButton';
 import { ToggleButton } from '@astryxdesign/core/ToggleButton';
 import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
-import { ChevronDown, FlaskConical, Mic, Square, Volume2, VolumeX } from 'lucide-react';
+import { ChevronDown, FlaskConical, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import { useState, type ComponentProps } from 'react';
 import { VoiceOrb } from '../map/VoiceOrb';
 
@@ -44,7 +44,6 @@ export function VoiceDock({ muted, onToggleMute, handsFree, onToggleHandsFree, .
     borderRadius: 'var(--radius-element)',
     boxShadow: 'var(--shadow-high)',
   };
-  const listening = props.state === 'listening';
 
   if (hidden) {
     return (
@@ -75,27 +74,18 @@ export function VoiceDock({ muted, onToggleMute, handsFree, onToggleHandsFree, .
       </HStack>
       <VoiceOrb {...props} />
       <HStack gap={2} align="center">
+        {/* The mic toggle is the only control: each utterance sends itself when you pause. */}
         <ToggleButton
-          label={handsFree ? 'Always listening: on' : 'Always listening: off'}
+          label={handsFree ? 'Mic on' : 'Mic off'}
           tooltip={
-            handsFree ? 'Stop always-on listening' : 'Listen continuously; speak whenever you like'
+            handsFree ? 'Turn the mic off' : 'Turn the mic on; just speak, it sends when you pause'
           }
           isPressed={handsFree}
           onPressedChange={onToggleHandsFree}
-          icon={<Icon icon={Mic} size="sm" />}
+          icon={<Icon icon={MicOff} size="sm" />}
           pressedIcon={<Icon icon={Mic} size="sm" />}
-          isIconOnly
           isDisabled={!props.isAvailable}
           size="sm"
-        />
-        <Button
-          label={listening && !handsFree ? 'Stop' : 'Talk'}
-          variant={listening ? 'secondary' : 'primary'}
-          size="sm"
-          icon={<Icon icon={listening ? Square : Mic} size="sm" />}
-          isDisabled={!props.isAvailable || props.state === 'thinking' || handsFree}
-          onClick={listening ? props.onStop : props.onStart}
-          width="100%"
         />
         <IconButton
           label={muted ? 'Unmute spoken replies' : 'Mute spoken replies'}

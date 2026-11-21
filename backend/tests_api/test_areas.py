@@ -14,7 +14,9 @@ def test_area_crud_and_summary(client) -> None:
     assert ring[0] == ring[-1], "ring is closed by the API"
     assert any(a["id"] == area["id"] for a in client.get("/areas").json())
 
-    s = client.get(f"/areas/{area['id']}/summary", params={"profile": "data_centre"}).json()
+    s = client.get(
+        f"/areas/{area['id']}/summary", params={"profile": "data_centre"}
+    ).json()
     assert s["cells"] > 5 and 1 < s["area_km2"] < 50
     assert s["scored_cells"] <= s["cells"]
     if s["best_score"] is not None:
@@ -28,11 +30,20 @@ def test_area_crud_and_summary(client) -> None:
 
 def test_area_validation(client) -> None:
     two_points = {"type": "Polygon", "coordinates": [[[0, 51], [1, 51]]]}
-    assert client.post("/areas", json={"name": "x", "geometry": two_points}).status_code == 422
-    huge = {"type": "Polygon", "coordinates": [[[-10, 40], [20, 40], [20, 60], [-10, 60]]]}
+    assert (
+        client.post("/areas", json={"name": "x", "geometry": two_points}).status_code
+        == 422
+    )
+    huge = {
+        "type": "Polygon",
+        "coordinates": [[[-10, 40], [20, 40], [20, 60], [-10, 60]]],
+    }
     r = client.post("/areas", json={"name": "Europe", "geometry": huge})
     assert r.status_code == 422 and "too large" in r.json()["error"]["message"]
-    assert client.post("/areas", json={"name": "", "geometry": DOCKLANDS}).status_code == 422
+    assert (
+        client.post("/areas", json={"name": "", "geometry": DOCKLANDS}).status_code
+        == 422
+    )
 
 
 def test_structures_crud(client) -> None:

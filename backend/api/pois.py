@@ -7,21 +7,34 @@ with approximate coordinates and ``source`` saying so. It is a display aid, not 
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, Field
 
-PoiKind = Literal["substation", "ixp", "data_centre", "station", "water"]
-KINDS: tuple[str, ...] = ("substation", "ixp", "data_centre", "station", "water")
+# Fallback list when the scoring module doesn't publish its own (``scoring.pois.POI_KINDS``).
+DEFAULT_KINDS: tuple[str, ...] = (
+    "station", "substation", "power_plant", "water", "port", "ixp", "data_centre", "airport",
+)  # fmt: skip
+# Most points one response may carry (the USA alone has ~12k); the client asks per viewport.
+MAX_POIS = 4000
+
+
+def kinds_from(scoring: Any) -> tuple[str, ...]:
+    mod = getattr(scoring, "pois", None)
+    return tuple(getattr(mod, "POI_KINDS", None) or DEFAULT_KINDS)
 
 
 class Poi(BaseModel):
     id: str
-    kind: PoiKind
+    kind: str = Field(description="station, substation, power_plant, water, port, ixp, …")
     name: str
     lat: float
     lon: float
     source: str = Field(description="Where the location comes from, and how exact it is.")
+    region: str | None = Field(default=None, description="Region id the point belongs to.")
+    detail: str | None = Field(
+        default=None, description="Extra facts, e.g. a power plant's fuel and MW."
+    )
 
 
 SEED = "seed list (approximate location)"
@@ -72,8 +85,9 @@ def seed_pois() -> list[dict[str, Any]]:
 def list_pois(
     scoring: Any, kinds: list[str] | None, bbox: tuple[float, float, float, float] | None
 ) -> list[dict[str, Any]]:
-    wanted = set(kinds or KINDS)
-    unknown = wanted - set(KINDS)
+    known = kinds_from(scoring)
+    wanted = set(kinds or known)
+    unknown = wanted - set(known)
     if unknown:
         raise ValueError(f"unknown POI kind(s): {', '.join(sorted(unknown))}")
     seeds = seed_pois()
@@ -86,4 +100,33 @@ def list_pois(
     if bbox:
         w, s, e, n = bbox
         out = [p for p in out if w <= p["lon"] <= e and s <= p["lat"] <= n]
+    # Seeds are London-only and approximate: drop them where real points of that kind exist.
+    real_kinds = {p["kind"] for p in out if p.get("source") != SEED}
+    out = [p for p in out if p.get("source") != SEED or p["kind"] not in real_kinds]
+    # NaN-free strings for optional fields (parquet rows can carry NaN)
+    for p in out:
+        for k in ("region", "detail"):
+            v = p.get(k)
+            if v is not None and not isinstance(v, str):
+                p[k] = None if v != v else str(v)
+    return cap_fairly(out, MAX_POIS)
+
+
+def cap_fairly(items: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    """At most ``limit`` points, shared round-robin across kinds so no category vanishes."""
+    if len(items) <= limit:
+        return items
+    by_kind: dict[str, list[dict[str, Any]]] = {}
+    for p in items:
+        by_kind.setdefault(p["kind"], []).append(p)
+    queues = list(by_kind.values())
+    out: list[dict[str, Any]] = []
+    i = 0
+    while len(out) < limit and queues:
+        q = queues[i % len(queues)]
+        out.append(q.pop(0))
+        if not q:
+            queues.remove(q)
+        else:
+            i += 1
     return out

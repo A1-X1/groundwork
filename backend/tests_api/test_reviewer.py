@@ -28,8 +28,15 @@ def test_rules_flag_impossible(client, text) -> None:
 
 
 def test_rules_pass_normal_requests(client) -> None:
-    for text in ["show me the best house sites in London", "fly to Tokyo", "thermal view"]:
-        assert client.post("/assistant/review", json={"text": text}).json()["verdict"] == "ok"
+    for text in [
+        "show me the best house sites in London",
+        "fly to Tokyo",
+        "thermal view",
+    ]:
+        assert (
+            client.post("/assistant/review", json={"text": text}).json()["verdict"]
+            == "ok"
+        )
 
 
 def test_mistral_review(client, monkeypatch) -> None:
@@ -41,11 +48,15 @@ def test_mistral_review(client, monkeypatch) -> None:
             "reason": "Nuclear plants need exclusion zones.",
             "suggestion": "Look outside the M25.",
         }
-        payload = {"choices": [{"message": {"content": __import__("json").dumps(content)}}]}
+        payload = {
+            "choices": [{"message": {"content": __import__("json").dumps(content)}}]
+        }
         return httpx.Response(200, json=payload, request=httpx.Request("POST", url))
 
     monkeypatch.setattr(reviewer.httpx, "post", fake_post)
-    body = client.post("/assistant/review", json={"text": "nuclear plant in Soho"}).json()
+    body = client.post(
+        "/assistant/review", json={"text": "nuclear plant in Soho"}
+    ).json()
     assert body == {
         "verdict": "warning",
         "reason": "Nuclear plants need exclusion zones.",
@@ -58,7 +69,9 @@ def test_mistral_review(client, monkeypatch) -> None:
 def test_mistral_failure_falls_back(client, monkeypatch) -> None:
     monkeypatch.setenv("MISTRAL_API_KEY", "k")
     monkeypatch.setattr(
-        reviewer.httpx, "post", lambda *a, **k: (_ for _ in ()).throw(httpx.ConnectError("down"))
+        reviewer.httpx,
+        "post",
+        lambda *a, **k: (_ for _ in ()).throw(httpx.ConnectError("down")),
     )
     body = client.post("/assistant/review", json={"text": "best schools"}).json()
     assert body["verdict"] == "ok" and body["source"] == "rules"

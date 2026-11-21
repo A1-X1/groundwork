@@ -53,12 +53,17 @@ def test_empty_text_is_422(client) -> None:
 
 
 def test_clean_drops_unknown_commands_and_args() -> None:
-    raw = {"commands": [
-        {"type": "DELETE_EVERYTHING"},
-        {"type": "SET_PROFILE", "args": {"id": "not_a_profile"}},
-        {"type": "SET_WEIGHT", "args": {"layer": "crime_rate", "weight": 900, "evil": 1}},
-        {"type": "ZOOM", "args": {"direction": "in", "extra": True}},
-    ]}
+    raw = {
+        "commands": [
+            {"type": "DELETE_EVERYTHING"},
+            {"type": "SET_PROFILE", "args": {"id": "not_a_profile"}},
+            {
+                "type": "SET_WEIGHT",
+                "args": {"layer": "crime_rate", "weight": 900, "evil": 1},
+            },
+            {"type": "ZOOM", "args": {"direction": "in", "extra": True}},
+        ]
+    }
     out = assistant.clean(raw, ["house"], ["crime_rate"])
     assert [c.model_dump() for c in out] == [
         {"type": "SET_WEIGHT", "args": {"layer": "crime_rate", "weight": 100.0}},
@@ -72,10 +77,17 @@ def test_mistral_path_is_used_and_validated(client, monkeypatch) -> None:
 
     def fake_post(url, json=None, timeout=None, headers=None):
         seen["auth"] = headers["Authorization"]
-        content = {"reply": "Flying to Lagos.", "commands": [
-            {"type": "PAN_CITY", "args": {"name": "Lagos"}}, {"type": "RM_RF"}]}
+        content = {
+            "reply": "Flying to Lagos.",
+            "commands": [
+                {"type": "PAN_CITY", "args": {"name": "Lagos"}},
+                {"type": "RM_RF"},
+            ],
+        }
         req = httpx.Request("POST", url)
-        payload = {"choices": [{"message": {"content": __import__("json").dumps(content)}}]}
+        payload = {
+            "choices": [{"message": {"content": __import__("json").dumps(content)}}]
+        }
         return httpx.Response(200, json=payload, request=req)
 
     monkeypatch.setattr(assistant.httpx, "post", fake_post)
@@ -104,7 +116,9 @@ def test_status_without_key(client) -> None:
 
 
 def test_transcribe_without_key_is_422(client) -> None:
-    r = client.post("/assistant/transcribe", files={"file": ("a.webm", b"xx", "audio/webm")})
+    r = client.post(
+        "/assistant/transcribe", files={"file": ("a.webm", b"xx", "audio/webm")}
+    )
     assert r.status_code == 422
     assert "MISTRAL_API_KEY" in r.json()["error"]["message"]
 
@@ -126,7 +140,9 @@ def test_transcribe_calls_voxtral(client, monkeypatch) -> None:
     )
     assert r.status_code == 200, r.text
     assert r.json() == {"text": "fly to Tokyo", "model": assistant.VOXTRAL_MODEL}
-    assert seen["auth"] == "Bearer test-key" and seen["url"].endswith("/audio/transcriptions")
+    assert seen["auth"] == "Bearer test-key" and seen["url"].endswith(
+        "/audio/transcriptions"
+    )
 
 
 def test_transcribe_upstream_failure_is_502(client, monkeypatch) -> None:
@@ -136,7 +152,9 @@ def test_transcribe_upstream_failure_is_502(client, monkeypatch) -> None:
         raise httpx.ConnectError("blocked")
 
     monkeypatch.setattr(assistant.httpx, "post", boom)
-    r = client.post("/assistant/transcribe", files={"file": ("a.webm", b"xx", "audio/webm")})
+    r = client.post(
+        "/assistant/transcribe", files={"file": ("a.webm", b"xx", "audio/webm")}
+    )
     assert r.status_code == 502
 
 
@@ -145,10 +163,14 @@ def test_pick_tone_and_voice() -> None:
     assert assistant.pick_tone("Want me to show you why?") == "curious"
     assert assistant.pick_tone("Sorry, I couldn't find that place.") == "neutral"
     assert assistant.voice_for("curious", "gb_oliver") == "gb_oliver_curious"
-    assert assistant.voice_for("curious", "en_paul") == "en_paul_happy"  # Paul has no curious
+    assert (
+        assistant.voice_for("curious", "en_paul") == "en_paul_happy"
+    )  # Paul has no curious
     assert assistant.voice_for("cheerful", "en_paul") == "en_paul_cheerful"
     assert assistant.voice_for("excited", "gb_jane") == "gb_jane_neutral"
-    assert assistant.SPEAKER == "en_paul" or assistant.SPEAKER  # default is Paul unless overridden
+    assert (
+        assistant.SPEAKER == "en_paul" or assistant.SPEAKER
+    )  # default is Paul unless overridden
 
 
 def test_speak_without_key_is_422(client) -> None:
@@ -168,7 +190,9 @@ def test_speak_returns_mp3(client, monkeypatch) -> None:
         return httpx.Response(200, json=payload, request=httpx.Request("POST", url))
 
     monkeypatch.setattr(assistant.httpx, "post", fake_post)
-    r = client.post("/assistant/speak", json={"text": "Good news, I found the best site."})
+    r = client.post(
+        "/assistant/speak", json={"text": "Good news, I found the best site."}
+    )
     assert r.status_code == 200 and r.headers["content-type"] == "audio/mpeg"
     assert r.content == b"ID3fake"
     assert r.headers["x-voice"].endswith("_cheerful")
@@ -177,13 +201,18 @@ def test_speak_returns_mp3(client, monkeypatch) -> None:
 
 
 def test_rules_compound_request_keeps_order(client) -> None:
-    body = ask(client, "first fly to Paris then show the thermal view, and then reset the weights")
+    body = ask(
+        client,
+        "first fly to Paris then show the thermal view, and then reset the weights",
+    )
     assert types(body) == ["PAN_CITY", "SET_OVERLAY", "RESET_WEIGHTS"]
     body = ask(client, "show me the best house sites after that zoom in")
     assert types(body)[-1] == "ZOOM"
 
 
 def test_clean_sorts_by_seq() -> None:
-    raw = [{"type": "ZOOM", "seq": 1, "args": {"direction": "in"}},
-           {"type": "RESET_VIEW", "seq": 0}]
+    raw = [
+        {"type": "ZOOM", "seq": 1, "args": {"direction": "in"}},
+        {"type": "RESET_VIEW", "seq": 0},
+    ]
     assert [c.type for c in assistant.clean(raw, [], [])] == ["RESET_VIEW", "ZOOM"]

@@ -19,8 +19,12 @@ def test_agent_streams_events(client, monkeypatch) -> None:
 
     def run(prompt, on_event, **_):
         on_event({"type": "tool_call", "name": "get_catalog", "args": {}})
-        on_event({"type": "ui", "commands": [{"command": "SET_PROFILE", "id": "school"}]})
-        on_event({"type": "action_required", "action": "connect_azure", "message": "Sign in"})
+        on_event(
+            {"type": "ui", "commands": [{"command": "SET_PROFILE", "id": "school"}]}
+        )
+        on_event(
+            {"type": "action_required", "action": "connect_azure", "message": "Sign in"}
+        )
         on_event({"type": "answer", "content": f"Planned {prompt}", "steps": 3})
         return {"content": f"Planned {prompt}", "steps": 3, "ui": [], "actions": []}
 
@@ -30,7 +34,9 @@ def test_agent_streams_events(client, monkeypatch) -> None:
         assert r.status_code == 200
         assert r.headers["content-type"].startswith("text/event-stream")
         body = "".join(r.iter_text())
-    events = [json.loads(line[6:]) for line in body.splitlines() if line.startswith("data: ")]
+    events = [
+        json.loads(line[6:]) for line in body.splitlines() if line.startswith("data: ")
+    ]
     types_ = [e["type"] for e in events]
     assert types_ == ["tool_call", "ui", "action_required", "answer", "done"]
     assert events[2]["action"] == "connect_azure"
@@ -87,8 +93,13 @@ def test_models3d(client, tmp_path, monkeypatch) -> None:
         return
     monkeypatch.setattr(mod, "MODELS_DIR", tmp_path)
     spec = mod.ModelSpec(
-        id="nuclear_plant", label="Nuclear plant", footprint_m=(300, 300),
-        parts=[mod.cooling_tower(-60, 0), {"shape": "dome", "radius": 30, "position": [60, 0, 0]}],
+        id="nuclear_plant",
+        label="Nuclear plant",
+        footprint_m=(300, 300),
+        parts=[
+            mod.cooling_tower(-60, 0),
+            {"shape": "dome", "radius": 30, "position": [60, 0, 0]},
+        ],
     )
     mod.save(spec, tmp_path)
     assert client.get("/models3d").json() == ["nuclear_plant"]
@@ -98,10 +109,12 @@ def test_models3d(client, tmp_path, monkeypatch) -> None:
 
 
 def test_clean_content_drops_thinking() -> None:
-    raw = json.dumps([
-        "thinking=[TextChunk(text='private reasoning', type='text')] type='thinking'",
-        "text='Done \\u2014 London is on screen.' type='text'",
-    ])
+    raw = json.dumps(
+        [
+            "thinking=[TextChunk(text='private reasoning', type='text')] type='thinking'",
+            "text='Done \\u2014 London is on screen.' type='text'",
+        ]
+    )
     assert agent_routes._clean_content(raw) == "Done — London is on screen."
     assert agent_routes._clean_content([{"type": "text", "text": "hi"}]) == "hi"
     assert agent_routes._clean_content("plain") == "plain"
@@ -112,15 +125,30 @@ def test_mistral_key_save_and_forget(client, monkeypatch, tmp_path) -> None:
     env = tmp_path / ".env"
     env.write_text("OTHER=1\n")
     monkeypatch.setattr(assistant, "_dotenv_path", lambda: env)
-    monkeypatch.setattr(assistant, "_read_dotenv", lambda: {
-        k: v for k, v in (ln.split("=", 1) for ln in env.read_text().splitlines() if "=" in ln)
-    })
+    monkeypatch.setattr(
+        assistant,
+        "_read_dotenv",
+        lambda: {
+            k: v
+            for k, v in (
+                ln.split("=", 1) for ln in env.read_text().splitlines() if "=" in ln
+            )
+        },
+    )
     monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
-    monkeypatch.setattr(assistant, "check_mistral_key", lambda key: key != "bad-key-123")
-    assert client.put("/connections/mistral", json={"api_key": "bad-key-123"}).status_code == 422
+    monkeypatch.setattr(
+        assistant, "check_mistral_key", lambda key: key != "bad-key-123"
+    )
+    assert (
+        client.put("/connections/mistral", json={"api_key": "bad-key-123"}).status_code
+        == 422
+    )
     r = client.put("/connections/mistral", json={"api_key": "good-key-123"})
     assert r.status_code == 200 and r.json()["configured"] is True
     assert "good-key-123" not in r.text
-    assert "MISTRAL_API_KEY=good-key-123" in env.read_text() and "OTHER=1" in env.read_text()
+    assert (
+        "MISTRAL_API_KEY=good-key-123" in env.read_text()
+        and "OTHER=1" in env.read_text()
+    )
     assert client.delete("/connections/mistral").json()["configured"] is False
     assert "MISTRAL_API_KEY" not in env.read_text()

@@ -241,3 +241,11 @@ class Region(BaseModel):
     cells: int
     is_sample: bool | None = None
     generated_at: str | None = None
+    marker_cells: list[str] = Field(
+        default_factory=list,
+        description="Coarse H3 cells tracing the region's land (no sea), for globe markers and "
+        "for clipping the map's surrounding grid.",
+    )
+    marker_resolution: int | None = Field(
+        default=None, description="H3 resolution of marker_cells."
+    )

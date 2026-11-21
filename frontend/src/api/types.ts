@@ -27,6 +27,9 @@ export interface Region {
   bbox: [number, number, number, number];
   resolution: number;
   cells: number;
+  /** Coarse H3 cells tracing the region's land (no sea). */
+  marker_cells?: string[];
+  marker_resolution?: number | null;
 }
 
 export interface LayerMeta {
@@ -153,6 +156,10 @@ export interface Poi {
   lat: number;
   lon: number;
   source: string;
+  /** Region id the point belongs to (uk, usa, …). */
+  region?: string | null;
+  /** Extra facts, e.g. a power plant's fuel and MW. */
+  detail?: string | null;
 }
 
 export interface GeoPolygon {

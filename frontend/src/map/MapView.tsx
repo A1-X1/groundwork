@@ -9,10 +9,11 @@ import type { StyleSpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Poi } from '../api/types';
-import { POI_LABEL, poiIconUrl } from './poiIcons';
+import { categoryOf, POI_LABEL, poiIconUrl } from './poiIcons';
 import { MASKED_RGB, RAMPS, sample, type RampId } from '../lib/colour';
 import { BuildingsLayer, type SiteRender } from './buildings';
 import { GLOBE_ZOOM } from '../lib/viewport';
+import { onLand, type LandMask } from '../lib/land';
 
 export interface HexDatum {
   h3: string;
@@ -49,6 +50,8 @@ interface Props {
   arrival: { lat: number; lon: number; nonce: number } | null;
   zoomCmd: { dir: 'in' | 'out'; nonce: number } | null;
   pois: Poi[];
+  /** Land with data (from region marker cells): the surrounding grid is clipped to it. */
+  landMask?: LandMask | null;
   /** Outlines of the regions with data, drawn while zoomed out past the hex threshold. */
   regionOutlines?: { name: string; bbox: [number, number, number, number] }[];
   /** False while hidden behind the home screen; the map resizes when it becomes visible. */
@@ -81,7 +84,7 @@ export interface MapArea {
 
 export const ELEVATION_SCALE = 1800;
 /** Points of interest appear once the map is zoomed in past this level. */
-export const POI_MIN_ZOOM = 10.8;
+export const POI_MIN_ZOOM = 7.5; // national POI sets are sparse enough to show early
 const CENTRE: [number, number] = [-0.11, 51.5];
 const DEM_TILES = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
 const STYLES = {
@@ -400,8 +403,11 @@ export function MapView(props: Props) {
       return [];
     }
     if (cells.length > MAX_CONTEXT_CELLS) return [];
+    // Only where data exists: no empty hexes over the sea (user request).
+    const mask = props.landMask;
+    if (mask) cells = cells.filter((c) => onLand(c, mask));
     return res === 8 ? cells.filter((c) => !dataIds.has(c)) : cells;
-  }, [viewport, dataIds]);
+  }, [viewport, dataIds, props.landMask]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -585,7 +591,8 @@ export function MapView(props: Props) {
           ? {
               text:
                 'kind' in object
-                  ? `${POI_LABEL[object.kind]}: ${object.name}\n${object.source}`
+                  ? `${POI_LABEL[object.kind] ?? categoryOf(object.kind).label}: ${object.name}` +
+                    `${object.detail ? `\n${object.detail}` : ''}\n${object.source}`
                   : 'ring' in object
                     ? object.name
                     : object.tooltip,

@@ -180,8 +180,8 @@ export function useVoice(
     setState('listening');
   }, [process]);
 
-  const start = useCallback(() => {
-    if (handsFreeOnRef.current) return; // always-on listening is already running
+  /** One-shot recording that waits for stop (kept for the Voice Lab-style flows). */
+  const startOnce = useCallback(() => {
     if (state === 'speaking') stopSpeaking();
     if (state === 'listening' || state === 'thinking') return;
     setMessage(null);
@@ -190,8 +190,7 @@ export function useVoice(
     else
       setMessage('Voice needs a microphone and either a Mistral key on the server or Chrome/Edge.');
   }, [engine, state, startVoxtral, startBrowser]);
-
-  const stop = useCallback(() => stopRef.current?.(), []);
+  void startOnce;
 
   // ---- hands-free: always-on listening with voice-activity detection ----------------------
   const [handsFree, setHandsFree] = useState(false);
@@ -217,13 +216,18 @@ export function useVoice(
     an.fftSize = 1024;
     ctx.createMediaStreamSource(stream).connect(an);
     const buf = new Uint8Array(an.fftSize);
-    const START = 0.035; // RMS to count as speech
-    const STOP = 0.018; // RMS below this counts as silence
-    const SILENCE_MS = 800;
-    const MIN_SPEECH_MS = 250;
+    // Thresholds follow the room: a running noise floor (quiet mics with noise suppression
+    // sit far below fixed thresholds, so speech was never detected or never ended).
+    let floor = 0.004;
+    const startAt = () => Math.max(0.012, floor * 3.2); // RMS that counts as speech
+    const stopAt = () => Math.max(0.007, floor * 1.8); // RMS below this counts as silence
+    const SILENCE_MS = 800; // pause that ends an utterance and sends it
+    const MIN_SPEECH_MS = 400; // shorter blips (a cough, a click) are ignored
     let rec: MediaRecorder | null = null;
     let chunks: Blob[] = [];
     let speechAt = 0;
+    let speechMs = 0;
+    let lastFrame = 0;
     let quietSince = 0;
     let raf = 0;
     let alive = true;
@@ -232,7 +236,7 @@ export function useVoice(
       const r = rec;
       rec = null;
       if (!r) return;
-      const long = performance.now() - speechAt >= MIN_SPEECH_MS + SILENCE_MS;
+      const long = speechMs >= MIN_SPEECH_MS;
       r.onstop = () => {
         if (!long || !alive) return;
         const blob = new Blob(chunks, { type: r.mimeType || 'audio/webm' });
@@ -255,12 +259,16 @@ export function useVoice(
       for (const v of buf) sum += ((v - 128) / 128) ** 2;
       const rms = Math.sqrt(sum / buf.length);
       const now = performance.now();
+      const dt = lastFrame ? now - lastFrame : 0;
+      lastFrame = now;
+      // Learn the noise floor only between utterances (slowly up, quickly down).
+      if (!rec) floor = rms < floor ? floor * 0.9 + rms * 0.1 : floor * 0.995 + rms * 0.005;
       // Only listen while idle-listening: never while thinking or speaking (no self-hearing).
       const ready = stateRef.current === 'listening' || stateRef.current === 'idle';
       if (ready && stateRef.current === 'idle') setState('listening');
       if (ready) {
         level.current = Math.min(1, level.current * 0.6 + rms * 5 * 0.4);
-        if (!rec && rms > START) {
+        if (!rec && rms > startAt()) {
           chunks = [];
           rec = new MediaRecorder(stream);
           rec.ondataavailable = (e) => {
@@ -268,9 +276,11 @@ export function useVoice(
           };
           rec.start();
           speechAt = now;
+          speechMs = 0;
           quietSince = 0;
         } else if (rec) {
-          if (rms < STOP) {
+          if (rms >= stopAt()) speechMs += dt;
+          if (rms < stopAt()) {
             quietSince ||= now;
             if (now - quietSince > SILENCE_MS) finishUtterance();
           } else quietSince = 0;
@@ -350,6 +360,17 @@ export function useVoice(
   }, [engine, startHandsFreeVoxtral, startHandsFreeBrowser]);
 
   useEffect(() => () => handsFreeRef.current?.stop(), []);
+
+  // The mic toggle is the only control: start = mic on (each utterance sends itself when you
+  // pause), stop = mic off. Nothing waits for a stop button.
+  const start = useCallback(() => {
+    if (stateRef.current === 'speaking') stopSpeaking();
+    if (!handsFreeRef.current) toggleHandsFree();
+  }, [toggleHandsFree]);
+  const stop = useCallback(() => {
+    if (handsFreeRef.current) toggleHandsFree();
+    else stopRef.current?.();
+  }, [toggleHandsFree]);
 
   const toggleMute = useCallback(() => {
     setMuted((m) => {

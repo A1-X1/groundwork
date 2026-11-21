@@ -11,3 +11,15 @@ def test_pois_all_and_filtered(client) -> None:
 def test_pois_bad_kind_is_422(client) -> None:
     r = client.get("/pois", params={"kinds": "volcano"})
     assert r.status_code == 422
+
+
+def test_pois_new_kinds_and_fields(client) -> None:
+    """Every published kind is accepted; region/detail pass through; responses are capped."""
+    from backend.api import pois
+
+    r = client.get("/pois", params={"kinds": "power_plant,airport,port"})
+    assert r.status_code == 200
+    body = client.get("/pois", params={"bbox": "-125,24,-66,50"}).json()
+    assert len(body) <= pois.MAX_POIS
+    for p in body[:50]:
+        assert "region" in p and "detail" in p

@@ -16,7 +16,8 @@ import {
 } from './lib/structures';
 import { AreaDetail, AreasPanel } from './panels/AreasPanel';
 import type { Area, AreaSummary, Region, StructureRecord } from './api/types';
-import type { BBox } from './lib/viewport';
+import { padAndSnap, type BBox } from './lib/viewport';
+import { buildLandMask, regionsAt, wrapsWorld } from './lib/land';
 import type { Basemap, MapArea } from './map/MapView';
 import { HomeScreen } from './panels/HomeScreen';
 import { findPlace } from './lib/places';
@@ -32,7 +33,7 @@ import {
   type HexDatum,
   type MapFocus,
 } from './map/MapView';
-import { MapKey } from './panels/MapKey';
+import { keyRows, MapKey } from './panels/MapKey';
 import { TrainingChoiceDialog } from './panels/TrainingChoiceDialog';
 import { CommandBar } from './panels/CommandBar';
 import { ConnectionsDialog } from './panels/ConnectionsDialog';
@@ -137,7 +138,11 @@ export default function App() {
   const [project, setProject] = useState<Project | null>(null);
   const [pois, setPois] = useState<Poi[]>([]);
   /** The map's last settled view, for the key (which lists only POIs on screen). */
-  const [mapBox, setMapBox] = useState<{ bbox: BBox; zoom: number } | null>(null);
+  const [mapBox, setMapBox] = useState<{
+    bbox: BBox;
+    zoom: number;
+    center: [number, number];
+  } | null>(null);
   globeVisibleRef.current = globeVisible;
   // Hexes are fetched for the map's view only; none while the globe is showing.
   const setGwViewport = gw.setViewport;
@@ -149,10 +154,6 @@ export default function App() {
   projectsRef.current = projects;
 
   useEffect(() => {
-    api
-      .pois()
-      .then(setPois)
-      .catch(() => setPois([]));
     api
       .models3d()
       .then(setModelIds)
@@ -282,18 +283,31 @@ export default function App() {
   );
   // The globe marks where data exists (from /regions), never the detailed hexes themselves.
   const regionHexes: RegionHex[] = useMemo(() => regionMarkers(regions), [regions]);
+  const landMask = useMemo(() => buildLandMask(regions), [regions]);
   /** The smallest data region containing the map centre (London inside the UK → London). */
   const placeName = useMemo(() => {
     if (!mapBox) return null;
-    const [w, so, e, n] = mapBox.bbox;
-    const lon = (w + e) / 2;
-    const lat = (so + n) / 2;
-    const hits = regions.filter(
-      ({ bbox: [rw, rs, re, rn] }) => lon >= rw && lon <= re && lat >= rs && lat <= rn,
-    );
-    hits.sort((a, b) => a.cells - b.cells);
-    return hits[0]?.name ?? null;
+    // The map's real centre: with pitch, the middle of the visible bbox lies far beyond it.
+    const [lon, lat] = mapBox.center;
+    return regionsAt(lat, lon, regions)[0]?.name ?? null;
   }, [mapBox, regions]);
+  // ---- POIs for the visible area (every region has thousands), refetched when the padded,
+  // snapped viewport changes; nothing while zoomed out.
+  const poiKey = useMemo(() => {
+    if (globeVisible || !mapBox || mapBox.zoom < POI_MIN_ZOOM) return null;
+    return padAndSnap(mapBox.bbox, mapBox.zoom).join(',');
+  }, [mapBox, globeVisible]);
+  useEffect(() => {
+    if (!poiKey) return;
+    let alive = true;
+    api
+      .pois(poiKey.split(',').map(Number) as BBox)
+      .then((ps) => alive && setPois(ps))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [poiKey]);
   const poiKindsInView = useMemo(() => {
     if (globeVisible || screen !== 'explore' || !mapBox || mapBox.zoom < POI_MIN_ZOOM) return [];
     const [w, so, e, n] = mapBox.bbox;
@@ -304,8 +318,7 @@ export default function App() {
   }, [pois, mapBox, globeVisible, screen]);
   const hasDetail = useCallback(
     (lat: number, lon: number) =>
-      scoredIds.has(latLngToCell(lat, lon, 8)) ||
-      regions.some(({ bbox: [w, so, e, n] }) => lon >= w && lon <= e && lat >= so && lat <= n),
+      scoredIds.has(latLngToCell(lat, lon, 8)) || regionsAt(lat, lon, regions).length > 0,
     [scoredIds, regions],
   );
 
@@ -1059,13 +1072,16 @@ export default function App() {
           onAreaClick={selectArea}
           onView={(v) => {
             mapViewRef.current = v;
-            setMapBox({ bbox: v.bbox, zoom: v.zoom });
+            setMapBox({ bbox: v.bbox, zoom: v.zoom, center: v.center });
             if (!globeVisibleRef.current) gw.setViewport({ bbox: v.bbox, zoom: v.zoom });
             settleCamera();
           }}
           onZoomOut={onMapZoomOut}
+          landMask={landMask}
           regionOutlines={
-            gw.viewReason === 'zoom_in' || gw.viewReason === 'no_data' ? regions : undefined
+            gw.viewReason === 'zoom_in' || gw.viewReason === 'no_data'
+              ? regions.filter((r) => !wrapsWorld(r))
+              : undefined
           }
         />
         <GlobeView
@@ -1093,7 +1109,7 @@ export default function App() {
             style={{
               position: 'absolute',
               insetInline: 0,
-              insetBlockEnd: 'var(--spacing-12, 48px)',
+              insetBlockStart: 'calc(var(--spacing-4, 16px) * 11)', // under the command bar, clear of the voice box
               pointerEvents: 'none',
             }}
           >
@@ -1247,7 +1263,12 @@ export default function App() {
             icon={PanelRight}
             width={380}
             top={PANEL_TOP}
-            bottom={PANEL_BOTTOM}
+            // leave room for the map key (bottom right) when it is showing
+            bottom={
+              poiKindsInView.length
+                ? PANEL_BOTTOM + 40 * (keyRowCount(poiKindsInView) + 1)
+                : PANEL_BOTTOM
+            }
           >
             {view === 'area' && selectedArea ? (
               <AreaDetail
@@ -1431,10 +1452,15 @@ export default function App() {
   );
 }
 
-/** Coarse hexes marking each region with data, for the globe (a few hundred per region). */
+/** Hexes marking where each region has data: its land-shaped marker cells (no sea).
+ *  Falls back to a coarse fill of the bbox only when the API sends no markers. */
 function regionMarkers(regions: Region[]): RegionHex[] {
   const out: RegionHex[] = [];
   for (const r of regions) {
+    if (r.marker_cells?.length) {
+      for (const h3 of r.marker_cells) out.push({ h3, t: 0.35 });
+      continue;
+    }
     const [w, so, e, n] = r.bbox;
     const ring = [[so, w], [so, e], [n, e], [n, w], [so, w]];
     let cells: string[] = [];
@@ -1447,3 +1473,5 @@ function regionMarkers(regions: Region[]): RegionHex[] {
   }
   return out;
 } // prettier-ignore
+
+const keyRowCount = (kinds: string[]) => keyRows(kinds).length;
