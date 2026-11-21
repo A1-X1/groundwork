@@ -1,0 +1,8 @@
+id: dist_bus_stop
+label: Distance to bus stop
+unit: m
+kind: proximity
+description: Distance to the nearest bus stop (local public-transport access).
+template: osm_proximity
+params: {selectors: ['node["highway"="bus_stop"]']}
+added_by: human

@@ -380,14 +380,64 @@
     "max": 12872.1201171875
   },
   {
+    "id": "dist_bus_stop",
+    "label": "Distance to bus stop",
+    "unit": "m",
+    "kind": "proximity",
+    "description": "Distance to the nearest bus stop (local public-transport access).",
+    "source": "OpenStreetMap via Overpass API",
+    "min": 40.21625923539452,
+    "max": 11638.858803442276
+  },
+  {
+    "id": "dist_ev_charger",
+    "label": "Distance to EV charger",
+    "unit": "m",
+    "kind": "proximity",
+    "description": "Distance to the nearest public electric-vehicle charging point.",
+    "source": "OpenStreetMap via Overpass API",
+    "min": 105.0543064974431,
+    "max": 14088.403375215496
+  },
+  {
+    "id": "dist_hospital",
+    "label": "Distance to hospital",
+    "unit": "m",
+    "kind": "proximity",
+    "description": "Distance to the nearest hospital (emergency access; existing provision for health planning).",
+    "source": "OpenStreetMap via Overpass API",
+    "min": 75.69013001967684,
+    "max": 11727.365112993599
+  },
+  {
+    "id": "dist_parking",
+    "label": "Distance to parking",
+    "unit": "m",
+    "kind": "proximity",
+    "description": "Distance to the nearest mapped car park (visitor access for retail, leisure and venues).",
+    "source": "OpenStreetMap via Overpass API",
+    "min": 29.651028125611468,
+    "max": 11020.024978036214
+  },
+  {
     "id": "dist_primary_road",
     "label": "Distance to primary road",
     "unit": "m",
     "kind": "proximity",
     "description": "Distance to nearest primary or trunk road from OSM",
     "source": "OpenStreetMap via Overpass API",
-    "min": 80.10217762478473,
-    "max": 9646.593435682515
+    "min": 80.10218048095703,
+    "max": 9646.59375
+  },
+  {
+    "id": "dist_supermarket",
+    "label": "Distance to supermarket",
+    "unit": "m",
+    "kind": "proximity",
+    "description": "Distance to the nearest supermarket (everyday amenity for homes; competition for retail).",
+    "source": "OpenStreetMap via Overpass API",
+    "min": 43.03895338132994,
+    "max": 10690.416346060249
   },
   {
     "id": "dist_tourist_attraction",
@@ -396,8 +446,8 @@
     "kind": "proximity",
     "description": "Distance to nearest tourist attraction from OSM",
     "source": "OpenStreetMap via Overpass API",
-    "min": 52.374442717084186,
-    "max": 8254.851162965644
+    "min": 52.37444305419922,
+    "max": 8254.8515625
   },
   {
     "id": "green_space_share",
@@ -407,7 +457,27 @@
     "description": "Share of hex covered by parks, forests, grasslands and other green spaces from OSM",
     "source": "OpenStreetMap via Overpass API",
     "min": 0.0,
-    "max": 0.4416882648338639
+    "max": 0.44168826937675476
+  },
+  {
+    "id": "industrial_share",
+    "label": "Industrial land",
+    "unit": "share of hex",
+    "kind": "aggregate",
+    "description": "Share of the hex mapped as industrial land use (logistics, manufacturing, brownfield reuse).",
+    "source": "OpenStreetMap via Overpass API",
+    "min": 0.0,
+    "max": 0.4448803812600757
+  },
+  {
+    "id": "retail_share",
+    "label": "Retail land",
+    "unit": "share of hex",
+    "kind": "aggregate",
+    "description": "Share of the hex mapped as retail land use (shopping areas and high streets).",
+    "source": "OpenStreetMap via Overpass API",
+    "min": 0.0,
+    "max": 0.3766113838745875
   },
   {
     "id": "seismic_activity",

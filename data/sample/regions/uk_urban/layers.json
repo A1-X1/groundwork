@@ -17,7 +17,7 @@
     "description": "Steepest gradient from this hex to any neighbouring hex.",
     "source": "Derived from the elevation layer",
     "min": 0.0,
-    "max": 31.65017688269102
+    "max": 31.650177001953125
   },
   {
     "id": "mean_temp_annual",
@@ -86,8 +86,8 @@
     "kind": "raster",
     "description": "Annual global horizontal irradiance (sum of hourly shortwave radiation).",
     "source": "Open-Meteo Historical Weather API (ERA5 / ERA5-Land), 2025",
-    "min": 831.0997916666666,
-    "max": 1101.9165277777777
+    "min": 831.0997924804688,
+    "max": 1101.91650390625
   },
   {
     "id": "wind_speed_100m",
@@ -136,8 +136,8 @@
     "kind": "raster",
     "description": "FAO-56 reference evapotranspiration per year: water demand of vegetation and evaporative cooling.",
     "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
-    "min": 445.6447744965553,
-    "max": 658.9484564512968
+    "min": 445.644775390625,
+    "max": 658.948486328125
   },
   {
     "id": "temp_trend_decade",
@@ -157,7 +157,7 @@
     "description": "Residents per km² from the WorldPop 100 m constrained grid (or ONS Census 2021 LSOAs when those files are present).",
     "source": "WorldPop 2020 constrained 100 m (CC BY 4.0); optional ONS Census 2021 TS001 by LSOA",
     "min": 0.0,
-    "max": 19060.635583854517
+    "max": 19060.634765625
   },
   {
     "id": "land_use_residential",
@@ -246,8 +246,8 @@
     "kind": "aggregate",
     "description": "Mean forecast carbon intensity of electricity for the distribution region. All of Greater London is one region (London, id 13), so this layer is uniform here; it differentiates sites once a region spans several DNOs.",
     "source": "National Grid ESO Carbon Intensity API (regional)",
-    "min": 217.41,
-    "max": 217.41
+    "min": 217.41000366210938,
+    "max": 217.41000366210938
   },
   {
     "id": "dist_station",
@@ -375,6 +375,76 @@
     "unit": "m",
     "kind": "proximity",
     "description": "Straight-line distance from the hex centre to the nearest aerodrome (aeroway=aerodrome); nuclear siting keeps clear of aircraft crash hazard and airspace constraints.",
+    "source": "OpenStreetMap via Overpass API",
+    "min": null,
+    "max": null
+  },
+  {
+    "id": "dist_bus_stop",
+    "label": "Distance to bus stop",
+    "unit": "m",
+    "kind": "proximity",
+    "description": "Distance to the nearest bus stop (local public-transport access).",
+    "source": "OpenStreetMap via Overpass API",
+    "min": null,
+    "max": null
+  },
+  {
+    "id": "dist_ev_charger",
+    "label": "Distance to EV charger",
+    "unit": "m",
+    "kind": "proximity",
+    "description": "Distance to the nearest public electric-vehicle charging point.",
+    "source": "OpenStreetMap via Overpass API",
+    "min": null,
+    "max": null
+  },
+  {
+    "id": "dist_hospital",
+    "label": "Distance to hospital",
+    "unit": "m",
+    "kind": "proximity",
+    "description": "Distance to the nearest hospital (emergency access; existing provision for health planning).",
+    "source": "OpenStreetMap via Overpass API",
+    "min": null,
+    "max": null
+  },
+  {
+    "id": "dist_parking",
+    "label": "Distance to parking",
+    "unit": "m",
+    "kind": "proximity",
+    "description": "Distance to the nearest mapped car park (visitor access for retail, leisure and venues).",
+    "source": "OpenStreetMap via Overpass API",
+    "min": null,
+    "max": null
+  },
+  {
+    "id": "dist_supermarket",
+    "label": "Distance to supermarket",
+    "unit": "m",
+    "kind": "proximity",
+    "description": "Distance to the nearest supermarket (everyday amenity for homes; competition for retail).",
+    "source": "OpenStreetMap via Overpass API",
+    "min": null,
+    "max": null
+  },
+  {
+    "id": "industrial_share",
+    "label": "Industrial land",
+    "unit": "share of hex",
+    "kind": "aggregate",
+    "description": "Share of the hex mapped as industrial land use (logistics, manufacturing, brownfield reuse).",
+    "source": "OpenStreetMap via Overpass API",
+    "min": null,
+    "max": null
+  },
+  {
+    "id": "retail_share",
+    "label": "Retail land",
+    "unit": "share of hex",
+    "kind": "aggregate",
+    "description": "Share of the hex mapped as retail land use (shopping areas and high streets).",
     "source": "OpenStreetMap via Overpass API",
     "min": null,
     "max": null

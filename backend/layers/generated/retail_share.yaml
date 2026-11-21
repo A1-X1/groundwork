@@ -1,0 +1,8 @@
+id: retail_share
+label: Retail land
+unit: share of hex
+kind: aggregate
+description: Share of the hex mapped as retail land use (shopping areas and high streets).
+template: osm_share
+params: {selectors: ['nwr["landuse"="retail"]']}
+added_by: human

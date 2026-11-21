@@ -25,6 +25,7 @@ Mistral powers every natural-language part of Groundwork: two agents that build 
    uv run agents list                # see what's registered
    ```
    Served or deployed agents appear in **Mistral AI Studio → Agents** (console.mistral.ai), where you can chat with and debug them.
+   The Data Aggregator is also registered **as its own agent** from `backend/agent/managed_aggregator/` (same tools and instructions), so Studio lists both `groundwork-planner` and `groundwork-data-aggregator`. Run `uv run agents serve` in each folder to bring them online.
 
 **Behaviour rules** (`instructions.md`, `aggregator.md`):
 - check Azure before any training and ask the user ("Azure ML isn't connected: connect it, or use the Mistral data aggregator")

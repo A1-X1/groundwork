@@ -1,0 +1,8 @@
+id: dist_parking
+label: Distance to parking
+unit: m
+kind: proximity
+description: Distance to the nearest mapped car park (visitor access for retail, leisure and venues).
+template: osm_proximity
+params: {selectors: ['nwr["amenity"="parking"]']}
+added_by: human

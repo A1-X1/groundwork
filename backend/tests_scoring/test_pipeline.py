@@ -38,3 +38,29 @@ def test_offline_build_is_deterministic(tmp_path, monkeypatch):
     for lid in layers.LAYER_IDS:
         assert a[lid].dtype == "uint8", lid  # normalised 0–1 stored as 0–255
         assert a[f"raw_{lid}"].notna().all(), lid
+
+
+def test_overpass_tiles_are_fetched_in_parallel(tmp_path, monkeypatch):
+    import time
+
+    from backend.layers import _common, _osm
+
+    monkeypatch.setattr(_common, "RAW_DIR", tmp_path)
+    monkeypatch.delenv("GROUNDWORK_OFFLINE", raising=False)  # another test's offline build sets it
+    monkeypatch.delenv("GROUNDWORK_REFRESH", raising=False)
+    monkeypatch.setattr(_osm, "_down_reason", None)
+    monkeypatch.setattr(_common, "REGION", {"id": "london", "kind": "city", "country": "GBR",
+                                            "bbox": (-0.56, 51.26, 0.37, 51.72)})
+    calls = []
+
+    def fake_run(ql, timeout):
+        calls.append(ql)
+        time.sleep(0.2)
+        return [{"type": "node", "id": hash(ql), "lat": 51.5, "lon": -0.1}]
+
+    monkeypatch.setattr(_osm, "_run", fake_run)
+    t = time.time()
+    els = _osm.query("test_parallel", ['node["amenity"="cafe"]'], geometry=False)
+    took = time.time() - t
+    assert len(calls) == 9 and len(els) == 9
+    assert took < 9 * 0.2 * 0.6  # 3 at a time ≈ 0.6 s, not 1.8 s sequentially

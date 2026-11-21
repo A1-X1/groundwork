@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-21T14:24:12Z",
+  "generated_at": "2026-11-21T15:09:25Z",
   "region": "usa_urban",
   "resolution": 8,
   "boundary": "cells of usa with population density ≥ 1000/km² (WorldPop)",
@@ -212,6 +212,41 @@
       "seconds": 0.0
     },
     "dist_airport": {
+      "status": "unavailable",
+      "reason": "region too large for Overpass (7744 tiles > 400); use a Geofabrik extract for this region",
+      "seconds": 0.0
+    },
+    "dist_bus_stop": {
+      "status": "unavailable",
+      "reason": "region too large for Overpass (7744 tiles > 400); use a Geofabrik extract for this region",
+      "seconds": 0.0
+    },
+    "dist_ev_charger": {
+      "status": "unavailable",
+      "reason": "region too large for Overpass (7744 tiles > 400); use a Geofabrik extract for this region",
+      "seconds": 0.0
+    },
+    "dist_hospital": {
+      "status": "unavailable",
+      "reason": "region too large for Overpass (7744 tiles > 400); use a Geofabrik extract for this region",
+      "seconds": 0.0
+    },
+    "dist_parking": {
+      "status": "unavailable",
+      "reason": "region too large for Overpass (7744 tiles > 400); use a Geofabrik extract for this region",
+      "seconds": 0.0
+    },
+    "dist_supermarket": {
+      "status": "unavailable",
+      "reason": "region too large for Overpass (7744 tiles > 400); use a Geofabrik extract for this region",
+      "seconds": 0.0
+    },
+    "industrial_share": {
+      "status": "unavailable",
+      "reason": "region too large for Overpass (7744 tiles > 400); use a Geofabrik extract for this region",
+      "seconds": 0.0
+    },
+    "retail_share": {
       "status": "unavailable",
       "reason": "region too large for Overpass (7744 tiles > 400); use a Geofabrik extract for this region",
       "seconds": 0.0
