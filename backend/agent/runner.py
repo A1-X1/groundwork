@@ -79,7 +79,7 @@ def run(prompt: str, on_event: Callable[[Event], None] | None = None, history: l
     messages: list[dict[str, Any]] = [{"role": "system", "content": AGENTS[agent]}]
     if context:
         messages.append({"role": "system", "content": "Current UI context (what the user is looking at): "
-                         + json.dumps(context, default=str)[:2000]})
+                         + json.dumps(_context_for_model(context), default=str)[:2000]})
     messages += [*(history or []), {"role": "user", "content": prompt}]
 
     import time
@@ -160,6 +160,19 @@ def run(prompt: str, on_event: Callable[[Event], None] | None = None, history: l
             messages.append({"role": "tool", "name": c.function.name, "tool_call_id": c.id,
                              "content": _trim(result)})
     return finish("Stopped: step limit reached.", MAX_STEPS)
+
+
+VIEW_KEYS = ("screen", "place", "region", "profile", "overlay", "agent", "selection_place", "structure")
+
+
+def _context_for_model(context: dict[str, Any]) -> dict[str, Any]:
+    """Only the human-meaningful parts of the UI state. Raw coordinates and zoom stay out, so the
+    model reasons (and talks) in place names; the zoom level becomes a coarse 'view' word."""
+    out = {k: context[k] for k in VIEW_KEYS if context.get(k) not in (None, "", [])}
+    zoom = context.get("zoom")
+    if isinstance(zoom, (int, float)):
+        out["view"] = "globe" if zoom < 4 else "country" if zoom < 7 else "city" if zoom < 11 else "street"
+    return out
 
 
 def _detail(name: str, args: dict[str, Any]) -> str:
