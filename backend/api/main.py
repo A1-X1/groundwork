@@ -24,7 +24,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from backend.api import areas, assistant, pois, scoring_source
+from backend.api import agent_routes, areas, assistant, pois, scoring_source
 from backend.api.models import (
     CompareEntry,
     CompareResponse,
@@ -71,6 +71,8 @@ TAGS = [
     {"name": "pois", "description": "Points of interest for map icons (power, fibre, transport)."},
     {"name": "areas", "description": "Areas users draw and name, stored in SQLite."},
     {"name": "structures", "description": "Saved structures and their requirements."},
+    {"name": "agent", "description": "Planning agent: new use cases, layers and models."},
+    {"name": "connections", "description": "Mistral and Azure ML connection status."},
 ]
 
 ERRORS: dict[int | str, dict[str, Any]] = {
@@ -110,13 +112,14 @@ app.add_middleware(
     CORSMiddleware,
     # Any local dev port (make web WEB_PORT=...), never a remote origin.
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
-    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["*"],
 )
 
 
 areas.scoring = scoring
 app.include_router(areas.router, responses=ERRORS)
+app.include_router(agent_routes.router, responses=ERRORS)
 
 
 # ---------------------------------------------------------------- errors

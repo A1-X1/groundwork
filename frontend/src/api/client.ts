@@ -1,6 +1,9 @@
 import type {
   ApiErrorBody,
+  AgentEvent,
   AssistantResponse,
+  AzureConfig,
+  Connections,
   Area,
   AreaSummary,
   GeoPolygon,
@@ -67,6 +70,52 @@ function fixtureOnly(): never {
 // ---------------------------------------------------------------- endpoints
 
 export const api = {
+  connections: (): Promise<Connections> => request('/connections'),
+  saveAzure: (cfg: AzureConfig): Promise<Connections['azure_ml']> =>
+    request('/connections/azure', { method: 'PUT', body: JSON.stringify(cfg) }),
+  forgetAzure: (): Promise<Connections['azure_ml']> =>
+    request('/connections/azure', { method: 'DELETE' }),
+  azureLogin: (): Promise<Connections['azure_ml']> =>
+    request('/connections/azure/login', { method: 'POST' }),
+
+  /** Streams the planning agent. Resolves when the stream ends; rejects with ApiError(503) when
+   *  the agent isn't installed. */
+  runAgent: async (prompt: string, onEvent: (e: AgentEvent) => void): Promise<void> => {
+    let res: Response;
+    try {
+      res = await fetch(`${API_URL}/agent/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+    } catch {
+      throw new ApiError(0, 'network', `Can't reach the API at ${API_URL}.`);
+    }
+    if (!res.ok || !res.body) {
+      const body = (await res.json().catch(() => null)) as ApiErrorBody | null;
+      throw new ApiError(
+        res.status,
+        body?.error.code ?? 'http_error',
+        body?.error.message ?? res.statusText,
+      );
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i: number;
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const chunk = buf.slice(0, i);
+        buf = buf.slice(i + 2);
+        const data = chunk.split('\n').find((l) => l.startsWith('data: '));
+        if (data) onEvent(JSON.parse(data.slice(6)) as AgentEvent);
+      }
+    }
+  },
+
   areas: (): Promise<Area[]> => (fixtures ? Promise.resolve([]) : request('/areas')),
   createArea: (name: string, geometry: GeoPolygon): Promise<Area> =>
     request('/areas', { method: 'POST', body: JSON.stringify({ name, geometry }) }),

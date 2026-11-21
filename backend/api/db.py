@@ -27,6 +27,11 @@ CREATE TABLE IF NOT EXISTS areas (
     created_at  TEXT NOT NULL,
     updated_at  TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS settings (
+    key         TEXT PRIMARY KEY,
+    value       TEXT NOT NULL,              -- JSON
+    updated_at  TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS structures (
     id          TEXT PRIMARY KEY,
     name        TEXT NOT NULL,
@@ -179,3 +184,26 @@ def delete_structure(sid: str) -> None:
     get_structure(sid)
     with connect() as c:
         c.execute("DELETE FROM structures WHERE id = ?", (sid,))
+
+
+# --------------------------------------------------------------------------- settings
+
+
+def get_setting(key: str) -> Any:
+    """JSON value for a key (e.g. "azure_ml"), or None. No secrets are stored here."""
+    with connect() as c:
+        row = c.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    return json.loads(row["value"]) if row else None
+
+
+def set_setting(key: str, value: Any) -> None:
+    """Store a JSON value; ``None`` deletes the key."""
+    with connect() as c:
+        if value is None:
+            c.execute("DELETE FROM settings WHERE key = ?", (key,))
+        else:
+            c.execute(
+                "INSERT INTO settings VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET "
+                "value = excluded.value, updated_at = excluded.updated_at",
+                (key, json.dumps(value), _now()),
+            )

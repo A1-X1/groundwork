@@ -1,6 +1,6 @@
 import { Button } from '@astryxdesign/core/Button';
 import { Icon } from '@astryxdesign/core/Icon';
-import { Globe2 } from 'lucide-react';
+import { Globe2, Plug } from 'lucide-react';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Link } from '@astryxdesign/core/Link';
 import { Text } from '@astryxdesign/core/Text';
@@ -20,10 +20,12 @@ export function TopBar({
   legend,
   onGlobe,
   onHome,
+  onConnections,
 }: {
   legend: LegendSpec | null;
   onGlobe: () => void;
   onHome: () => void;
+  onConnections: () => void;
 }) {
   return (
     <HStack
@@ -78,6 +80,13 @@ export function TopBar({
           size="sm"
           icon={<Icon icon={Globe2} size="sm" />}
           onClick={onGlobe}
+        />
+        <Button
+          label="Connections"
+          variant="ghost"
+          size="sm"
+          icon={<Icon icon={Plug} size="sm" />}
+          onClick={onConnections}
         />
         <Link href={`${API_URL}/docs`} isExternalLink>
           API docs

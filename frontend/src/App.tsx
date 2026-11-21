@@ -26,7 +26,11 @@ import { overlayFor } from './lib/overlays';
 import { kindForProfile, type SiteRender } from './map/buildings';
 import { GlobeView, type GlobeTarget, type RegionHex } from './map/GlobeView';
 import { ELEVATION_SCALE, MapView, type HexDatum, type MapFocus } from './map/MapView';
-import { CommandBar, speak } from './panels/CommandBar';
+import { CommandBar } from './panels/CommandBar';
+import { ConnectionsDialog } from './panels/ConnectionsDialog';
+import { ApiError } from './api/client';
+import { VoiceOrb } from './map/VoiceOrb';
+import { useVoice } from './state/useVoice';
 import { ControlPanel } from './panels/ControlPanel';
 import { CellDetail, SiteCompare, TopSites } from './panels/DetailPanel';
 import { TopBar, type LegendSpec } from './panels/TopBar';
@@ -61,6 +65,8 @@ export default function App() {
   const [arrival, setArrival] = useState<{ lat: number; lon: number; nonce: number } | null>(null);
   const [globeNotice, setGlobeNotice] = useState<string | null>(null);
   const [screen, setScreen] = useState<'home' | 'explore'>('home');
+  const [connectionsOpen, setConnectionsOpen] = useState(false);
+  const [connectionsReason, setConnectionsReason] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   /** Structures live in the API's database; browser storage is the fallback when it's down. */
   const [projectsLocal, setProjectsLocal] = useState(false);
@@ -544,16 +550,36 @@ export default function App() {
   );
 
   const ask = useCallback(
-    async (text: string, spoken: boolean): Promise<string> => {
+    async (text: string): Promise<string> => {
       const res = await api.assistant(text, {
         profile: gw.profile?.id ?? null,
         overlay: gw.overlayId,
         selected_h3: gw.selection?.h3 ?? null,
         site_ids: gw.sites.map((x) => x.id),
       });
+      if (res.commands.length === 0) {
+        // Not a UI command: hand it to the planning agent (new use cases, layers, models).
+        try {
+          const steps: string[] = [];
+          let azureNeeded = false;
+          await api.runAgent(text, (e) => {
+            if (e.action === 'connect_azure') azureNeeded = true;
+            if (typeof e.message === 'string') steps.push(e.message);
+          });
+          if (azureNeeded) {
+            setConnectionsReason(
+              'The planning agent needs Azure ML to train this model. Sign in, then ask again.',
+            );
+            setConnectionsOpen(true);
+          }
+          return steps.at(-1) ?? 'The planning agent finished.';
+        } catch (e) {
+          if (!(e instanceof ApiError && e.status === 503)) throw e;
+          // agent not installed yet: fall through to the assistant's reply
+        }
+      }
       const notes = await runCommands(res.commands);
       const out = notes.length ? notes.join(' ') : res.reply;
-      if (spoken && notes.length) speak(out);
       return out;
     },
     [gw, runCommands],
@@ -640,6 +666,8 @@ export default function App() {
     api.deleteArea(id).catch(() => undefined);
   }, []);
 
+  const voice = useVoice(ask);
+
   const selectedSite = gw.sites.find(
     (s) => s.h3 === gw.selection?.h3 && s.profile === gw.profile?.id,
   );
@@ -660,6 +688,15 @@ export default function App() {
               flyGlobe(51.5, -0.11, 'country');
             }}
             onHome={() => setScreen('home')}
+            onConnections={() => {
+              setConnectionsReason(null);
+              setConnectionsOpen(true);
+            }}
+          />
+          <ConnectionsDialog
+            isOpen={connectionsOpen}
+            onOpenChange={setConnectionsOpen}
+            reason={connectionsReason}
           />
         </LayoutHeader>
       }
@@ -809,6 +846,26 @@ export default function App() {
               >
                 <CommandBar onSubmit={ask} />
               </HStack>
+            </HStack>
+            <HStack
+              justify="center"
+              paddingBlockEnd={4}
+              style={{
+                position: 'absolute',
+                insetInline: 0,
+                insetBlockEnd: 0,
+                zIndex: 3,
+                pointerEvents: 'none',
+              }}
+            >
+              <VoiceOrb
+                state={voice.state}
+                level={voice.level}
+                message={voice.message}
+                isAvailable={voice.engine !== null}
+                onStart={voice.start}
+                onStop={voice.stop}
+              />
             </HStack>
             <VStack
               style={{

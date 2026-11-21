@@ -9,3 +9,4 @@ pytest>=8
 jsonschema>=4.22
 ruff>=0.6
 python-multipart>=0.0.9
+azure-identity>=1.17  # Azure ML sign-in for the planning agent (device-code flow)

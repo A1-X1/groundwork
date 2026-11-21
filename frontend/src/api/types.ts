@@ -177,3 +177,31 @@ export interface StructureRecord {
   created_at: string;
   updated_at: string;
 }
+
+export interface AzureConfig {
+  subscription_id: string;
+  resource_group: string;
+  workspace: string;
+}
+
+export interface Connections {
+  mistral: { configured: boolean; chat_model: string | null; voxtral_model: string | null };
+  azure_ml: {
+    configured: boolean;
+    config: AzureConfig | null;
+    status: 'signed_out' | 'pending' | 'signed_in' | 'error' | 'unavailable';
+    message: string | null;
+    account: string | null;
+    verification_uri: string | null;
+    user_code: string | null;
+  };
+}
+
+export interface AgentEvent {
+  type: string;
+  step?: string;
+  message?: string;
+  action?: string;
+  result?: unknown;
+  [k: string]: unknown;
+}
