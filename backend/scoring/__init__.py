@@ -20,7 +20,7 @@ from . import data as _data
 from .profiles import ProfileError, load_profiles
 from .scorer import Scorer, validate_bbox
 
-__all__ = ["ProfileError", "data_status", "get_layer", "health", "list_pois", "list_regions", "list_layers", "list_profiles",
+__all__ = ["ProfileError", "data_status", "default_profiles", "get_layer", "health", "list_pois", "list_regions", "list_layers", "list_profiles",
            "reload", "score", "score_point"]
 
 BBox = tuple[float, float, float, float]
@@ -154,6 +154,15 @@ def score_point(profile_id: str, lat: float, lon: float, weights: dict[str, floa
         "shap_flat": shap_flat,
         "model": model_info,
     }
+
+
+DEFAULT_PROFILES = ("data_centre", "house", "school", "solar_farm", "wind_farm")
+
+
+def default_profiles() -> list[str]:
+    """Profile ids for the home screen, in display order (others go under "More")."""
+    available = {p for p in _engine().profiles}
+    return [p for p in DEFAULT_PROFILES if p in available]
 
 
 def list_pois(kinds: list[str] | None = None, bbox: BBox | None = None) -> list[dict]:

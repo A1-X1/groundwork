@@ -1,0 +1,8 @@
+id: cloud_cover_mean
+label: Cloud cover
+unit: '%'
+kind: raster
+description: Mean daily total cloud cover (2016–2025); cloudier sites lose solar yield.
+template: openmeteo_daily
+params: {variable: cloud_cover_mean, aggregate: mean}
+added_by: human

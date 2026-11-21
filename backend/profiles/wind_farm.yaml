@@ -1,0 +1,19 @@
+id: wind_farm
+label: Wind farm
+description: >-
+  Strong, steady hub-height wind on open, elevated ground with a grid
+  connection, well away from homes (noise, shadow flicker) and airports (radar
+  and airspace). Protected land is excluded. London is a demo region: real
+  onshore wind siting also needs ecology and landscape studies.
+layers:
+  wind_power_density:    {weight: 0.25, better: higher}
+  wind_speed_100m:       {weight: 0.10, better: higher}
+  population_density:    {weight: 0.15, better: lower}
+  land_use_residential:  {weight: 0.10, better: lower}
+  dist_hv_line:          {weight: 0.10, better: lower}
+  dist_substation:       {weight: 0.07, better: lower}
+  dist_airport:          {weight: 0.08, better: higher}
+  slope:                 {weight: 0.07, better: lower}
+  elevation:             {weight: 0.04, better: higher}
+  wind_gust_max:         {weight: 0.04, better: lower}
+masks: [protected_land]

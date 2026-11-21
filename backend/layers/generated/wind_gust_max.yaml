@@ -1,0 +1,8 @@
+id: wind_gust_max
+label: Peak wind gusts
+unit: km/h
+kind: raster
+description: Mean of each year's strongest 10 m gust (2016–2025); extreme loads for turbines and panels.
+template: openmeteo_daily
+params: {variable: wind_gusts_10m_max, aggregate: annual_max}
+added_by: human

@@ -90,14 +90,34 @@
     "max": 1229.5268970560728
   },
   {
+    "id": "wind_speed_100m",
+    "label": "Wind speed at 100 m",
+    "unit": "m/s",
+    "kind": "raster",
+    "description": "Mean hourly wind speed at a typical turbine hub height (100 m).",
+    "source": "Open-Meteo Historical Weather API (ERA5 hourly), 2025",
+    "min": 5.497234828029679,
+    "max": 6.835872151601246
+  },
+  {
+    "id": "wind_power_density",
+    "label": "Wind power density",
+    "unit": "W/m²",
+    "kind": "raster",
+    "description": "Mean available wind power per m² of rotor at 100 m (0.5·ρ·v³): what a turbine can actually harvest.",
+    "source": "Open-Meteo Historical Weather API (ERA5 hourly), 2025",
+    "min": 165.81773375750052,
+    "max": 308.2261363418752
+  },
+  {
     "id": "precipitation_annual",
     "label": "Annual precipitation",
     "unit": "mm/yr",
     "kind": "raster",
     "description": "Mean yearly rainfall total over the normals period.",
     "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
-    "min": 579.4244428219658,
-    "max": 709.2299033939631
+    "min": 695.7242322024005,
+    "max": 790.2945456867269
   },
   {
     "id": "soil_moisture_mean",
@@ -106,8 +126,8 @@
     "kind": "raster",
     "description": "Mean volumetric soil water content in the top 7 cm over the normals period (drainage, foundations, vegetation).",
     "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
-    "min": 0.26518704033119816,
-    "max": 0.3462393978614273
+    "min": 0.3046793348917773,
+    "max": 0.392511917435254
   },
   {
     "id": "evapotranspiration_annual",
@@ -116,8 +136,8 @@
     "kind": "raster",
     "description": "FAO-56 reference evapotranspiration per year: water demand of vegetation and evaporative cooling.",
     "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
-    "min": 616.3043881781459,
-    "max": 663.6306910110973
+    "min": 695.2028833571839,
+    "max": 759.665304555549
   },
   {
     "id": "temp_trend_decade",
@@ -126,8 +146,8 @@
     "kind": "raster",
     "description": "Linear trend of annual mean temperature over the normals period (historical warming rate).",
     "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
-    "min": 0.3662543596433851,
-    "max": 0.5371996486216808
+    "min": 0.7179184054139283,
+    "max": 1.2321585724645465
   },
   {
     "id": "population_density",
@@ -340,6 +360,16 @@
     "max": 1.0
   },
   {
+    "id": "cloud_cover_mean",
+    "label": "Cloud cover",
+    "unit": "%",
+    "kind": "raster",
+    "description": "Mean daily total cloud cover (2016–2025); cloudier sites lose solar yield.",
+    "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
+    "min": 7.3493750042794685,
+    "max": 13.417193925209514
+  },
+  {
     "id": "dist_airport",
     "label": "Distance to airport",
     "unit": "m",
@@ -358,5 +388,25 @@
     "source": "USGS ComCat earthquake catalogue (FDSN event API)",
     "min": 20.0,
     "max": 29.0
+  },
+  {
+    "id": "sunshine_hours",
+    "label": "Sunshine hours",
+    "unit": "h/yr",
+    "kind": "raster",
+    "description": "Mean yearly hours of bright sunshine (2016–2025), the direct driver of solar PV yield.",
+    "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
+    "min": 7.007333505894172,
+    "max": 12.58896562126549
+  },
+  {
+    "id": "wind_gust_max",
+    "label": "Peak wind gusts",
+    "unit": "km/h",
+    "kind": "raster",
+    "description": "Mean of each year's strongest 10 m gust (2016–2025); extreme loads for turbines and panels.",
+    "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
+    "min": 7.913270872126301,
+    "max": 13.793142290657027
   }
 ]

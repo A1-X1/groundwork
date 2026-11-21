@@ -136,3 +136,13 @@ def test_list_pois_real_or_seeded_only():
     assert docklands and all(-0.05 <= p["lon"] <= 0.03 for p in docklands)
     with pytest.raises(KeyError):
         scoring.list_pois(["volcano"])
+
+
+def test_default_profiles_have_their_data():
+    defaults = scoring.default_profiles()
+    assert defaults == ["data_centre", "house", "school", "solar_farm", "wind_farm"]
+    layer_ids = {m["id"] for m in scoring.list_layers()}
+    for pid in defaults:
+        prof = next(p for p in scoring.list_profiles() if p["id"] == pid)
+        assert {lw["id"] for lw in prof["layers"]} | set(prof["masks"]) <= layer_ids, pid
+        assert any(c["score"] is not None for c in scoring.score(pid)), pid

@@ -83,6 +83,23 @@ def weather_stats() -> pd.DataFrame:
 
 
 @lru_cache(maxsize=1)
+def wind100_stats() -> pd.DataFrame:
+    """Hub-height (100 m) wind: mean speed and cube-mean power density proxy for ``YEAR``."""
+    raw = _batched(ARCHIVE_URL, f"wind100_{YEAR}", {
+        "start_date": f"{YEAR}-01-01", "end_date": f"{YEAR}-12-31",
+        "hourly": "wind_speed_100m", "wind_speed_unit": "ms", "timezone": "UTC",
+    })
+    rows = []
+    for loc in raw:
+        v = np.asarray(loc["hourly"]["wind_speed_100m"], dtype=float)
+        rows.append({"lat": loc["latitude"], "lon": loc["longitude"],
+                     "wind_speed_100m": float(np.nanmean(v)),
+                     # 0.5 · ρ · <v³>, ρ = 1.225 kg/m³ → W/m²
+                     "wind_power_density": float(0.5 * 1.225 * np.nanmean(v**3))})
+    return pd.DataFrame(rows)
+
+
+@lru_cache(maxsize=1)
 def air_stats() -> pd.DataFrame:
     raw = _batched(AIR_URL, f"air_{YEAR}", {
         "start_date": f"{YEAR}-01-01", "end_date": f"{YEAR}-12-31",
