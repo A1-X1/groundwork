@@ -1093,7 +1093,7 @@ export default function App() {
             style={{
               position: 'absolute',
               insetInline: 0,
-              insetBlockEnd: 'var(--spacing-12, 48px)',
+              insetBlockStart: 'calc(var(--spacing-4, 16px) * 11)', // under the command bar, clear of the voice box
               pointerEvents: 'none',
             }}
           >
