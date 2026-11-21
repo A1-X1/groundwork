@@ -199,6 +199,8 @@ interface DetailProps {
   onBack: () => void;
   onPlace: () => void;
   onChooseProfile: (id: string) => void;
+  /** Opens Connections so a street view provider can be added. */
+  onConnectStreetView?: () => void;
 }
 
 export function CellDetail(p: DetailProps) {
@@ -274,7 +276,11 @@ export function CellDetail(p: DetailProps) {
         />
       )}
 
-      <StreetPreview lat={data?.lat ?? p.selection.lat} lon={data?.lon ?? p.selection.lon} />
+      <StreetPreview
+        lat={data?.lat ?? p.selection.lat}
+        lon={data?.lon ?? p.selection.lon}
+        onConnect={p.onConnectStreetView}
+      />
 
       <Button
         label={p.site ? 'Placed here' : `Place ${p.profile?.label.toLowerCase() ?? 'site'} here`}
