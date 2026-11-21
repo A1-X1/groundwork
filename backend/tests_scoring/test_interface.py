@@ -224,3 +224,41 @@ def test_region_outline_is_dissolved_geojson():
     poly = shape(geo)
     assert poly.contains(Point(-1.9, 52.48))      # Birmingham inside
     assert not poly.contains(Point(2.5, 56.5))    # North Sea outside
+
+
+def test_list_layers_min_max_never_null(monkeypatch):
+    """Reproduces GET /layers 500: a layer built in only one region (or none) has min/max None
+    in the default region's metadata. list_layers must still return floats."""
+    from backend.scoring import data as _data
+
+    real = _data.load_all
+
+    def patched():
+        grids = real()
+        london = grids["london"]
+        london.layers.append({"id": "dist_cafe", "label": "Cafe", "unit": "m", "kind": "proximity",
+                              "description": "d", "source": "s", "min": None, "max": None})
+        london.frame["dist_cafe"] = 0.5
+        london.frame["raw_dist_cafe"] = float("nan")
+        uk = grids["uk"]
+        uk.layers.append({"id": "dist_cafe", "label": "Cafe", "unit": "m", "kind": "proximity",
+                          "description": "d", "source": "s", "min": 12.0, "max": 3400.0})
+        uk.frame["dist_cafe"] = 0.5
+        uk.frame["raw_dist_cafe"] = 100.0
+        for g in grids.values():
+            if "dist_cafe" not in g.frame:
+                g.frame["dist_cafe"] = 0.5
+                g.frame["raw_dist_cafe"] = float("nan")
+                g.layers.append({"id": "dist_cafe", "label": "Cafe", "unit": "m", "kind": "proximity",
+                                 "description": "d", "source": "s", "min": None, "max": None})
+        return grids
+
+    monkeypatch.setattr(_data, "load_all", patched)
+    scoring.reload()
+    try:
+        rows = {r["id"]: r for r in scoring.list_layers()}
+        assert all(isinstance(r["min"], float) and isinstance(r["max"], float) for r in rows.values())
+        assert rows["dist_cafe"]["min"] == 12.0 and rows["dist_cafe"]["max"] == 3400.0  # from the UK grid
+    finally:
+        monkeypatch.undo()
+        scoring.reload()

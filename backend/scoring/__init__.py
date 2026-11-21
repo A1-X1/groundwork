@@ -71,7 +71,15 @@ def list_profiles() -> list[dict]:
 
 
 def list_layers() -> list[dict]:
-    return [dict(m) for m in _engine().data.layers]
+    """Layer metadata. ``min``/``max`` are always numbers: taken across every region that has
+    data for the layer, or 0.0 when none does yet (e.g. an agent-added layer not built anywhere)."""
+    world = _world()
+    out = []
+    for m in world.primary.data.layers:
+        lo = [x["min"] for g in world.grids.values() for x in g.layers if x["id"] == m["id"] and x.get("min") is not None]
+        hi = [x["max"] for g in world.grids.values() for x in g.layers if x["id"] == m["id"] and x.get("max") is not None]
+        out.append({**m, "min": float(min(lo)) if lo else 0.0, "max": float(max(hi)) if hi else 0.0})
+    return out
 
 
 def get_layer(layer_id: str, bbox: BBox | None = None) -> list[dict]:
