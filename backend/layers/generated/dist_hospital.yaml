@@ -1,0 +1,8 @@
+id: dist_hospital
+label: Distance to hospital
+unit: m
+kind: proximity
+description: Distance to the nearest hospital (emergency access; existing provision for health planning).
+template: osm_proximity
+params: {selectors: ['nwr["amenity"="hospital"]']}
+added_by: human

@@ -1,0 +1,8 @@
+id: dist_ev_charger
+label: Distance to EV charger
+unit: m
+kind: proximity
+description: Distance to the nearest public electric-vehicle charging point.
+template: osm_proximity
+params: {selectors: ['nwr["amenity"="charging_station"]']}
+added_by: human

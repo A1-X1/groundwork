@@ -1,0 +1,8 @@
+id: industrial_share
+label: Industrial land
+unit: share of hex
+kind: aggregate
+description: Share of the hex mapped as industrial land use (logistics, manufacturing, brownfield reuse).
+template: osm_share
+params: {selectors: ['nwr["landuse"="industrial"]']}
+added_by: human

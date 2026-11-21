@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-21T13:55:18Z",
+  "generated_at": "2026-11-21T15:09:24Z",
   "region": "uk_urban",
   "resolution": 8,
   "boundary": "cells of uk with population density ≥ 1000/km² (WorldPop)",
@@ -214,6 +214,41 @@
     "dist_airport": {
       "status": "unavailable",
       "reason": "Overpass unavailable this run (overpass-api.de: failed to fetch https://overpass-api.de/api/interpreter: ('Connection aborted.', ConnectionResetError(104, 'Connection r | overpass.kumi.systems: failed to fetch https://overpass.kumi.systems/api/interpreter: HTTPSConnectionPool(host='overpass.kumi.sys",
+      "seconds": 0.0
+    },
+    "dist_bus_stop": {
+      "status": "unavailable",
+      "reason": "Overpass unavailable (checked in the last 10 min): overpass-api.de: failed to fetch https://overpass-api.de/api/interpreter: ('Connection aborted.', ConnectionResetError(104, 'Connection r | overpass.kumi.systems: failed to fetch https://overpass.kumi",
+      "seconds": 0.01
+    },
+    "dist_ev_charger": {
+      "status": "unavailable",
+      "reason": "Overpass unavailable (checked in the last 10 min): overpass-api.de: failed to fetch https://overpass-api.de/api/interpreter: ('Connection aborted.', ConnectionResetError(104, 'Connection r | overpass.kumi.systems: failed to fetch https://overpass.kumi",
+      "seconds": 0.0
+    },
+    "dist_hospital": {
+      "status": "unavailable",
+      "reason": "Overpass unavailable (checked in the last 10 min): overpass-api.de: failed to fetch https://overpass-api.de/api/interpreter: ('Connection aborted.', ConnectionResetError(104, 'Connection r | overpass.kumi.systems: failed to fetch https://overpass.kumi",
+      "seconds": 0.0
+    },
+    "dist_parking": {
+      "status": "unavailable",
+      "reason": "Overpass unavailable (checked in the last 10 min): overpass-api.de: failed to fetch https://overpass-api.de/api/interpreter: ('Connection aborted.', ConnectionResetError(104, 'Connection r | overpass.kumi.systems: failed to fetch https://overpass.kumi",
+      "seconds": 0.0
+    },
+    "dist_supermarket": {
+      "status": "unavailable",
+      "reason": "Overpass unavailable (checked in the last 10 min): overpass-api.de: failed to fetch https://overpass-api.de/api/interpreter: ('Connection aborted.', ConnectionResetError(104, 'Connection r | overpass.kumi.systems: failed to fetch https://overpass.kumi",
+      "seconds": 0.01
+    },
+    "industrial_share": {
+      "status": "unavailable",
+      "reason": "Overpass unavailable (checked in the last 10 min): overpass-api.de: failed to fetch https://overpass-api.de/api/interpreter: ('Connection aborted.', ConnectionResetError(104, 'Connection r | overpass.kumi.systems: failed to fetch https://overpass.kumi",
+      "seconds": 0.0
+    },
+    "retail_share": {
+      "status": "unavailable",
+      "reason": "Overpass unavailable (checked in the last 10 min): overpass-api.de: failed to fetch https://overpass-api.de/api/interpreter: ('Connection aborted.', ConnectionResetError(104, 'Connection r | overpass.kumi.systems: failed to fetch https://overpass.kumi",
       "seconds": 0.0
     },
     "seismic_activity": {

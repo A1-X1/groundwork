@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-21T14:57:45Z",
+  "generated_at": "2026-11-21T15:09:23Z",
   "region": "london",
   "resolution": 8,
   "boundary": "simplified built-in outline",
@@ -180,10 +180,35 @@
       "reason": "offline and no cache at data/raw/osm/gen_dist_airport/0_0.json",
       "seconds": 0.01
     },
+    "dist_bus_stop": {
+      "status": "synthetic",
+      "reason": "RuntimeError: all Overpass mirrors failed: overpass-api.de: failed to fetch https://overpass-api.de/api/interpreter: ('Connection aborted.', ConnectionResetError(104, 'Connection r | overpass.kumi.systems: failed to fetch https://overpass.kumi.systems/api/interpreter: HTTPSConnectionPool(host='overpass.kumi.systems', port=44 | overpass.private.coffee: failed to fetch https://overpass.private.coffee/api/interpreter: HTTPSConnectionPool(host='overpass.private.coffee', por",
+      "seconds": 94.1
+    },
+    "dist_ev_charger": {
+      "status": "synthetic",
+      "reason": "RuntimeError: Overpass unavailable (checked in the last 10 min): overpass-api.de: failed to fetch https://overpass-api.de/api/interpreter: ('Connection aborted.', ConnectionResetError(104, 'Connection r | overpass.kumi.systems: failed to fetch https://overpass.kumi",
+      "seconds": 0.01
+    },
+    "dist_hospital": {
+      "status": "synthetic",
+      "reason": "RuntimeError: Overpass unavailable (checked in the last 10 min): overpass-api.de: failed to fetch https://overpass-api.de/api/interpreter: ('Connection aborted.', ConnectionResetError(104, 'Connection r | overpass.kumi.systems: failed to fetch https://overpass.kumi",
+      "seconds": 0.01
+    },
+    "dist_parking": {
+      "status": "synthetic",
+      "reason": "RuntimeError: Overpass unavailable (checked in the last 10 min): overpass-api.de: failed to fetch https://overpass-api.de/api/interpreter: ('Connection aborted.', ConnectionResetError(104, 'Connection r | overpass.kumi.systems: failed to fetch https://overpass.kumi",
+      "seconds": 0.01
+    },
     "dist_primary_road": {
       "status": "synthetic",
       "reason": "offline and no cache at data/raw/osm/gen_dist_primary_road/0_0.json",
       "seconds": 0.17
+    },
+    "dist_supermarket": {
+      "status": "synthetic",
+      "reason": "RuntimeError: Overpass unavailable (checked in the last 10 min): overpass-api.de: failed to fetch https://overpass-api.de/api/interpreter: ('Connection aborted.', ConnectionResetError(104, 'Connection r | overpass.kumi.systems: failed to fetch https://overpass.kumi",
+      "seconds": 0.01
     },
     "dist_tourist_attraction": {
       "status": "synthetic",
@@ -193,6 +218,16 @@
     "green_space_share": {
       "status": "synthetic",
       "reason": "offline and no cache at data/raw/osm/gen_green_space_share/0_0.json",
+      "seconds": 0.01
+    },
+    "industrial_share": {
+      "status": "synthetic",
+      "reason": "RuntimeError: Overpass unavailable (checked in the last 10 min): overpass-api.de: failed to fetch https://overpass-api.de/api/interpreter: ('Connection aborted.', ConnectionResetError(104, 'Connection r | overpass.kumi.systems: failed to fetch https://overpass.kumi",
+      "seconds": 0.01
+    },
+    "retail_share": {
+      "status": "synthetic",
+      "reason": "RuntimeError: Overpass unavailable (checked in the last 10 min): overpass-api.de: failed to fetch https://overpass-api.de/api/interpreter: ('Connection aborted.', ConnectionResetError(104, 'Connection r | overpass.kumi.systems: failed to fetch https://overpass.kumi",
       "seconds": 0.01
     },
     "seismic_activity": {

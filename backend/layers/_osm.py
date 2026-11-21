@@ -14,6 +14,7 @@ OVERPASS_URLS = (
     "https://overpass.kumi.systems/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
 )
+PARALLEL_TILES = 3  # concurrent tile queries
 MAX_TILES = 400  # refuse continent-sized Overpass crawls (USA would be ~3,000 tiles per query)
 # Greater London bbox padded by ~3 km so edge hexes see features just outside.
 BBOX = (51.26, -0.56, 51.72, 0.37)  # south, west, north, east (Overpass order)
@@ -85,13 +86,24 @@ def query(name: str, selectors: list[str], *, geometry: bool = True, timeout: in
     out = "out geom;" if geometry else "out center;"
     lats = [s + (n - s) * i / tiles for i in range(tiles + 1)]
     lons = [w + (e - w) * j / tiles for j in range(tiles + 1)]
-    seen: dict[tuple[str, int], dict[str, Any]] = {}
+    jobs = []
     for i in range(tiles):
         for j in range(tiles):
             bb = f"{lats[i]:.4f},{lons[j]:.4f},{lats[i + 1]:.4f},{lons[j + 1]:.4f}"
             body = "".join(f"{sel}({bb});" for sel in selectors)
-            ql = f"[out:json][timeout:{timeout}];({body});{out}"
-            part = cached_json(f"osm/{name}/{i}_{j}.json", lambda ql=ql: _run(ql, timeout), MONTHLY)
+            jobs.append((f"osm/{name}/{i}_{j}.json", f"[out:json][timeout:{timeout}];({body});{out}"))
+
+    def fetch_tile(job: tuple[str, str]) -> list[dict[str, Any]]:
+        path, ql = job
+        return cached_json(path, lambda: _run(ql, timeout), MONTHLY)
+
+    # Tiles are fetched PARALLEL_TILES at a time (public Overpass allows a couple of slots per IP).
+    # A total failure trips the circuit breaker, so the remaining tiles fail immediately.
+    from concurrent.futures import ThreadPoolExecutor
+
+    seen: dict[tuple[str, int], dict[str, Any]] = {}
+    with ThreadPoolExecutor(max_workers=PARALLEL_TILES) as pool:
+        for part in pool.map(fetch_tile, jobs):
             for el in part:
                 seen[(el.get("type", ""), el.get("id", 0))] = el
     return list(seen.values())

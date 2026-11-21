@@ -1,0 +1,8 @@
+id: dist_supermarket
+label: Distance to supermarket
+unit: m
+kind: proximity
+description: Distance to the nearest supermarket (everyday amenity for homes; competition for retail).
+template: osm_proximity
+params: {selectors: ['nwr["shop"="supermarket"]']}
+added_by: human
