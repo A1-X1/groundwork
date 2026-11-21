@@ -25,6 +25,8 @@ _(empty — add items as `- [ ] YYYY-MM-DD: request`)_
   2. **The world as a 3D globe rendered with three.js**, zooming into London's hex grid.
 - [ ] 2026-11-21: **Branching.** P1 work is on `claude/vibrant-cannon-exav8h`, which was the first push to an empty repo. If you create `main` separately the histories won't share a root, so either branch `main` from this commit or tell me and I'll rebase onto yours.
 
+- [ ] 2026-11-21: **Folder skeleton pushed.** Empty `.gitkeep` placeholders only, in `shared/contracts/`, `backend/api/`, `backend/tests_api/` and `frontend/src/`, so the full §4 layout exists. Nothing of yours has content; delete the `.gitkeep` files once you add real files. `README.md`, `.gitignore`, `Makefile`, `docker-compose.yml` and `docs/architecture.md` are left for you to write.
+
 ## Done
 
 _(nothing yet)_
