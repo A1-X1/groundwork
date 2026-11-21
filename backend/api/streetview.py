@@ -117,8 +117,19 @@ def _google_preview(lat: float, lon: float, key: str) -> tuple[bytes, dict[str, 
         params={"location": loc, "radius": RADIUS_M, "source": "outdoor", "key": key},
         timeout=TIMEOUT_S,
     ).json()
-    if meta.get("status") != "OK":
+    status = meta.get("status")
+    if status in ("ZERO_RESULTS", "NOT_FOUND"):
         raise _err(404, "no_imagery", f"No street imagery within {_within()} of this hexagon.")
+    if status != "OK":
+        # REQUEST_DENIED / OVER_QUERY_LIMIT / INVALID_REQUEST: a key or project problem, not an
+        # empty area. Say so, with Google's own message, instead of "no imagery here".
+        why = meta.get("error_message") or ""
+        hint = (
+            " Enable the Street View Static API (and billing) for this key in Google Cloud."
+            if status == "REQUEST_DENIED"
+            else ""
+        )
+        raise _err(502, "provider_error", f"Google Street View said {status}. {why}{hint}".strip())
     img = httpx.get(
         "https://maps.googleapis.com/maps/api/streetview",
         params={

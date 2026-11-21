@@ -226,6 +226,12 @@ export function StreetViewer({
     (async () => {
       try {
         if (provider === 'google') {
+          // Google calls this global when it rejects the key (API not enabled, billing, referrer).
+          (window as any).gm_authFailure = () =>
+            alive &&
+            setError(
+              'Google rejected the key for the Maps JavaScript API. Enable that API (and billing) for this key in Google Cloud, or check its website restrictions.',
+            );
           await loadScript(
             `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(browserKey)}&v=weekly`,
           );
