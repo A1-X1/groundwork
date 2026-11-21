@@ -1,0 +1,10 @@
+# Groundwork API (Person 2). Scoring/pipeline deps live in backend/pipeline/requirements.txt.
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30
+pydantic>=2.7,<3
+h3>=4.1,<5
+# tests + lint
+httpx>=0.27
+pytest>=8
+jsonschema>=4.22
+ruff>=0.6
