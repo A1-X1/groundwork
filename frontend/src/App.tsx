@@ -1,11 +1,12 @@
 import { Banner } from '@astryxdesign/core/Banner';
 import { ProgressBar } from '@astryxdesign/core/ProgressBar';
+import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
 import { HStack } from '@astryxdesign/core/HStack';
-import { cellToLatLng, cellToParent, latLngToCell } from 'h3-js';
+import { cellToLatLng, latLngToCell, polygonToCells } from 'h3-js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api/client';
-import type { AssistantCommand, Poi } from './api/types';
+import type { AssistantCommand, Poi, Review } from './api/types';
 import {
   loadProjects,
   projectWeights,
@@ -15,6 +16,7 @@ import {
 } from './lib/structures';
 import { AreaDetail, AreasPanel } from './panels/AreasPanel';
 import type { Area, AreaSummary, Region, StructureRecord } from './api/types';
+import type { BBox } from './lib/viewport';
 import type { Basemap, MapArea } from './map/MapView';
 import { HomeScreen } from './panels/HomeScreen';
 import { findPlace } from './lib/places';
@@ -23,7 +25,15 @@ import { formatRaw, formatScore } from './lib/format';
 import { overlayFor } from './lib/overlays';
 import { kindForProfile, type ModelSpec, type SiteRender } from './map/buildings';
 import { GlobeView, type GlobeTarget, type RegionHex } from './map/GlobeView';
-import { ELEVATION_SCALE, MapView, type HexDatum, type MapFocus } from './map/MapView';
+import {
+  ELEVATION_SCALE,
+  MapView,
+  POI_MIN_ZOOM,
+  type HexDatum,
+  type MapFocus,
+} from './map/MapView';
+import { MapKey } from './panels/MapKey';
+import { TrainingChoiceDialog } from './panels/TrainingChoiceDialog';
 import { CommandBar } from './panels/CommandBar';
 import { ConnectionsDialog } from './panels/ConnectionsDialog';
 import { ApiError } from './api/client';
@@ -69,9 +79,40 @@ export default function App() {
   const [screen, setScreen] = useState<'home' | 'explore'>('home');
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [connectionsReason, setConnectionsReason] = useState<string | null>(null);
+  /** Azure isn't connected and the agent asks how to train: the original prompt and message. */
+  const [trainingChoice, setTrainingChoice] = useState<{
+    prompt: string;
+    message: string | null;
+  } | null>(null);
   const [modelIds, setModelIds] = useState<string[]>([]);
-  const [regions, setRegions] = useState<Region[]>([]);
   const [progress, setProgress] = useState<AgentProgressState | null>(null);
+  const mapViewRef = useRef<{ center: [number, number]; zoom: number; bbox: BBox } | null>(null);
+  // Live values for callbacks memoised earlier (the command queue).
+  const globeVisibleRef = useRef(true);
+  const screenRef = useRef<'home' | 'explore'>('home');
+  // ---- command queue: wait for each step's effect before running the next
+  const cameraWaiters = useRef<(() => void)[]>([]);
+  const settleCamera = () => {
+    const ws = cameraWaiters.current;
+    cameraWaiters.current = [];
+    ws.forEach((w) => w());
+  };
+  const waitFor = (check: () => boolean, ms: number) =>
+    new Promise<void>((resolve) => {
+      const t0 = performance.now();
+      const tick = () =>
+        check() || performance.now() - t0 > ms ? resolve() : setTimeout(tick, 120);
+      tick();
+    });
+  const waitForCamera = (ms = 6000) =>
+    new Promise<void>((resolve) => {
+      const t = setTimeout(resolve, ms);
+      cameraWaiters.current.push(() => {
+        clearTimeout(t);
+        resolve();
+      });
+    });
+  const lastPlaceRef = useRef<string | null>(null);
   const [previewProfile, setPreviewProfile] = useState<string | null>(null);
   const [createNonce, setCreateNonce] = useState(0);
   const openProjectRef = useRef<(p: Project) => void>(() => undefined);
@@ -95,6 +136,16 @@ export default function App() {
   >(null);
   const [project, setProject] = useState<Project | null>(null);
   const [pois, setPois] = useState<Poi[]>([]);
+  /** The map's last settled view, for the key (which lists only POIs on screen). */
+  const [mapBox, setMapBox] = useState<{ bbox: BBox; zoom: number } | null>(null);
+  globeVisibleRef.current = globeVisible;
+  // Hexes are fetched for the map's view only; none while the globe is showing.
+  const setGwViewport = gw.setViewport;
+  useEffect(() => {
+    const v = mapViewRef.current;
+    setGwViewport(globeVisible || !v ? null : { bbox: v.bbox, zoom: v.zoom });
+  }, [globeVisible, setGwViewport]);
+  screenRef.current = screen;
   projectsRef.current = projects;
 
   useEffect(() => {
@@ -106,10 +157,6 @@ export default function App() {
       .models3d()
       .then(setModelIds)
       .catch(() => setModelIds([]));
-    api
-      .regions()
-      .then(setRegions)
-      .catch(() => setRegions([]));
   }, []);
   useEffect(() => {
     api
@@ -196,7 +243,7 @@ export default function App() {
 
   useEffect(() => {
     if (overlay.layer) gw.ensureLayer(overlay.layer);
-  }, [overlay.layer]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [overlay.layer, gw.viewKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- ranks (local, for tooltips and fixture mode)
   const ranks = useMemo(() => {
@@ -210,39 +257,51 @@ export default function App() {
 
   // ---- coarse (res 5) hexes for the globe, and where detailed hexes exist
   // Where detailed hexes exist, independent of the chosen use case (any layer covers the grid).
+  // Fetched for the visible area only (multi-region data), like scores and layers.
+  const regions = gw.regions;
   const [coverage, setCoverage] = useState<string[]>([]);
   useEffect(() => {
     const first = gw.layers[0];
-    if (!first || coverage.length) return;
+    const view = gw.view;
+    if (!first || !view) {
+      setCoverage([]);
+      return;
+    }
+    let alive = true;
     api
-      .layer(first.id)
-      .then((lv) => setCoverage(lv.cells.map((c) => c.h3)))
+      .layer(first.id, view.bbox)
+      .then((lv) => alive && setCoverage(lv.cells.map((c) => c.h3)))
       .catch(() => undefined);
-  }, [gw.layers, coverage.length]);
+    return () => {
+      alive = false;
+    };
+  }, [gw.layers, gw.viewKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const scoredIds = useMemo(
     () => new Set([...coverage, ...(scoreData?.cells.map((c) => c.h3) ?? [])]),
     [scoreData, coverage],
   );
-  const regionHexes: RegionHex[] = useMemo(() => {
-    const acc = new Map<string, { sum: number; n: number }>();
-    if (!scoreData) {
-      // No use case yet: show the covered region as neutral coarse hexes.
-      const parents = new Set(coverage.map((h) => cellToParent(h, 5)));
-      return [...parents].map((h3) => ({ h3, t: 0.25 }));
-    }
-    for (const c of scoreData.cells) {
-      if (c.score == null) continue;
-      const parent = cellToParent(c.h3, 5);
-      const a = acc.get(parent) ?? { sum: 0, n: 0 };
-      a.sum += c.score;
-      a.n += 1;
-      acc.set(parent, a);
-    }
-    const avgs = [...acc].map(([h3, a]) => ({ h3, v: a.sum / a.n }));
-    const lo = Math.min(...avgs.map((x) => x.v));
-    const span = Math.max(1e-6, Math.max(...avgs.map((x) => x.v)) - lo);
-    return avgs.map((x) => ({ h3: x.h3, t: (x.v - lo) / span }));
-  }, [scoreData, coverage]);
+  // The globe marks where data exists (from /regions), never the detailed hexes themselves.
+  const regionHexes: RegionHex[] = useMemo(() => regionMarkers(regions), [regions]);
+  /** The smallest data region containing the map centre (London inside the UK → London). */
+  const placeName = useMemo(() => {
+    if (!mapBox) return null;
+    const [w, so, e, n] = mapBox.bbox;
+    const lon = (w + e) / 2;
+    const lat = (so + n) / 2;
+    const hits = regions.filter(
+      ({ bbox: [rw, rs, re, rn] }) => lon >= rw && lon <= re && lat >= rs && lat <= rn,
+    );
+    hits.sort((a, b) => a.cells - b.cells);
+    return hits[0]?.name ?? null;
+  }, [mapBox, regions]);
+  const poiKindsInView = useMemo(() => {
+    if (globeVisible || screen !== 'explore' || !mapBox || mapBox.zoom < POI_MIN_ZOOM) return [];
+    const [w, so, e, n] = mapBox.bbox;
+    const kinds = new Set<string>();
+    for (const p of pois)
+      if (p.lon >= w && p.lon <= e && p.lat >= so && p.lat <= n) kinds.add(p.kind);
+    return [...kinds];
+  }, [pois, mapBox, globeVisible, screen]);
   const hasDetail = useCallback(
     (lat: number, lon: number) =>
       scoredIds.has(latLngToCell(lat, lon, 8)) ||
@@ -286,6 +345,8 @@ export default function App() {
       t: c.value,
       h: c.value,
       masked: maskedSet.has(c.h3),
+      // raw null: this layer has no data in the region (value is a neutral 0.5)
+      neutral: c.raw === null,
       tooltip: `${layerMeta?.label ?? overlay.label}: ${formatRaw(c.raw, layerMeta?.unit ?? '')}`,
     }));
   }, [scoreData, overlay.layer, overlay.label, layerAsync, layerMeta, ranks]);
@@ -399,16 +460,36 @@ export default function App() {
 
   const onArrive = useCallback(
     (t: GlobeTarget) => {
-      if (t.level === 'world') return;
+      if (t.level === 'world') return settleCamera();
       if (hasDetail(t.lat, t.lon)) {
-        if (t.level !== 'city') return;
+        if (t.level !== 'city') return settleCamera();
         setGlobeVisible(false);
         setArrival({ lat: t.lat, lon: t.lon, nonce: Date.now() });
       } else {
-        setGlobeNotice('Detailed hexes aren’t built here yet. London is the demo region.');
+        const names = regions.map((r) => r.name).join(', ');
+        setGlobeNotice(
+          names
+            ? `Detailed hexes aren’t built here yet. Data covers: ${names}.`
+            : 'Detailed hexes aren’t built here yet.',
+        );
+        settleCamera();
       }
     },
-    [hasDetail],
+    [hasDetail, regions],
+  );
+
+  /** Map zoomed out past the globe threshold: hand back to the globe, facing the same spot. */
+  const onMapZoomOut = useCallback((lon: number, lat: number) => {
+    setGlobeNotice(null);
+    setSpinning(false);
+    setGlobeVisible(true);
+    setGlobeTarget({ lat, lon, level: 'country', nonce: Date.now(), from: 'near' });
+  }, []);
+
+  /** Globe zoomed all the way in: hand over to the map there (if it has data). */
+  const onGlobeZoomIn = useCallback(
+    (lat: number, lon: number) => onArrive({ lat, lon, level: 'city', nonce: Date.now() }),
+    [onArrive],
   );
 
   /** Go to a place: on the map if it is already showing and has data, else via the globe.
@@ -426,6 +507,10 @@ export default function App() {
   );
 
   // ---- assistant commands
+  const scoreRef = useRef(gw.score);
+  scoreRef.current = gw.score;
+  const layerValuesRef = useRef(gw.layerValues);
+  layerValuesRef.current = gw.layerValues;
   const pointRef = useRef(gw.point);
   pointRef.current = gw.point;
 
@@ -470,6 +555,23 @@ export default function App() {
     [gw.selection],
   );
 
+  /** Camera: the map's after each move; on the globe, the last fly-to target. */
+  const isAlreadyThere = (place: { lat: number; lon: number; bbox?: number[]; kind: string }) => {
+    const v = mapViewRef.current;
+    if (globeVisibleRef.current || screenRef.current !== 'explore' || !v) return false;
+    const [lon, lat] = v.center;
+    const bbox = place.bbox ?? [
+      place.lon - 0.35,
+      place.lat - 0.25,
+      place.lon + 0.35,
+      place.lat + 0.25,
+    ];
+    const [w, so, e, n] = bbox as [number, number, number, number];
+    const inside = lon >= w && lon <= e && lat >= so && lat <= n;
+    const zoomOk = place.kind === 'country' ? v.zoom >= 4 && v.zoom <= 9 : v.zoom >= 8.5;
+    return inside && zoomOk;
+  };
+
   const runCommands = useCallback(
     async (cmds: AssistantCommand[]): Promise<string[]> => {
       const notes: string[] = [];
@@ -488,8 +590,20 @@ export default function App() {
               str('name'),
               type === 'PAN_COUNTRY' ? 'country' : undefined,
             );
-            if (!place) notes.push(`I couldn't find ${str('name') || 'that place'}.`);
-            else goTo(place.lat, place.lon, place.kind !== 'country');
+            if (!place) {
+              notes.push(`I couldn't find ${str('name') || 'that place'}.`);
+              break;
+            }
+            if (isAlreadyThere(place)) {
+              notes.push(`You're already looking at ${place.name}.`);
+              break;
+            }
+            lastPlaceRef.current = place.name;
+            {
+              const landed = waitForCamera();
+              goTo(place.lat, place.lon, place.kind !== 'country');
+              await landed;
+            }
             break;
           }
           case 'ZOOM':
@@ -505,15 +619,30 @@ export default function App() {
             setSpinning(args.state !== 'off');
             break;
           case 'SET_PROFILE':
+            if (gw.profile?.id === str('id')) {
+              notes.push(`${gw.profile.label} is already the use case.`);
+              break;
+            }
             gw.chooseProfile(str('id'));
+            await waitFor(() => {
+              const sc = scoreRef.current;
+              return sc.status === 'ready' && sc.data.profile === str('id');
+            }, 10000);
             break;
           case 'SET_OVERLAY': {
             const id = str('layer');
-            gw.setOverlayId(
-              ['suitability', 'thermal', 'height', 'flood', 'crime', 'air'].includes(id)
-                ? id
-                : `layer:${id}`,
-            );
+            const next = ['suitability', 'thermal', 'height', 'flood', 'crime', 'air'].includes(id)
+              ? id
+              : `layer:${id}`;
+            if (gw.overlayId === next) {
+              notes.push(`The ${overlayFor(next).label.toLowerCase()} view is already on.`);
+              break;
+            }
+            gw.setOverlayId(next);
+            const layer = overlayFor(next).layer;
+            if (layer) {
+              await waitFor(() => layerValuesRef.current[layer]?.status === 'ready', 8000);
+            }
             break;
           }
           case 'SET_WEIGHT':
@@ -638,7 +767,9 @@ export default function App() {
 
   /** Agent UI commands are flat ({command, ...args}); the executor takes {type, args}. */
   const fromAgent = (cmds: Record<string, unknown>[]): AssistantCommand[] =>
-    cmds.map(({ command, ...args }) => ({ type: String(command), args }));
+    [...cmds]
+      .sort((a, b) => (Number(a.seq) || 0) - (Number(b.seq) || 0))
+      .map(({ command, seq: _seq, ...args }) => ({ type: String(command), args }));
 
   const TOOL_LABELS: Record<string, string> = {
     get_catalog: 'Checking what Groundwork already knows…',
@@ -653,7 +784,11 @@ export default function App() {
   };
 
   const runPlanningAgent = useCallback(
-    async (text: string, onProgress?: (msg: string) => void): Promise<string> => {
+    async (
+      text: string,
+      onProgress?: (msg: string) => void,
+      extraContext?: Record<string, unknown>,
+    ): Promise<string> => {
       let final = '';
       const notes: string[] = [];
       // UI commands run in order (CREATE_STRUCTURE must finish before what follows it).
@@ -682,7 +817,13 @@ export default function App() {
               const cmds = fromAgent(e.commands as Record<string, unknown>[]);
               uiChain = uiChain.then(() => runCommands(cmds).then((n) => void notes.push(...n)));
             } else if (e.type === 'action_required') {
-              if (e.action === 'connect_azure' || e.action === 'connect_mistral') {
+              if (e.action === 'choose_training') {
+                // Azure isn't connected: let the user pick Azure or the Mistral data aggregator.
+                setTrainingChoice({
+                  prompt: text,
+                  message: typeof e.message === 'string' ? e.message : null,
+                });
+              } else if (e.action === 'connect_azure' || e.action === 'connect_mistral') {
                 setConnectionsReason(typeof e.message === 'string' ? e.message : null);
                 setConnectionsOpen(true);
               } else if (typeof e.message === 'string') {
@@ -705,8 +846,9 @@ export default function App() {
             profile: gw.profile?.id ?? null,
             overlay: gw.overlayId,
             selected_h3: gw.selection?.h3 ?? null,
-            view: screen === 'home' ? 'home' : globeVisible ? 'globe' : 'map',
+            view: screenRef.current === 'home' ? 'home' : globeVisibleRef.current ? 'globe' : 'map',
             structures: projectsRef.current.map((x) => x.name),
+            ...extraContext,
           },
         );
         await uiChain;
@@ -732,28 +874,47 @@ export default function App() {
 
   const ask = useCallback(
     async (text: string, onProgress?: (msg: string) => void): Promise<string> => {
+      // Suitability reviewer (Mistral): "build a house in the ocean" is stopped before anything
+      // runs. It starts alongside the command call so it adds no wait to normal requests.
+      const reviewP = api
+        .review(text, { profile: gw.profile?.id ?? null, place: lastPlaceRef.current, screen })
+        .catch(() => null);
+      const verdictText = (rv: Review) => [rv.reason, rv.suggestion].filter(Boolean).join(' ');
+
       if (screen === 'home' || looksLikePlanning(text)) {
+        const rv = await reviewP; // a long agent run should never start on an absurd request
+        if (rv?.verdict === 'unsuitable') return verdictText(rv);
         try {
-          return await runPlanningAgent(text, onProgress);
+          const out = await runPlanningAgent(text, onProgress);
+          return rv?.verdict === 'warning' ? `${rv.reason} ${out}` : out;
         } catch (e) {
           if (!(e instanceof ApiError && e.status === 503)) throw e;
         }
       }
-      const res = await api.assistant(text, {
-        profile: gw.profile?.id ?? null,
-        overlay: gw.overlayId,
-        selected_h3: gw.selection?.h3 ?? null,
-        site_ids: gw.sites.map((x) => x.id),
-      });
-      if (res.commands.length === 0) {
+      const [res, rv] = await Promise.all([
+        api.assistant(text, {
+          screen,
+          profile: gw.profile?.id ?? null,
+          overlay: gw.overlayId,
+          center: globeVisibleRef.current ? null : (mapViewRef.current?.center ?? null),
+          zoom: globeVisibleRef.current ? null : (mapViewRef.current?.zoom ?? null),
+          place: lastPlaceRef.current,
+          selected_h3: gw.selection?.h3 ?? null,
+          site_ids: gw.sites.map((x) => x.id),
+        }),
+        reviewP,
+      ]);
+      if (rv?.verdict === 'unsuitable') return verdictText(rv);
+      const warn = rv?.verdict === 'warning' ? `${rv.reason} ` : '';
+      if (res.commands.length === 0 && res.understood === false) {
         try {
-          return await runPlanningAgent(text, onProgress);
+          return warn + (await runPlanningAgent(text, onProgress));
         } catch (e) {
           if (!(e instanceof ApiError && e.status === 503)) throw e;
         }
       }
       const notes = await runCommands(res.commands);
-      return notes.length ? notes.join(' ') : res.reply;
+      return warn + (notes.length ? notes.join(' ') : res.reply);
     },
     [gw, runCommands, runPlanningAgent, screen], // eslint-disable-line react-hooks/exhaustive-deps
   );
@@ -896,6 +1057,16 @@ export default function App() {
           onDrawPoint={(lon, lat) => setDraft((d) => [...d, [lon, lat]])}
           onDrawFinish={finishDraw}
           onAreaClick={selectArea}
+          onView={(v) => {
+            mapViewRef.current = v;
+            setMapBox({ bbox: v.bbox, zoom: v.zoom });
+            if (!globeVisibleRef.current) gw.setViewport({ bbox: v.bbox, zoom: v.zoom });
+            settleCamera();
+          }}
+          onZoomOut={onMapZoomOut}
+          regionOutlines={
+            gw.viewReason === 'zoom_in' || gw.viewReason === 'no_data' ? regions : undefined
+          }
         />
         <GlobeView
           isVisible={globeVisible}
@@ -905,9 +1076,40 @@ export default function App() {
           regionHexes={regionHexes}
           notice={globeNotice}
           onArrive={onArrive}
-          onEnterRegion={() => flyGlobe(51.5, -0.11, 'city')}
+          onEnterRegion={(at) => {
+            const r = regions[0];
+            const [lat, lon] =
+              at ??
+              (r ? [(r.bbox[1] + r.bbox[3]) / 2, (r.bbox[0] + r.bbox[2]) / 2] : [51.5, -0.11]);
+            flyGlobe(lat, lon, 'city');
+          }}
+          onZoomIn={onGlobeZoomIn}
+          enterLabel={regions[0] ? `Open ${regions[0].name} map` : undefined}
           onUserInteract={() => setSpinning(false)}
         />
+        {!globeVisible && screen === 'explore' && gw.viewReason === 'zoom_in' && (
+          <HStack
+            justify="center"
+            style={{
+              position: 'absolute',
+              insetInline: 0,
+              insetBlockEnd: 'var(--spacing-12, 48px)',
+              pointerEvents: 'none',
+            }}
+          >
+            <Text
+              type="supporting"
+              color="secondary"
+              style={{
+                padding: 'var(--spacing-2) var(--spacing-4)',
+                borderRadius: 'var(--radius-full)',
+                ...SURFACE,
+              }}
+            >
+              Zoom in to see hexagons{placeName ? ` in ${placeName}` : ''}
+            </Text>
+          </HStack>
+        )}
         <VStack
           style={{
             position: 'absolute',
@@ -970,6 +1172,8 @@ export default function App() {
             onStop={voice.stop}
             muted={voice.muted}
             onToggleMute={voice.toggleMute}
+            handsFree={voice.handsFree}
+            onToggleHandsFree={voice.toggleHandsFree}
           />
         </HStack>
       )}
@@ -1094,6 +1298,7 @@ export default function App() {
                 profile={gw.profile}
                 cells={scoreData?.cells}
                 isLoading={gw.score.status === 'loading'}
+                placeName={placeName}
                 onPick={(c) => {
                   const [lat, lon] = cellToLatLng(c.h3);
                   select({ h3: c.h3, lat, lon });
@@ -1144,6 +1349,8 @@ export default function App() {
               onStop={voice.stop}
               muted={voice.muted}
               onToggleMute={voice.toggleMute}
+              handsFree={voice.handsFree}
+              onToggleHandsFree={voice.toggleHandsFree}
             />
           </HStack>
         </>
@@ -1182,6 +1389,31 @@ export default function App() {
           />
         </HStack>
       </HStack>
+      {screen === 'explore' && <MapKey kinds={poiKindsInView} />}
+      <TrainingChoiceDialog
+        isOpen={!!trainingChoice}
+        message={trainingChoice?.message ?? null}
+        onOpenChange={(open) => !open && setTrainingChoice(null)}
+        onConnectAzure={() => {
+          setTrainingChoice(null);
+          setConnectionsReason('Connect Azure ML to train the feasibility model.');
+          setConnectionsOpen(true);
+        }}
+        onUseAggregator={() => {
+          const prompt = trainingChoice?.prompt;
+          setTrainingChoice(null);
+          if (!prompt) return;
+          voice.setMessage('Starting the Mistral data aggregator…');
+          void runPlanningAgent(prompt, (m) => voice.setMessage(m), { agent: 'aggregator' })
+            .then((reply) => {
+              voice.setMessage(reply);
+              voice.speak(reply);
+            })
+            .catch((e: unknown) =>
+              voice.setMessage(e instanceof Error ? e.message : 'The aggregator failed.'),
+            );
+        }}
+      />
       <ModelPreviewDialog
         profile={previewProfile}
         label={
@@ -1198,3 +1430,20 @@ export default function App() {
     </VStack>
   );
 }
+
+/** Coarse hexes marking each region with data, for the globe (a few hundred per region). */
+function regionMarkers(regions: Region[]): RegionHex[] {
+  const out: RegionHex[] = [];
+  for (const r of regions) {
+    const [w, so, e, n] = r.bbox;
+    const ring = [[so, w], [so, e], [n, e], [n, w], [so, w]];
+    let cells: string[] = [];
+    for (const res of [5, 4, 3, 2]) {
+      cells = polygonToCells(ring, res);
+      if (cells.length <= 600) break;
+    }
+    if (cells.length === 0) cells = [latLngToCell((so + n) / 2, (w + e) / 2, 5)];
+    for (const h3 of cells) out.push({ h3, t: 0.35 });
+  }
+  return out;
+} // prettier-ignore

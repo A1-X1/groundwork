@@ -1,7 +1,9 @@
+import type { BBox } from '../lib/viewport';
 import type {
   ApiErrorBody,
   AgentEvent,
   Region,
+  Review,
   AssistantResponse,
   AzureConfig,
   Connections,
@@ -71,14 +73,19 @@ function fixtureOnly(): never {
 // ---------------------------------------------------------------- endpoints
 
 export const api = {
+  review: (text: string, context: Record<string, unknown>): Promise<Review> =>
+    fixtures
+      ? Promise.resolve({ verdict: 'ok', reason: '', suggestion: null, source: 'rules' })
+      : request('/assistant/review', { method: 'POST', body: JSON.stringify({ text, context }) }),
+
   /** Voxtral TTS: MP3 for a reply, plus the voice slug used (e.g. gb_oliver_cheerful). */
-  speak: async (text: string): Promise<{ audio: Blob; voice: string }> => {
+  speak: async (text: string, speaker?: string): Promise<{ audio: Blob; voice: string }> => {
     let res: Response;
     try {
       res = await fetch(`${API_URL}/assistant/speak`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, speaker }),
       });
     } catch {
       throw new ApiError(0, 'network', `Can't reach the API at ${API_URL}.`);
@@ -225,18 +232,25 @@ export const api = {
 
   layers: (): Promise<LayerMeta[]> => (fixtures ? fixtures.layers() : request('/layers')),
 
-  layer: (id: string): Promise<LayerValues> =>
-    fixtures ? Promise.reject(fixtureOnly()) : request(`/layers/${encodeURIComponent(id)}`),
+  layer: (id: string, bbox?: BBox | null): Promise<LayerValues> =>
+    fixtures
+      ? Promise.reject(fixtureOnly())
+      : request(`/layers/${encodeURIComponent(id)}${bbox ? `?bbox=${bbox.join(',')}` : ''}`),
 
-  score: (profile: string, weights?: Record<string, number>): Promise<ScoreResponse> => {
+  /** Scores for a profile; with `bbox`, only the cells inside it (viewport fetching). */
+  score: (
+    profile: string,
+    weights?: Record<string, number>,
+    bbox?: BBox | null,
+  ): Promise<ScoreResponse> => {
     if (fixtures) return fixtures.score();
     if (weights && Object.keys(weights).length > 0) {
       return request('/score/custom', {
         method: 'POST',
-        body: JSON.stringify({ profile, weights }),
+        body: JSON.stringify({ profile, weights, ...(bbox ? { bbox } : {}) }),
       });
     }
-    return request(`/score/${encodeURIComponent(profile)}`);
+    return request(`/score/${encodeURIComponent(profile)}${bbox ? `?bbox=${bbox.join(',')}` : ''}`);
   },
 
   point: (

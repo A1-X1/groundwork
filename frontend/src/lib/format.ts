@@ -22,7 +22,9 @@ export function formatSigned(v: number): string {
   return `${v >= 0 ? '+' : '−'}${s}`;
 }
 
-export function formatRaw(value: number | undefined, unit: string): string {
+export function formatRaw(value: number | null | undefined, unit: string): string {
+  // null: the layer has no data in this region (its normalised value is a neutral 0.5)
+  if (value === null) return 'no data here';
   if (value == null || !Number.isFinite(value)) return '—';
   switch (unit) {
     case '£':

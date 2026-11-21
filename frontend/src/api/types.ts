@@ -17,6 +17,8 @@ export interface Profile {
   has_model: boolean;
   /** Main option on the home screen; others go under "More". */
   is_default?: boolean;
+  /** Per-layer meaning for this profile (layer id → sentence); may be empty. */
+  notes?: Record<string, string>;
 }
 
 export interface Region {
@@ -55,7 +57,7 @@ export interface ScoreResponse {
 export interface LayerValue {
   h3: string;
   value: number;
-  raw: number;
+  raw: number | null;
 }
 
 export interface LayerValues {
@@ -95,7 +97,7 @@ export interface PointScore {
   percentile: number | null;
   weights: Record<string, number>;
   breakdown: Record<string, number>;
-  raw: Record<string, number>;
+  raw: Record<string, number | null>;
   shap: { base_value: number; positive: ShapDriver[]; negative: ShapDriver[] } | null;
   model: ModelInfo | null;
 }
@@ -136,6 +138,8 @@ export interface AssistantCommand {
 }
 
 export interface AssistantResponse {
+  /** False when it wasn't a map command (then the planning agent may take it). */
+  understood?: boolean;
   commands: AssistantCommand[];
   reply: string;
   source: 'mistral' | 'rules';
@@ -143,7 +147,8 @@ export interface AssistantResponse {
 
 export interface Poi {
   id: string;
-  kind: 'substation' | 'ixp' | 'data_centre' | 'station' | 'water';
+  /** substation | ixp | data_centre | station | water today; new kinds get their own colour. */
+  kind: string;
   name: string;
   lat: number;
   lon: number;
@@ -214,4 +219,11 @@ export interface AgentEvent {
   action?: string;
   result?: unknown;
   [k: string]: unknown;
+}
+
+export interface Review {
+  verdict: 'ok' | 'warning' | 'unsuitable';
+  reason: string;
+  suggestion: string | null;
+  source: 'mistral' | 'rules';
 }

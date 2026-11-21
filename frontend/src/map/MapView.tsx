@@ -12,6 +12,7 @@ import type { Poi } from '../api/types';
 import { POI_LABEL, poiIconUrl } from './poiIcons';
 import { MASKED_RGB, RAMPS, sample, type RampId } from '../lib/colour';
 import { BuildingsLayer, type SiteRender } from './buildings';
+import { GLOBE_ZOOM } from '../lib/viewport';
 
 export interface HexDatum {
   h3: string;
@@ -48,6 +49,8 @@ interface Props {
   arrival: { lat: number; lon: number; nonce: number } | null;
   zoomCmd: { dir: 'in' | 'out'; nonce: number } | null;
   pois: Poi[];
+  /** Outlines of the regions with data, drawn while zoomed out past the hex threshold. */
+  regionOutlines?: { name: string; bbox: [number, number, number, number] }[];
   /** False while hidden behind the home screen; the map resizes when it becomes visible. */
   isActive: boolean;
   basemap: Basemap;
@@ -58,6 +61,14 @@ interface Props {
   onDrawPoint: (lon: number, lat: number) => void;
   onDrawFinish: () => void;
   onAreaClick: (id: string) => void;
+  /** Reports the camera after each move (for "already there" checks and agent context). */
+  onView?: (v: {
+    center: [number, number];
+    zoom: number;
+    bbox: [number, number, number, number];
+  }) => void;
+  /** The user zoomed out past the globe threshold: hand back to the globe at this point. */
+  onZoomOut?: (lon: number, lat: number) => void;
 }
 
 export type Basemap = 'map' | 'satellite' | 'grid';
@@ -200,6 +211,7 @@ export function MapView(props: Props) {
       pitch: 0,
       bearing: 0,
       maxPitch: 70,
+      minZoom: GLOBE_ZOOM - 1.2,
       pixelRatio: Math.min(window.devicePixelRatio, 2),
       attributionControl: { compact: true },
       canvasContextAttributes: { antialias: true },
@@ -207,6 +219,41 @@ export function MapView(props: Props) {
     mapRef.current = map;
     if (import.meta.env.DEV) (window as unknown as { __gwMap?: maplibregl.Map }).__gwMap = map;
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
+    // Snappier zoom, calmer pan (user request): ~2× wheel/pinch zoom rate, ~0.6× pan inertia.
+    map.scrollZoom.setWheelZoomRate(2 / 450);
+    map.scrollZoom.setZoomRate(2 / 100);
+    map.dragPan.enable({ linearity: 0.25, maxSpeed: 840, deceleration: 4200 });
+    map.on('moveend', () => {
+      const c = map.getCenter();
+      const b = map.getBounds();
+      propsRef.current.onView?.({
+        center: [c.lng, c.lat],
+        zoom: map.getZoom(),
+        bbox: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
+      });
+    });
+    // Zooming out (wheel, pinch, buttons or a "zoom out" command) past the threshold returns
+    // to the globe, every time. Camera moves made in code (fly-tos) don't count.
+    // Checked on every zoom step (not only zoomend: at minZoom the wheel stops emitting one).
+    // Scroll-zoom steps carry no originalEvent in MapLibre 5, so track user input directly.
+    let lastInput = 0;
+    const markInput = () => (lastInput = performance.now());
+    for (const t of ['wheel', 'pointerdown', 'touchstart', 'keydown'] as const)
+      map.getContainer().addEventListener(t, markInput, { passive: true, capture: true });
+    let handedBack = false;
+    const maybeHandBack = (e: { originalEvent?: unknown; gwUser?: boolean }) => {
+      if (map.getZoom() >= GLOBE_ZOOM) {
+        handedBack = false;
+        return;
+      }
+      const byUser = !!(e.originalEvent || e.gwUser) || performance.now() - lastInput < 1500;
+      if (handedBack || !byUser || !propsRef.current.isActive) return;
+      handedBack = true;
+      const c = map.getCenter();
+      propsRef.current.onZoomOut?.(c.lng, c.lat);
+    };
+    map.on('zoom', maybeHandBack);
+    map.on('zoomend', maybeHandBack);
 
     const overlay = new MapboxOverlay({ interleaved: true, layers: [] });
     overlayRef.current = overlay;
@@ -295,6 +342,10 @@ export function MapView(props: Props) {
     const a = props.arrival;
     if (!map || !a) return;
     map.resize();
+    // Start from a globe-like distance above the target so the hand-over reads as one zoom.
+    const c = map.getCenter();
+    if (Math.abs(c.lng - a.lon) > 2 || Math.abs(c.lat - a.lat) > 2 || map.getZoom() < GLOBE_ZOOM)
+      map.jumpTo({ center: [a.lon, a.lat], zoom: 5, pitch: 0, bearing: 0 });
     map.flyTo({
       center: [a.lon, a.lat],
       ...HOME,
@@ -356,7 +407,7 @@ export function MapView(props: Props) {
     const map = mapRef.current;
     if (!map || !props.zoomCmd) return;
     if (props.zoomCmd.dir === 'in') map.zoomIn();
-    else map.zoomOut();
+    else map.zoomOut(undefined, { gwUser: true });
   }, [props.zoomCmd]);
 
   // ---- relief / terrain
@@ -516,8 +567,19 @@ export function MapView(props: Props) {
           }),
         ]
       : [];
+    const outlines = props.regionOutlines ?? [];
+    const outlineLayer = new PathLayer<{ name: string; bbox: [number, number, number, number] }>({
+      id: 'region-outlines',
+      data: outlines,
+      getPath: ({ bbox: [w, so, e, n] }) => [[w, so], [e, so], [e, n], [w, n], [w, so]],
+      getColor: [...ACCENT, 200],
+      getWidth: 1.5,
+      widthUnits: 'pixels',
+      visible: outlines.length > 0,
+      parameters: { depthCompare: 'always' },
+    }); // prettier-ignore
     overlay.setProps({
-      layers: [contextLayer, layer, areaLayer, poiLayer, ...draftLayers],
+      layers: [contextLayer, layer, areaLayer, outlineLayer, poiLayer, ...draftLayers],
       getTooltip: ({ object }: PickingInfo<HexDatum | Poi | MapArea>) =>
         object && !propsRef.current.isDrawing
           ? {
@@ -553,6 +615,7 @@ export function MapView(props: Props) {
     props.selectedAreaId,
     props.draft,
     props.isDrawing,
+    props.regionOutlines,
   ]);
 
   return (

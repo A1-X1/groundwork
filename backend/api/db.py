@@ -158,8 +158,17 @@ def create_structure(
     with connect() as c:
         c.execute(
             "INSERT INTO structures VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (sid, name, type_, profile, json.dumps(spec or {}), json.dumps(priorities), area_id,
-             now, now),
+            (
+                sid,
+                name,
+                type_,
+                profile,
+                json.dumps(spec or {}),
+                json.dumps(priorities),
+                area_id,
+                now,
+                now,
+            ),
         )
     return get_structure(sid)
 

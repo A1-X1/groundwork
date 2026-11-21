@@ -21,11 +21,10 @@ import threading
 from collections.abc import Iterator
 from typing import Any
 
+from backend.api import assistant, db
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
-
-from backend.api import assistant, db
 
 log = logging.getLogger("groundwork.agent")
 router = APIRouter()

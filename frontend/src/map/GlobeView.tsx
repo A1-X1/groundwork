@@ -10,6 +10,7 @@ import { Button } from '@astryxdesign/core/Button';
 import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
 import { cellToBoundary, cellToChildren, getRes0Cells } from 'h3-js';
+import { buildSpace, MAX_DISTANCE, subsolarPoint } from './space';
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RAMPS, sample } from '../lib/colour';
@@ -19,6 +20,8 @@ export interface GlobeTarget {
   lon: number;
   /** How close to end up: the whole Earth, a country, or city level (then hand over). */
   level: 'world' | 'country' | 'city';
+  /** 'near': start close in over the target and pull back (hand-back from the map). */
+  from?: 'near';
   nonce: number;
 }
 
@@ -35,7 +38,11 @@ interface Props {
   regionHexes: RegionHex[];
   notice: string | null;
   onArrive: (target: GlobeTarget) => void;
-  onEnterRegion: () => void;
+  /** Click on a data region (with the clicked point), or the enter button (no point). */
+  onEnterRegion: (at?: [number, number]) => void;
+  /** Wheel-zoomed all the way in: the point facing the camera, for the map hand-over. */
+  onZoomIn?: (lat: number, lon: number) => void;
+  enterLabel?: string;
   onUserInteract: () => void;
 }
 
@@ -54,6 +61,15 @@ function toVec(lat: number, lon: number, r = 1): THREE.Vector3 {
     r * Math.cos(phi),
     r * Math.sin(phi) * Math.sin(theta),
   );
+}
+
+/** Inverse of toVec: latitude and longitude of a direction in globe space. */
+function toLatLon(v: THREE.Vector3): [number, number] {
+  const u = v.clone().normalize();
+  const lat = 90 - THREE.MathUtils.radToDeg(Math.acos(THREE.MathUtils.clamp(u.y, -1, 1)));
+  let lon = THREE.MathUtils.radToDeg(Math.atan2(u.z, -u.x)) - 180;
+  if (lon < -180) lon += 360;
+  return [lat, lon];
 }
 
 /** Rotation that brings (lat, lon) to face the camera (+z) with north up. */
@@ -134,8 +150,10 @@ export function GlobeView(props: Props) {
   const api = useRef<{
     fly: (q: THREE.Quaternion, d: number, ms: number, done?: () => void) => void;
     zoomTo: (d: number) => void;
+    jump: (q: THREE.Quaternion, d: number) => void;
     setRegion: (hexes: RegionHex[]) => void;
     distance: () => number;
+    redraw: () => void;
   } | null>(null);
 
   useEffect(() => {
@@ -155,18 +173,23 @@ export function GlobeView(props: Props) {
       35,
       (host.clientWidth || 800) / (host.clientHeight || 600),
       0.01,
-      50,
+      1200,
     );
     let distance = FAR;
     camera.position.set(0, 0, distance);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 1.1));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.4);
-    sun.position.set(-3, 2, 4);
-    scene.add(sun);
+    scene.background = new THREE.Color(0x02030a);
+    // Low ambient so the night side reads as night but stays legible; the Sun does the rest.
+    scene.add(new THREE.AmbientLight(0xc8d4ff, 0.42));
 
     const globe = new THREE.Group();
     scene.add(globe);
+    // Space turns with the globe, so the Sun stays over today's real subsolar point.
+    const space = buildSpace(toVec(...subsolarPoint(new Date())));
+    globe.add(space.group);
+    // The Moon sits in view space (decoration you can't fly to), up and to the right of Earth.
+    scene.add(space.moon);
+    let lastFrame = performance.now();
     const loader = new THREE.TextureLoader();
     const day = loader.load('/textures/earth-blue-marble-2k.jpg', () => renderOnce());
     day.colorSpace = THREE.SRGBColorSpace;
@@ -239,7 +262,7 @@ export function GlobeView(props: Props) {
       const dy = e.clientY - last.y;
       moved += Math.abs(dx) + Math.abs(dy);
       last = { x: e.clientX, y: e.clientY };
-      const k = 0.005 * (distance - 0.9);
+      const k = 0.005 * Math.min(distance - 0.9, 2.6);
       const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), dx * k);
       const qx = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), dy * k);
       globe.quaternion.premultiply(qy).premultiply(qx);
@@ -254,13 +277,26 @@ export function GlobeView(props: Props) {
         -((e.clientY - rect.top) / rect.height) * 2 + 1,
       );
       raycaster.setFromCamera(ndc, camera);
-      if (raycaster.intersectObject(region).length) propsRef.current.onEnterRegion();
+      const hit = raycaster.intersectObject(region)[0];
+      if (hit) propsRef.current.onEnterRegion(toLatLon(globe.worldToLocal(hit.point.clone())));
     };
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       anim = null;
-      distance = THREE.MathUtils.clamp(distance * (1 + e.deltaY * 0.001), NEAR, FAR + 1);
+      const before = distance;
+      distance = THREE.MathUtils.clamp(distance * (1 + e.deltaY * 0.001), NEAR, MAX_DISTANCE);
       propsRef.current.onUserInteract();
+      // Reaching the closest distance hands over to the flat map at the point facing us.
+      if (
+        e.deltaY < 0 &&
+        distance <= NEAR + 1e-6 &&
+        before > NEAR + 1e-6 &&
+        propsRef.current.isVisible
+      ) {
+        const front = new THREE.Vector3(0, 0, 1).applyQuaternion(globe.quaternion.clone().invert());
+        const [lat, lon] = toLatLon(front);
+        propsRef.current.onZoomIn?.(lat, lon);
+      }
       renderOnce();
     };
     const el = renderer.domElement;
@@ -290,11 +326,31 @@ export function GlobeView(props: Props) {
         globe.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), 0.0012);
         again = true;
       }
+      // Twinkle and orbits advance only while frames run continuously (no jumps when idle).
+      const now = performance.now();
+      const dt = reduced ? 0 : Math.min((now - lastFrame) / 1000, 1 / 30);
+      space.tick(dt);
+      lastFrame = now;
       camera.position.set(0, 0, distance);
       camera.lookAt(0, 0, 0);
+      maybeLoadHiRes();
       renderer.render(scene, camera);
       running = again;
       if (again) raf = requestAnimationFrame(frame);
+    };
+    // Level of detail: swap in the 4K texture once the camera gets close.
+    let hiResRequested = false;
+    const maybeLoadHiRes = () => {
+      if (hiResRequested || distance > 2.2) return;
+      hiResRequested = true;
+      loader.load('/textures/earth-blue-marble-4k.jpg', (hi) => {
+        hi.colorSpace = THREE.SRGBColorSpace;
+        hi.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+        earthMat.map = hi;
+        earthMat.needsUpdate = true;
+        day.dispose();
+        renderOnce();
+      });
     };
     const renderOnce = () => {
       if (!raf) raf = requestAnimationFrame(frame);
@@ -321,8 +377,15 @@ export function GlobeView(props: Props) {
         anim = { fromQ: q, toQ: q, fromD: distance, toD: d, t0: performance.now(), ms: 450 };
         kick();
       },
+      jump: (q, d) => {
+        anim = null;
+        globe.quaternion.copy(q);
+        distance = d;
+        renderOnce();
+      },
       setRegion,
       distance: () => distance,
+      redraw: kick,
     };
     // Start with Europe/Africa in view, slightly tilted.
     globe.quaternion.copy(facing(25, 10));
@@ -349,6 +412,7 @@ export function GlobeView(props: Props) {
       el.removeEventListener('pointerup', onUp);
       el.removeEventListener('wheel', onWheel);
       earthGeo.dispose();
+      space.dispose();
       gridGeo.dispose();
       day.dispose();
       bump.dispose();
@@ -366,6 +430,7 @@ export function GlobeView(props: Props) {
     const t = props.target;
     if (!t || !api.current) return;
     const d = { world: FAR, country: COUNTRY, city: NEAR }[t.level];
+    if (t.from === 'near') api.current.jump(facing(t.lat, t.lon), NEAR * 1.08);
     api.current.fly(facing(t.lat, t.lon), d, FLY_MS, () => propsRef.current.onArrive(t));
   }, [props.target]);
 
@@ -373,7 +438,7 @@ export function GlobeView(props: Props) {
     const z = props.zoom;
     if (!z || !api.current) return;
     const d = api.current.distance();
-    const next = THREE.MathUtils.clamp(z.dir === 'in' ? d * 0.7 : d / 0.7, NEAR, FAR + 1);
+    const next = THREE.MathUtils.clamp(z.dir === 'in' ? d * 0.7 : d / 0.7, NEAR, MAX_DISTANCE);
     api.current.zoomTo(next);
   }, [props.zoom]);
 
@@ -405,10 +470,10 @@ export function GlobeView(props: Props) {
           </Text>
         )}
         <Button
-          label="Open London map"
+          label={props.enterLabel ?? 'Open London map'}
           variant="secondary"
           size="sm"
-          onClick={props.onEnterRegion}
+          onClick={() => props.onEnterRegion()}
         />
       </VStack>
     </VStack>

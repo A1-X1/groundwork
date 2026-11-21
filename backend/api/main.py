@@ -16,16 +16,9 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Annotated, Any, TypeVar
 
+import h3
 import httpx
-from fastapi import FastAPI, File, Form, Path, Query, Request, UploadFile
-from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, Field
-from starlette.exceptions import HTTPException as StarletteHTTPException
-
-from backend.api import agent_routes, areas, assistant, pois, scoring_source
+from backend.api import agent_routes, areas, assistant, pois, reviewer, scoring_source
 from backend.api.models import (
     CompareEntry,
     CompareResponse,
@@ -39,6 +32,13 @@ from backend.api.models import (
     Region,
     ScoreResponse,
 )
+from fastapi import FastAPI, File, Form, Path, Query, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel, Field
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 RESOLUTION = 8
 WARM_POINT = (51.5155, -0.0922)
@@ -81,6 +81,7 @@ ERRORS: dict[int | str, dict[str, Any]] = {
     404: {"model": ErrorResponse, "description": "Unknown profile, layer or location."},
     422: {"model": ErrorResponse, "description": "Invalid parameters or weights."},
 }
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -256,6 +257,13 @@ def check_bbox(parts: list[float] | tuple[float, ...] | None) -> BBox | None:
     return (min_lon, min_lat, max_lon, max_lat)
 
 
+def cells_resolution(cells: list[dict[str, Any]]) -> int:
+    """Finest H3 resolution among the returned cells (regions mix res 5–8); the default if none."""
+    if not cells:
+        return RESOLUTION
+    return max(h3.get_resolution(c["h3"]) for c in cells)
+
+
 def cached_score(
     profile: str, weights: dict[str, float] | None, bbox: BBox | None
 ) -> ScoreResponse:
@@ -263,7 +271,7 @@ def cached_score(
         cells = scoring.score(profile, weights=weights, bbox=bbox)
         return ScoreResponse(
             profile=profile,
-            resolution=RESOLUTION,
+            resolution=cells_resolution(cells),
             generated_at=datetime.now(UTC).replace(microsecond=0),
             cells=cells,
         )
@@ -348,13 +356,27 @@ def default_profile_ids() -> list[str]:
     return DEFAULT_PROFILES
 
 
+def profile_notes(profile_id: str) -> dict[str, str]:
+    """Person 1's per-layer notes (``scoring.profile_notes``) when available; never fails."""
+    fn = getattr(scoring, "profile_notes", None)
+    if fn is None:
+        return {}
+    try:
+        return {str(k): str(v) for k, v in (fn(profile_id) or {}).items()}
+    except Exception:
+        return {}
+
+
 @app.get("/profiles", response_model=list[Profile], tags=["profiles"], summary="List profiles")
 def list_profiles() -> list[dict[str, Any]]:
     """Every use case Groundwork can score, with default weights and masks. Main use cases come
     first (`is_default`, in display order); the rest follow."""
     defaults = default_profile_ids()
     rank = {pid: i for i, pid in enumerate(defaults)}
-    profiles = [{**p, "is_default": p["id"] in rank} for p in scoring.list_profiles()]
+    profiles = [
+        {**p, "is_default": p["id"] in rank, "notes": profile_notes(p["id"])}
+        for p in scoring.list_profiles()
+    ]
     return sorted(profiles, key=lambda p: (rank.get(p["id"], len(rank)), p["label"]))
 
 
@@ -375,7 +397,7 @@ def list_regions() -> list[dict[str, Any]]:
 )
 def get_profile(profile_id: ProfileId) -> dict[str, Any]:
     """Layers, weights, directions and masks for one use case."""
-    return profile_by_id(profile_id)
+    return {**profile_by_id(profile_id), "notes": profile_notes(profile_id)}
 
 
 @app.get("/layers", response_model=list[Layer], tags=["layers"], summary="List layers")
@@ -397,7 +419,7 @@ def get_layer(
 ) -> LayerValues:
     """Normalised (0–1) and raw values for every hexagon, for map overlays."""
     cells = scoring.get_layer(layer_id, bbox=parse_bbox(bbox))
-    return LayerValues(layer=layer_id, resolution=RESOLUTION, cells=cells)
+    return LayerValues(layer=layer_id, resolution=cells_resolution(cells), cells=cells)
 
 
 @app.get(
@@ -658,3 +680,17 @@ def assistant_speak(body: SpeakRequest) -> Response:
     except httpx.HTTPError as exc:
         return _error(502, "upstream_error", f"Voxtral speech failed: {exc}")
     return Response(content=audio, media_type="audio/mpeg", headers={"X-Voice": voice})
+
+
+@app.post(
+    "/assistant/review",
+    response_model=reviewer.Review,
+    tags=["assistant"],
+    summary="Check whether a request makes sense before acting",
+)
+def assistant_review(body: reviewer.ReviewRequest) -> reviewer.Review:
+    """A Mistral reviewer judges whether the request is physically, legally and practically
+    sensible: `ok`, `warning` (possible, with a serious constraint) or `unsuitable` (e.g. a house
+    in the open ocean), with a one-line reason and a workable suggestion. Obvious impossibilities
+    are caught by rules without a model call."""
+    return reviewer.review(body)

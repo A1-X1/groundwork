@@ -94,12 +94,15 @@ export function TopSites({
   cells,
   isLoading,
   onPick,
+  placeName,
 }: {
   profiles: Profile[];
   onChooseProfile: (id: string) => void;
   profile: Profile | undefined;
   cells: ScoredCell[] | undefined;
   isLoading: boolean;
+  /** Where the sites are: the data region in view (e.g. Greater London, United Kingdom). */
+  placeName?: string | null;
   onPick: (cell: ScoredCell, rank: number) => void;
 }) {
   const ranked = (cells ?? [])
@@ -134,7 +137,7 @@ export function TopSites({
     <VStack gap={4}>
       <VStack gap={1}>
         <Heading level={2} textWrap="balance">
-          Best {profile.label.toLowerCase()} sites in London
+          Best {profile.label.toLowerCase()} sites {placeName ? `in ${placeName}` : 'in view'}
         </Heading>
         {cells ? (
           <Text color="secondary" display="block" hasTabularNumbers textWrap="pretty">

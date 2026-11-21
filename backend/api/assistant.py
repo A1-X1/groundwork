@@ -96,6 +96,10 @@ class AssistantContext(BaseModel):
     overlay: str | None = Field(default=None, description="Current overlay id.")
     selected_h3: str | None = None
     site_ids: list[str] = Field(default_factory=list, description="Ids of placed sites.")
+    screen: str | None = Field(default=None, description="home or explore.")
+    center: tuple[float, float] | None = Field(default=None, description="Map centre [lon, lat].")
+    zoom: float | None = None
+    place: str | None = Field(default=None, description="Last place flown to, if any.")
 
 
 class AssistantRequest(BaseModel):
@@ -113,6 +117,10 @@ class AssistantRequest(BaseModel):
 
 
 class AssistantResponse(BaseModel):
+    understood: bool = Field(
+        default=True,
+        description="False when the request wasn't a map command (the UI may ask the agent).",
+    )
     commands: list[Command]
     reply: str = Field(description="One short sentence to show or speak back.")
     source: Literal["mistral", "rules"]
@@ -181,6 +189,8 @@ def clean(raw: Any, profiles: list[str], layers: list[str]) -> list[Command]:
     if not isinstance(items, list):
         return []
     out: list[Command] = []
+    if all(isinstance(i, dict) and isinstance(i.get("seq"), int) for i in items):
+        items = sorted(items, key=lambda i: i["seq"])
     for item in items[:12]:
         if not isinstance(item, dict) or item.get("type") not in COMMANDS:
             continue
@@ -216,12 +226,19 @@ def _system_prompt(profiles: list[dict], layers: list[dict]) -> str:
     return (
         "You control Groundwork, a 3D globe + hex map that scores places for a use case. "
         "Turn the user's request into JSON: "
-        '{"reply": "<one short sentence>", "commands": [{"type": "...", "args": {...}}]}. '
+        '{"understood": true|false, "reply": "<one short sentence>", '
+        '"commands": [{"type": "...", "args": {...}}]}. '
+        "Set understood=false only when the request is not about controlling this map "
+        "(e.g. designing a new kind of building); already-done requests are understood. "
         "Use only these commands and argument names:\n"
         f"{cmds}\n"
         f"Profile ids: {profs}.\n"
         f"Overlay views: {', '.join(OVERLAY_VIEWS)}; or any layer id: {lays}.\n"
         "Weights are 0-100. state is 'on' or 'off'. direction is 'in' or 'out'. "
+        'For compound requests ("pan to X then show Y") return the commands in the order '
+        "they must run. "
+        "If the user is already looking at the place they ask for (context.center/zoom/place), "
+        "or the profile/overlay is already active, send no command and say so. "
         "If the request is unclear or impossible, return no commands and say why in reply. "
         "Return JSON only."
     )
@@ -229,7 +246,7 @@ def _system_prompt(profiles: list[dict], layers: list[dict]) -> str:
 
 def ask_mistral(
     text: str, ctx: AssistantContext, profiles: list[dict], layers: list[dict], key: str
-) -> tuple[list[Command], str]:
+) -> tuple[list[Command], str, bool]:
     body = {
         "model": MISTRAL_MODEL,
         "temperature": 0,
@@ -247,7 +264,10 @@ def ask_mistral(
     parsed = json.loads(content)
     cmds = clean(parsed, [p["id"] for p in profiles], [layer["id"] for layer in layers])
     reply = str(parsed.get("reply") or "") if isinstance(parsed, dict) else ""
-    return cmds, reply or ("Done." if cmds else "Sorry, I couldn't turn that into an action.")
+    said = parsed.get("understood") if isinstance(parsed, dict) else None
+    understood = bool(cmds) or (said is not False)
+    reply = reply or ("Done." if cmds else "Sorry, I couldn't turn that into an action.")
+    return cmds, reply, understood
 
 
 # --------------------------------------------------------------------------- rules
@@ -295,7 +315,23 @@ def _find_layer(t: str, layers: list[dict]) -> str | None:
     return best[0] if best else None
 
 
+# Compound requests run as an ordered queue: "pan to London then show houses".
+_SPLIT = re.compile(r"\b(?:and then|then|after that|afterwards)\b|,\s*and\b|;", re.I)
+
+
 def rules(text: str, profiles: list[dict], layers: list[dict]) -> tuple[list[Command], str]:
+    """Rule-based parser. Splits compound requests and parses each part in order."""
+    parts = [p.strip() for p in _SPLIT.split(text) if p and p.strip()]
+    raw: list[dict[str, Any]] = []
+    for part in parts or [text]:
+        raw.extend(_rules_part(part, profiles, layers))
+    cmds = clean(raw, [p["id"] for p in profiles], [layer["id"] for layer in layers])
+    if not cmds:
+        return [], "I didn't catch an action. Try “show the best data centre sites” or “help”."
+    return cmds, "OK: " + ", ".join(c.type.replace("_", " ").lower() for c in cmds) + "."
+
+
+def _rules_part(text: str, profiles: list[dict], layers: list[dict]) -> list[dict[str, Any]]:
     t = " " + re.sub(r"\s+", " ", text.lower()).strip() + " "
     raw: list[dict[str, Any]] = []
     on_off = "off" if re.search(r"\b(off|hide|disable|stop|without)\b", t) else "on"
@@ -352,22 +388,21 @@ def rules(text: str, profiles: list[dict], layers: list[dict]) -> tuple[list[Com
     elif re.search(r"\b(place|build|put|drop)\b", t):
         raw.append({"type": "PLACE_SITE", "args": {}})
 
-    cmds = clean(raw, [p["id"] for p in profiles], [layer["id"] for layer in layers])
-    if not cmds:
-        return [], "I didn't catch an action. Try “show the best data centre sites” or “help”."
-    return cmds, "OK: " + ", ".join(c.type.replace("_", " ").lower() for c in cmds) + "."
+    return raw
 
 
 def handle(req: AssistantRequest, profiles: list[dict], layers: list[dict]) -> AssistantResponse:
     key = mistral_key()
     if key:
         try:
-            cmds, reply = ask_mistral(req.text, req.context, profiles, layers, key)
-            return AssistantResponse(commands=cmds, reply=reply, source="mistral")
+            cmds, reply, understood = ask_mistral(req.text, req.context, profiles, layers, key)
+            return AssistantResponse(
+                commands=cmds, reply=reply, source="mistral", understood=understood
+            )
         except Exception as exc:  # network, quota, bad JSON: fall back to the offline parser
             log.warning("Mistral call failed (%s); using rule-based parser", exc)
     cmds, reply = rules(req.text, profiles, layers)
-    return AssistantResponse(commands=cmds, reply=reply, source="rules")
+    return AssistantResponse(commands=cmds, reply=reply, source="rules", understood=bool(cmds))
 
 
 # --------------------------------------------------------------------------- voxtral

@@ -1,22 +1,36 @@
 /**
- * Placeholder Groundwork logo: a hex mark and wordmark. Swap for the real logo later;
- * keep the `size` contract (inherit = scales with the surrounding headline).
+ * Groundwork logo: a hexagon outline (one cell of the map grid) holding a stacked layer, the
+ * "ground" you build on, followed by the wordmark. Keep the `size` contract
+ * (inherit = scales with the surrounding headline). The favicon (public/favicon.svg) uses
+ * the same mark.
  */
 import { Text } from '@astryxdesign/core/Text';
 
-function HexMark({ size }: { size: string }) {
+/** The mark on its own, coloured with the theme accent. */
+export function LogoMark({ size }: { size: string }) {
   return (
     <svg
       viewBox="0 0 32 32"
       width={size}
       height={size}
       aria-hidden
-      style={{ display: 'inline-block', verticalAlign: '-0.12em', flex: 'none' }}
+      // inline in the text flow, centred on the capitals
+      style={{ display: 'inline-block', verticalAlign: '-0.13em', marginInlineEnd: '0.26em' }}
     >
-      <path fill="var(--color-accent)" d="M16 1.5 28.6 8.75v14.5L16 30.5 3.4 23.25V8.75z" />
       <path
-        fill="var(--color-background-body)"
-        d="M16 9.5 21.6 12.75v6.5L16 22.5l-5.6-3.25v-6.5z"
+        d="M16 2.6 27.6 9.3v13.4L16 29.4 4.4 22.7V9.3z"
+        fill="none"
+        stroke="var(--color-accent)"
+        strokeWidth="2.6"
+        strokeLinejoin="round"
+      />
+      {/* top face of the layer */}
+      <path d="M16 9.2 22.4 12.9 16 16.6 9.6 12.9z" fill="var(--color-accent)" />
+      {/* the layer's sides, a V-shaped band below it */}
+      <path
+        d="M9.6 15.4 16 19.1 22.4 15.4v2.9L16 22l-6.4-3.7z"
+        fill="var(--color-accent)"
+        opacity="0.85"
       />
     </svg>
   );
@@ -26,19 +40,17 @@ export function Logo({ size = 'inherit' }: { size?: 'inherit' | 'md' }) {
   return (
     <Text
       type="inherit"
-      weight="bold"
+      weight="semibold"
       color="inherit"
       aria-label="Groundwork"
       style={{
-        display: 'inline-flex',
-        alignItems: 'baseline',
-        gap: '0.22em',
+        display: 'inline',
         fontSize: size === 'md' ? 'var(--font-size-lg, 1.25rem)' : 'inherit',
-        letterSpacing: '-0.02em',
+        letterSpacing: '-0.015em',
         whiteSpace: 'nowrap',
       }}
     >
-      <HexMark size="0.9em" />
+      <LogoMark size="1em" />
       Groundwork
     </Text>
   );

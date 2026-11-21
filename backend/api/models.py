@@ -55,6 +55,11 @@ class Profile(BaseModel):
     is_default: bool = Field(
         default=False, description="Shown as a main option on the home screen (else under More)."
     )
+    notes: dict[str, str] = Field(
+        default_factory=dict,
+        description="Per-layer meaning for this profile, e.g. 'Higher crime per 1,000 residents "
+        "gives a worse score (London median 67)'. Empty when the scoring module has none.",
+    )
 
 
 class Layer(BaseModel):
@@ -86,7 +91,10 @@ class Layer(BaseModel):
 class LayerValue(BaseModel):
     h3: str = Field(examples=[H3_EXAMPLE])
     value: float = Field(ge=0, le=1, description="Percentile-normalised value (0–1).")
-    raw: float = Field(description="Value in the layer's original unit.")
+    raw: float | None = Field(
+        description="Value in the layer's original unit; null where the layer has no data "
+        "in this region (the normalised value is then a neutral 0.5)."
+    )
 
 
 class LayerValues(BaseModel):
@@ -188,7 +196,9 @@ class PointScore(BaseModel):
     percentile: float | None = Field(description="Share of ranked cells this cell beats (0–1).")
     weights: dict[str, float] = Field(default_factory=dict, description="Effective weights.")
     breakdown: dict[str, float]
-    raw: dict[str, float] = Field(description="Raw layer values in original units.")
+    raw: dict[str, float | None] = Field(
+        description="Raw layer values in original units; null where a layer has no data here."
+    )
     shap: ShapExplanation | None = Field(
         default=None, description="Top SHAP drivers of the feasibility model."
     )

@@ -195,6 +195,13 @@ curl -X POST http://localhost:8000/score/custom -H 'Content-Type: application/js
 curl "http://localhost:8000/compare?profiles=data_centre,house,school,mine&lat=51.5155&lon=-0.0922"
 ```
 
+Check a request before acting on it (the Mistral suitability reviewer; obvious cases are caught
+offline):
+
+```bash
+curl -X POST http://localhost:8000/assistant/review -H 'Content-Type: application/json' -d '{"text": "build a house in the ocean"}'
+```
+
 Errors always look like `{"error": {"code": "not_found", "message": "...", "detail": null}}`:
 `404` for an unknown profile, layer or location, and `422` for bad parameters or weights.
 

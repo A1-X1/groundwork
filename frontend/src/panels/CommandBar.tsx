@@ -21,10 +21,12 @@ export function CommandBar({ onSubmit }: Props) {
     const q = text.trim();
     if (!q || busy) return;
     setBusy(true);
+    setText(''); // accepted: clear straight away
+    (document.activeElement as HTMLElement | null)?.blur();
     try {
       setReply(await onSubmit(q, (m) => setReply(m)));
-      setText('');
     } catch (e) {
+      setText(q); // keep the text only when it failed, so it can be retried
       setReply(e instanceof Error ? e.message : 'Something went wrong.');
     } finally {
       setBusy(false);

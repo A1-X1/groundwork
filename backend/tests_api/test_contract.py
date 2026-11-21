@@ -56,3 +56,12 @@ def test_contract_files_exist() -> None:
     names = ["scoring_interface.md", "score_response.schema.json", "score_response.example.json"]
     for name in names:
         assert (Path(CONTRACTS) / name).is_file()
+
+
+def test_null_raw_values_are_valid() -> None:
+    """Layers without data in a region return raw = null (normalised value 0.5)."""
+    from backend.api.models import LayerValue
+
+    cell = LayerValue(h3="881f1d4a9bfffff", value=0.5, raw=None)
+    assert cell.raw is None
+    assert "raw" in LayerValue.model_json_schema()["properties"]

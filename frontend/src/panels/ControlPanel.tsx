@@ -82,12 +82,15 @@ interface Props {
 function WeightSlider({
   layer,
   meta,
+  note,
   value,
   total,
   onChange,
 }: {
   layer: ProfileLayer;
   meta: LayerMeta | undefined;
+  /** What this layer means for the profile (from the data aggregator), if known. */
+  note?: string;
   value: number;
   total: number;
   onChange: (v: number) => void;
@@ -96,7 +99,7 @@ function WeightSlider({
   return (
     <Slider
       label={meta?.label ?? layer.id}
-      description={layer.better === 'lower' ? 'Lower is better' : 'Higher is better'}
+      description={note ?? (layer.better === 'lower' ? 'Lower is better' : 'Higher is better')}
       value={value}
       min={0}
       max={100}
@@ -214,6 +217,7 @@ export function ControlPanel(props: Props) {
       key={l.id}
       layer={l}
       meta={gw.layersById.get(l.id)}
+      note={profile?.notes?.[l.id]}
       value={gw.weights[l.id] ?? 0}
       total={total}
       onChange={(v) => gw.setWeight(l.id, v)}
