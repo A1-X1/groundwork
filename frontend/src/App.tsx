@@ -40,7 +40,12 @@ import { CommandBar } from './panels/CommandBar';
 import { ConnectionsDialog } from './panels/ConnectionsDialog';
 import { ApiError } from './api/client';
 import { VoiceDock } from './panels/VoiceDock';
-import { AgentProgress, stepIndex, type AgentProgressState } from './panels/AgentProgress';
+import {
+  AgentProgress,
+  applyAgentEvent,
+  stepIndex,
+  type AgentProgressState,
+} from './panels/AgentProgress';
 import { ModelPreviewDialog } from './panels/ModelPreviewDialog';
 import { FloatingPanel, SURFACE } from './panels/FloatingPanel';
 import { PanelRight, SlidersHorizontal } from 'lucide-react';
@@ -823,6 +828,12 @@ export default function App() {
           text,
           (e) => {
             if (e.type === 'thinking') return; // private reasoning: not shown
+            // Detailed progress: phase, elapsed/ETA and the per-step detail log.
+            setProgress((cur) => applyAgentEvent(cur, e as Record<string, unknown>));
+            if (e.type === 'progress') {
+              if (typeof e.detail === 'string') onProgress?.(e.detail);
+              return;
+            }
             if (e.type === 'tool_call' && typeof e.name === 'string') {
               const name = e.name;
               say(

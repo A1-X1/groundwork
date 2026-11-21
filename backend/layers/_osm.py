@@ -22,17 +22,45 @@ BBOX = (51.26, -0.56, 51.72, 0.37)  # south, west, north, east (Overpass order)
 _down_reason: str | None = None  # circuit breaker: once every mirror fails, stop trying this run
 
 
+DOWN_TTL_S = 600  # after every mirror fails, skip Overpass for 10 minutes (across runs)
+
+
+def _down_file():
+    from ._common import RAW_DIR
+
+    return RAW_DIR / "osm" / "_down.json"
+
+
+def _recently_down() -> str | None:
+    import json
+    import time
+
+    f = _down_file()
+    if f.exists():
+        d = json.loads(f.read_text())
+        if time.time() - d.get("at", 0) < DOWN_TTL_S:
+            return d.get("reason", "recently unreachable")
+    return None
+
+
 def _run(ql: str, timeout: int) -> list[dict[str, Any]]:
+    import json
+    import time
+
     global _down_reason
+    _down_reason = _down_reason or _recently_down()
     if _down_reason:
-        raise RuntimeError(f"Overpass unavailable this run ({_down_reason})")
+        raise RuntimeError(f"Overpass unavailable (checked in the last 10 min): {_down_reason[:200]}")
     errors = []
     for url in OVERPASS_URLS:
         try:
-            return http_get(url, data={"data": ql}, timeout=min(timeout + 30, 90), retries=1)["elements"]
+            return http_get(url, data={"data": ql}, timeout=min(timeout, 45), retries=1)["elements"]
         except Exception as exc:  # noqa: BLE001 — try the next mirror
             errors.append(f"{url.split('/')[2]}: {str(exc)[:120]}")
     _down_reason = " | ".join(errors)
+    f = _down_file()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps({"at": time.time(), "reason": _down_reason}))
     raise RuntimeError("all Overpass mirrors failed: " + _down_reason)
 
 

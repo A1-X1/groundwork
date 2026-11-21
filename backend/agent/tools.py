@@ -35,6 +35,20 @@ UI_COMMANDS = {
 }
 
 
+_progress: Callable[[dict[str, Any]], None] | None = None
+
+
+def set_progress(fn: Callable[[dict[str, Any]], None] | None) -> None:
+    """The runner installs a callback here so long tools (data builds) can stream updates."""
+    global _progress
+    _progress = fn
+
+
+def _report(**event: Any) -> None:
+    if _progress:
+        _progress(event)
+
+
 class ToolError(ValueError):
     """A tool call was invalid; the message is returned to the model so it can fix it."""
 
@@ -185,7 +199,16 @@ def build_layers(layer_ids: list[str], region: str = "london") -> dict[str, Any]
         for name in ("grid.parquet", "layers.json", "build.json"):
             if (src / name).exists():
                 shutil.copy(src / name, out / name)
-    run(layer_ids, out=out, region=region)
+    labels = {m.META.id: m.META.label for m in (_layers.load(i) for i in layer_ids)}
+
+    def on_layer(done: int, total: int, lid: str, status: dict[str, Any]) -> None:
+        _report(type="progress", phase="build", detail=f"Building data {done} of {total}: {labels.get(lid, lid)} "
+                f"({status.get('status')}, {status.get('seconds', 0):.1f}s)", done=done, total=total, layer=lid,
+                status=status.get("status"))
+
+    _report(type="progress", phase="build", detail=f"Downloading and building {len(layer_ids)} layer(s) for {region}…",
+            done=0, total=len(layer_ids))
+    run(layer_ids, out=out, region=region, progress=on_layer)
     _scoring().reload()
     build = json.loads((out / "build.json").read_text())["layers"]
     return {"region": region, "built": {i: build.get(i, {}).get("status") for i in layer_ids},

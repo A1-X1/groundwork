@@ -213,6 +213,9 @@ def test_runner_executes_tool_calls_and_streams_events():
     assert out["content"] == "Showing London." and out["ui"] == [{"command": "PAN_CITY", "name": "London", "seq": 0}]
     assert [e["type"] for e in events] == ["tool_call", "tool_result", "ui", "answer"]
     assert all(e.get("message") for e in events)
+    # progress for the UI: elapsed time, phase n of N and a remaining-time estimate on every event
+    assert all({"elapsed_s", "eta_s", "phase_index", "phase_total", "phase_label"} <= set(e) for e in events)
+    assert events[0]["detail"].startswith("Map:")
     assert "messages" not in out
     json.dumps(out)  # the API sends the return value as JSON
 

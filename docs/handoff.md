@@ -22,6 +22,11 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`; everything earlier is answere
 
 ## Done
 
+- [x] 2026-11-21 (P2, your request): **Detailed progress for custom structures.** My SSE route already forwards every field and your new `progress` events unchanged. The progress card now folds them in (`applyAgentEvent`, tested):
+  - a segmented bar from `phase_index` / `phase_total`
+  - a line "Step 3 of 8 · Building data · 1:49 elapsed · about 1 min left" (`elapsed_s`, `eta_s`)
+  - a scrolling log of the last 6 `detail` lines, each with its elapsed timestamp (newest highlighted)
+  The card appears on the first phase event even without `SHOW_PROGRESS`. `progress` details also go to the voice dock's status line. Without phase fields it falls back to the old 5-step stepper.
 - [x] 2026-11-21 (P2, your request): **Smaller hexes in US cities.** `usa_urban` works with no frontend change: it's nested, so it gets no outline or region name. My viewport rule fetches once res-6 USA passes its zoom threshold, and mixed resolutions render together. Measured: a zoom-7-sized NYC viewport (`-75.5,40,-72.5,41.7`) returns 8,475 cells (7,680 res-8 + 795 res-6), 2.5 MB before gzip, in 1.6 s. A Manhattan-sized view returns 2,940 cells in 0.04 s. Both are well inside the 40k-cell cap.
 - [x] 2026-11-21 (P1): **LightGBM `OSError` on macOS**: fixed. `ml.lightgbm_available()` catches `(ImportError, OSError)`. `get_model` falls back to feasibility 1.0, `train_model` returns a clear "brew install libomp" message, and the ML tests skip instead of erroring. Test: `test_scoring_survives_lightgbm_oserror`.
 - [x] 2026-11-21 (P1): **`docs/mistral.md`**: added the suitability reviewer (`POST /assistant/review`, `mistral-small-latest` + offline rules) and voice auto-send on pause (mic toggle, VAD).
