@@ -76,12 +76,13 @@ requests between the two halves go in [docs/handoff.md](docs/handoff.md). More d
   Without `make`, run the commands under each target by hand, for example:
 
   ```powershell
-  uv venv .venv --python 3.11; uv pip install --python .venv\Scripts\python.exe -r backend\api\requirements.txt
-  .venv\Scripts\python.exe -m uvicorn backend.api.main:app --reload --port 8000
-  cd frontend; npm install; npm run dev
+  uv venv .venv --python 3.11
+  uv pip install --python .venv\Scripts\python.exe -r backend\api\requirements.txt -r backend\pipeline\requirements.txt
+  Start-Process .venv\Scripts\python.exe -ArgumentList '-m','uvicorn','backend.api.main:app','--port','8000'
+  cd frontend; npm ci; npm run dev
   ```
 
-## Quick start (offline, about 2 minutes)
+## Quick start (offline data, about 2 minutes)
 
 ```bash
 git clone https://github.com/a1-x1/groundwork.git
@@ -92,27 +93,17 @@ cd groundwork
 ```
 
 ```bash
-make install-api
+make dev
 ```
 
-```bash
-make api
-```
+`make dev` installs whatever is missing (Python venv and packages, then `npm ci`) on the first run,
+then starts the API and the web app together. Ctrl+C stops both. Open **http://localhost:5173**. API
+docs are at **http://localhost:8000/docs** (and `/redoc`). Use other ports with
+`make dev API_PORT=8001 WEB_PORT=5174`.
 
-In a second terminal:
+To run the two halves separately, use `make install`, then `make api` and `make web` in two terminals.
 
-```bash
-make install-web
-```
-
-```bash
-make web
-```
-
-Open **http://localhost:5173**. API docs are at **http://localhost:8000/docs** (and `/redoc`).
-
-The app needs no data download: the API uses `data/sample/` once the scoring library lands, and
-the built-in synthetic grid until then. The basemap and terrain tiles are fetched online. Offline,
+The app needs no data download: the API scores the committed sample grid in `data/sample/`. The basemap and terrain tiles are fetched online. Offline,
 the map falls back to a plain background and the hexagons still render.
 
 Frontend-only work without the API:
@@ -263,8 +254,7 @@ typecheck, lint and Vitest suite (which validates the fixture against the same s
   `brew install gdal`, on Debian/Ubuntu `apt install gdal-bin libgdal-dev`. Only the data pipeline
   needs these; the API and app do not.
 - **Port already in use:** `make api API_PORT=8001` and set `VITE_API_URL=http://localhost:8001`, or
-  `make web WEB_PORT=5174`. The API allows CORS from `http://localhost:5173` only, so add your port in
-  `backend/api/main.py` if you change it.
+  `make web WEB_PORT=5174`. The API allows CORS from any `localhost` port.
 - **CORS errors in the console:** open the app at `localhost`, not `127.0.0.1` with another port, and
   check that `VITE_API_URL` points at the running API.
 - **Blank map / "WebGL not available":** enable hardware acceleration in the browser settings, or

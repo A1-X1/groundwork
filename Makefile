@@ -8,7 +8,9 @@ UV      := $(shell command -v uv 2>/dev/null)
 API_PORT ?= 8000
 WEB_PORT ?= 5173
 
-.PHONY: help install install-api install-pipeline install-web data data-offline train api web test test-api test-scoring test-web lint clean
+STAMP   := $(VENV)/.groundwork-installed
+
+.PHONY: help dev install install-api install-pipeline install-web data data-offline train api web test test-api test-scoring test-web lint clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -23,6 +25,25 @@ endif
 define pip_install
 	$(if $(UV),uv pip install --python $(BIN)/python -r $(1),$(BIN)/python -m pip install -r $(1))
 endef
+
+dev: $(STAMP) frontend/node_modules ## One command: install what is missing, then run API + web together
+	@echo ""
+	@echo "  Groundwork  →  http://localhost:$(WEB_PORT)"
+	@echo "  API docs    →  http://localhost:$(API_PORT)/docs"
+	@echo "  (Ctrl+C stops both)"
+	@echo ""
+	@trap 'kill 0' INT TERM EXIT; \
+	  $(BIN)/python -m uvicorn backend.api.main:app --port $(API_PORT) & \
+	  (cd frontend && VITE_API_URL=http://localhost:$(API_PORT) npm run dev -- --port $(WEB_PORT) --strictPort) & \
+	  wait
+
+$(STAMP): backend/api/requirements.txt backend/pipeline/requirements.txt | $(BIN)/python
+	$(MAKE) install-api install-pipeline
+	@touch $(STAMP)
+
+frontend/node_modules: frontend/package-lock.json
+	cd frontend && npm ci
+	@touch frontend/node_modules
 
 install: install-api install-pipeline install-web ## Install everything
 

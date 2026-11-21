@@ -122,6 +122,10 @@ def test_gzip(client) -> None:
 def test_cors(client) -> None:
     r = client.get("/profiles", headers={"Origin": "http://localhost:5173"})
     assert r.headers.get("access-control-allow-origin") == "http://localhost:5173"
+    other = client.get("/profiles", headers={"Origin": "http://localhost:5181"})
+    assert other.headers.get("access-control-allow-origin") == "http://localhost:5181"
+    evil = client.get("/profiles", headers={"Origin": "https://example.com"})
+    assert "access-control-allow-origin" not in evil.headers
 
 
 def test_openapi_documents_every_endpoint(client) -> None:
