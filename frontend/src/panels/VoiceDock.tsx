@@ -5,7 +5,7 @@ import { IconButton } from '@astryxdesign/core/IconButton';
 import { ToggleButton } from '@astryxdesign/core/ToggleButton';
 import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
-import { ChevronDown, FlaskConical, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
+import { ChevronDown, FlaskConical, Mic, MicOff, Send, Volume2, VolumeX } from 'lucide-react';
 import { useState, type ComponentProps } from 'react';
 import { VoiceOrb } from '../map/VoiceOrb';
 
@@ -24,10 +24,19 @@ type Props = ComponentProps<typeof VoiceOrb> & {
   onToggleMute: () => void;
   handsFree: boolean;
   onToggleHandsFree: () => void;
+  /** Optional: stop listening and send what has been heard so far. */
+  onSubmit?: () => void;
 };
 
 /** The voice assistant in its own small card, with a hide control that collapses to a pill. */
-export function VoiceDock({ muted, onToggleMute, handsFree, onToggleHandsFree, ...props }: Props) {
+export function VoiceDock({
+  muted,
+  onToggleMute,
+  handsFree,
+  onToggleHandsFree,
+  onSubmit,
+  ...props
+}: Props) {
   const [hidden, setHidden] = useState(readHidden);
   const set = (v: boolean) => {
     setHidden(v);
@@ -74,7 +83,7 @@ export function VoiceDock({ muted, onToggleMute, handsFree, onToggleHandsFree, .
       </HStack>
       <VoiceOrb {...props} />
       <HStack gap={2} align="center">
-        {/* The mic toggle is the only control: each utterance sends itself when you pause. */}
+        {/* Each utterance sends itself when you pause; Send is an optional early finish. */}
         <ToggleButton
           label={handsFree ? 'Mic on' : 'Mic off'}
           tooltip={
@@ -87,6 +96,17 @@ export function VoiceDock({ muted, onToggleMute, handsFree, onToggleHandsFree, .
           isDisabled={!props.isAvailable}
           size="sm"
         />
+        {onSubmit && (
+          <IconButton
+            label="Send what I said"
+            tooltip="Stop listening and process what it has heard"
+            icon={<Icon icon={Send} size="sm" />}
+            variant="ghost"
+            size="sm"
+            isDisabled={!handsFree || props.state !== 'listening'}
+            onClick={onSubmit}
+          />
+        )}
         <IconButton
           label={muted ? 'Unmute spoken replies' : 'Mute spoken replies'}
           tooltip={muted ? 'Replies are silent' : 'Replies are spoken'}

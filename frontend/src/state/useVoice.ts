@@ -195,7 +195,8 @@ export function useVoice(
   // ---- hands-free: always-on listening with voice-activity detection ----------------------
   const [handsFree, setHandsFree] = useState(false);
   handsFreeOnRef.current = handsFree;
-  const handsFreeRef = useRef<{ stop: () => void } | null>(null);
+  // stop: mic off, drop anything half-heard. submit: mic off, but send what was heard so far.
+  const handsFreeRef = useRef<{ stop: () => void; submit: () => void } | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -291,14 +292,41 @@ export function useVoice(
     };
     setState('listening');
     raf = requestAnimationFrame(loop);
+    const teardown = () => {
+      alive = false;
+      cancelAnimationFrame(raf);
+      stream.getTracks().forEach((t) => t.stop());
+      void ctx.close();
+      level.current = 0;
+    };
     handsFreeRef.current = {
       stop: () => {
-        alive = false;
-        cancelAnimationFrame(raf);
+        teardown();
         if (rec && rec.state === 'recording') rec.stop();
-        stream.getTracks().forEach((t) => t.stop());
-        void ctx.close();
-        level.current = 0;
+      },
+      submit: () => {
+        // Stop listening now and send the current utterance without waiting for a pause.
+        const r = rec;
+        rec = null;
+        if (!r || r.state !== 'recording') {
+          teardown();
+          setMessage('I didn’t hear anything.');
+          setState('idle');
+          return;
+        }
+        r.onstop = () => {
+          teardown();
+          const blob = new Blob(chunks, { type: r.mimeType || 'audio/webm' });
+          setState('thinking');
+          api
+            .transcribe(blob)
+            .then(({ text }) => process(text))
+            .catch((e: unknown) => {
+              setMessage(e instanceof Error ? e.message : 'Transcription failed.');
+              setState('idle');
+            });
+        };
+        r.stop();
       },
     };
   }, [process]);
@@ -309,6 +337,7 @@ export function useVoice(
     if (!Ctor) return;
     let alive = true;
     let rec: Recognition | null = null;
+    let submitting = false;
     const listen = () => {
       if (!alive) return;
       if (stateRef.current === 'thinking' || stateRef.current === 'speaking') {
@@ -323,11 +352,21 @@ export function useVoice(
         const last = e.results[e.results.length - 1];
         const text = last?.[0]?.transcript ?? '';
         if (last?.isFinal && text.trim()) {
+          submitting = false;
           rec?.stop();
           void process(text);
         }
       };
-      rec.onend = () => window.setTimeout(listen, 250);
+      rec.onend = () => {
+        if (submitting) {
+          // Submitted but the recogniser had nothing final to give.
+          submitting = false;
+          setMessage('I didn’t hear anything.');
+          setState('idle');
+          return;
+        }
+        window.setTimeout(listen, 250);
+      };
       rec.onerror = () => undefined;
       setState('listening');
       rec.start();
@@ -336,6 +375,12 @@ export function useVoice(
     handsFreeRef.current = {
       stop: () => {
         alive = false;
+        rec?.stop();
+      },
+      submit: () => {
+        // Stopping the recogniser flushes what it heard as a final result, which onresult sends.
+        alive = false;
+        submitting = true;
         rec?.stop();
       },
     };
@@ -361,8 +406,18 @@ export function useVoice(
 
   useEffect(() => () => handsFreeRef.current?.stop(), []);
 
-  // The mic toggle is the only control: start = mic on (each utterance sends itself when you
-  // pause), stop = mic off. Nothing waits for a stop button.
+  /** Optional: stop taking voice input now and process what has been heard so far. */
+  const submit = useCallback(() => {
+    const h = handsFreeRef.current;
+    if (!h) return;
+    handsFreeRef.current = null;
+    handsFreeOnRef.current = false; // the reply ends in idle, not back to listening
+    setHandsFree(false);
+    h.submit();
+  }, []);
+
+  // The mic toggle is the main control: start = mic on (each utterance sends itself when you
+  // pause), stop = mic off. The optional Send button (submit) ends input early and sends it.
   const start = useCallback(() => {
     if (stateRef.current === 'speaking') stopSpeaking();
     if (!handsFreeRef.current) toggleHandsFree();
@@ -392,5 +447,6 @@ export function useVoice(
     toggleMute,
     handsFree,
     toggleHandsFree,
+    submit,
   };
 }

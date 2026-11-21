@@ -1359,6 +1359,7 @@ export default function App() {
             onToggleMute={voice.toggleMute}
             handsFree={voice.handsFree}
             onToggleHandsFree={voice.toggleHandsFree}
+            onSubmit={voice.submit}
           />
         </HStack>
       )}
@@ -1543,6 +1544,7 @@ export default function App() {
               onToggleMute={voice.toggleMute}
               handsFree={voice.handsFree}
               onToggleHandsFree={voice.toggleHandsFree}
+              onSubmit={voice.submit}
             />
           </HStack>
         </>
