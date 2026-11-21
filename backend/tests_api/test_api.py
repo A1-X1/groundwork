@@ -220,4 +220,27 @@ def test_resolution_matches_returned_cells(client) -> None:
     pid = client.get("/profiles").json()[0]["id"]
     body = client.get(f"/score/{pid}").json()
     if body["cells"]:
-        assert body["resolution"] == max(h3.get_resolution(c["h3"]) for c in body["cells"])
+        assert body["resolution"] == max(
+            h3.get_resolution(c["h3"]) for c in body["cells"]
+        )
+
+
+def test_regions_pass_marker_cells_through(client, monkeypatch) -> None:
+    """Land-shaped marker cells from scoring.list_regions reach the client unchanged."""
+    from backend.api import main
+
+    region = {
+        "id": "r",
+        "name": "R",
+        "bbox": [0, 0, 1, 1],
+        "resolution": 7,
+        "cells": 1,
+        "marker_cells": ["841f1d5ffffffff"],
+        "marker_resolution": 4,
+    }
+    monkeypatch.setattr(main.scoring, "list_regions", lambda: [region], raising=False)
+    body = client.get("/regions").json()
+    assert (
+        body[0]["marker_cells"] == ["841f1d5ffffffff"]
+        and body[0]["marker_resolution"] == 4
+    )

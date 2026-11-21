@@ -12,7 +12,9 @@ os.environ.setdefault("GROUNDWORK_SCORING", "stub")
 import tempfile  # noqa: E402
 
 # Tests never touch the real app database.
-os.environ["GROUNDWORK_DB"] = os.path.join(tempfile.mkdtemp(prefix="gw-test-"), "test.db")
+os.environ["GROUNDWORK_DB"] = os.path.join(
+    tempfile.mkdtemp(prefix="gw-test-"), "test.db"
+)
 
 from fastapi.testclient import TestClient  # noqa: E402
 

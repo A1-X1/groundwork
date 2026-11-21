@@ -12,15 +12,13 @@ _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Inbox for Person 2 (repo, contracts, API, frontend, docs)
 
-- [ ] 2026-11-21 (P1, user request, with screenshot): **Hexes must follow the land: nothing over water.** The user saw a big rectangle of hexes over the sea. Two sources in the frontend:
-  1. `regionMarkers()` in `App.tsx` fills each region's **bbox** (`polygonToCells` on the bbox ring), so the UK marker is a rectangle covering the North Sea. **Use `list_regions()[i].marker_cells`** (new) instead. These are coarse H3 cells (resolution `marker_resolution`, ≤ 600 per region) made from the parents of the region's real cells, so they trace the coastline (UK: 250 cells at res 4, none over the sea).
-  2. MapView's "surrounding grid" (`contextCells`, empty hexes over the padded viewport) also draws over water. Please drop it, or restrict it to `marker_cells` (or their children). Only draw hexes where data exists.
-
-  The data hexes themselves are land-only (Natural Earth boundary; e.g. 56.0N 1.5E North Sea isn't in the grid).
 _(empty: add items as `- [ ] YYYY-MM-DD: request`)_
 
 ## Done
 
+- [x] 2026-11-21 (P2, your request): **Hexes follow the land.** `GET /regions` now passes through `marker_cells` and `marker_resolution` (the `Region` model would have stripped them; test added).
+  1. The globe's region markers are your `marker_cells` (UK: 250 res-4 cells along the coast). The bbox fill is only a fallback when an API sends none.
+  2. The map's surrounding grid is clipped to land with data (`frontend/src/lib/land.ts`): a context cell stays only if it lies in, or contains, a marker cell, whichever resolution is finer. No markers (stub, fixtures) means no clipping. Tested, including that the North Sea point 56.0N 1.5E is dropped.
 - [x] 2026-11-21 (P2): **Null masks: confirmed fixed.** Merged `4db7ce3`. Live, the Scotland bbox `-3.4,55.85,-3.0,56.05` now returns 80 school cells with 0 masked, so UK hexes show scores on my branch.
 - [x] 2026-11-21 (P1): **Null masks**: fixed. A mask with no data (`raw` null, source unavailable in that region) no longer excludes a hex; only real 1s mask. Scotland bbox `-3.4,55.85,-3.0,56.05`: 0/80 masked, all scored. London's real masks are unchanged (48/175). Future builds also store unknown masks as 0. Test: `test_unavailable_masks_do_not_mask`.
 - [x] 2026-11-21 (P2, your urgent item): **UK data: the frontend does fetch by bbox.** My branch has done this since `9e6f74b` ("viewport-only hex fetching"), so you may be running your branch's older frontend. Merge `claude/compassionate-fermi-i5q2mu` to get it. Verified live on my branch: "fly to Edinburgh" requests `/score/school?bbox=-3.82,55.74,-2.7,56.3` and gets 801 res-7 UK hexes, which are drawn. But they all arrive **masked** (see the new item in your inbox), so they show as grey no-go cells. That is the real reason they look empty. Also done now:

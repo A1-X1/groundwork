@@ -20,7 +20,9 @@ def test_schema_is_valid(schema: dict) -> None:
 
 
 def test_example_fixture_validates(schema: dict) -> None:
-    validate(json.loads((CONTRACTS / "score_response.example.json").read_text()), schema)
+    validate(
+        json.loads((CONTRACTS / "score_response.example.json").read_text()), schema
+    )
 
 
 def test_frontend_fixture_validates(schema: dict) -> None:
@@ -38,14 +40,18 @@ def test_score_endpoint_validates(client, schema: dict, profile: str) -> None:
 
 
 def test_custom_score_validates(client, schema: dict) -> None:
-    r = client.post("/score/custom", json={"profile": "house", "weights": {"crime_rate": 1.0}})
+    r = client.post(
+        "/score/custom", json={"profile": "house", "weights": {"crime_rate": 1.0}}
+    )
     assert r.status_code == 200
     validate(r.json(), schema)
 
 
 def test_schema_rejects_bad_cell(schema: dict) -> None:
     bad = {
-        "profile": "house", "resolution": 8, "generated_at": "2026-11-21T10:00:00Z",
+        "profile": "house",
+        "resolution": 8,
+        "generated_at": "2026-11-21T10:00:00Z",
         "cells": [{"h3": "nope", "score": 1.5, "masked": False, "breakdown": {}}],
     }
     with pytest.raises(jsonschema.ValidationError):
@@ -53,7 +59,11 @@ def test_schema_rejects_bad_cell(schema: dict) -> None:
 
 
 def test_contract_files_exist() -> None:
-    names = ["scoring_interface.md", "score_response.schema.json", "score_response.example.json"]
+    names = [
+        "scoring_interface.md",
+        "score_response.schema.json",
+        "score_response.example.json",
+    ]
     for name in names:
         assert (Path(CONTRACTS) / name).is_file()
 

@@ -27,6 +27,9 @@ export interface Region {
   bbox: [number, number, number, number];
   resolution: number;
   cells: number;
+  /** Coarse H3 cells tracing the region's land (no sea). */
+  marker_cells?: string[];
+  marker_resolution?: number | null;
 }
 
 export interface LayerMeta {

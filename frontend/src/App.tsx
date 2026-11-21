@@ -17,6 +17,7 @@ import {
 import { AreaDetail, AreasPanel } from './panels/AreasPanel';
 import type { Area, AreaSummary, Region, StructureRecord } from './api/types';
 import type { BBox } from './lib/viewport';
+import { buildLandMask } from './lib/land';
 import type { Basemap, MapArea } from './map/MapView';
 import { HomeScreen } from './panels/HomeScreen';
 import { findPlace } from './lib/places';
@@ -282,6 +283,7 @@ export default function App() {
   );
   // The globe marks where data exists (from /regions), never the detailed hexes themselves.
   const regionHexes: RegionHex[] = useMemo(() => regionMarkers(regions), [regions]);
+  const landMask = useMemo(() => buildLandMask(regions), [regions]);
   /** The smallest data region containing the map centre (London inside the UK → London). */
   const placeName = useMemo(() => {
     if (!mapBox) return null;
@@ -1064,6 +1066,7 @@ export default function App() {
             settleCamera();
           }}
           onZoomOut={onMapZoomOut}
+          landMask={landMask}
           regionOutlines={
             gw.viewReason === 'zoom_in' || gw.viewReason === 'no_data' ? regions : undefined
           }
@@ -1431,10 +1434,15 @@ export default function App() {
   );
 }
 
-/** Coarse hexes marking each region with data, for the globe (a few hundred per region). */
+/** Hexes marking where each region has data: its land-shaped marker cells (no sea).
+ *  Falls back to a coarse fill of the bbox only when the API sends no markers. */
 function regionMarkers(regions: Region[]): RegionHex[] {
   const out: RegionHex[] = [];
   for (const r of regions) {
+    if (r.marker_cells?.length) {
+      for (const h3 of r.marker_cells) out.push({ h3, t: 0.35 });
+      continue;
+    }
     const [w, so, e, n] = r.bbox;
     const ring = [[so, w], [so, e], [n, e], [n, w], [so, w]];
     let cells: string[] = [];

@@ -13,6 +13,7 @@ import { POI_LABEL, poiIconUrl } from './poiIcons';
 import { MASKED_RGB, RAMPS, sample, type RampId } from '../lib/colour';
 import { BuildingsLayer, type SiteRender } from './buildings';
 import { GLOBE_ZOOM } from '../lib/viewport';
+import { onLand, type LandMask } from '../lib/land';
 
 export interface HexDatum {
   h3: string;
@@ -49,6 +50,8 @@ interface Props {
   arrival: { lat: number; lon: number; nonce: number } | null;
   zoomCmd: { dir: 'in' | 'out'; nonce: number } | null;
   pois: Poi[];
+  /** Land with data (from region marker cells): the surrounding grid is clipped to it. */
+  landMask?: LandMask | null;
   /** Outlines of the regions with data, drawn while zoomed out past the hex threshold. */
   regionOutlines?: { name: string; bbox: [number, number, number, number] }[];
   /** False while hidden behind the home screen; the map resizes when it becomes visible. */
@@ -400,8 +403,11 @@ export function MapView(props: Props) {
       return [];
     }
     if (cells.length > MAX_CONTEXT_CELLS) return [];
+    // Only where data exists: no empty hexes over the sea (user request).
+    const mask = props.landMask;
+    if (mask) cells = cells.filter((c) => onLand(c, mask));
     return res === 8 ? cells.filter((c) => !dataIds.has(c)) : cells;
-  }, [viewport, dataIds]);
+  }, [viewport, dataIds, props.landMask]);
 
   useEffect(() => {
     const map = mapRef.current;
