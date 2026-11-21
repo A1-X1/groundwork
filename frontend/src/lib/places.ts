@@ -38,6 +38,16 @@ const CITIES: [string, number, number][] = [
   ['Sao Paulo', -23.551, -46.633], ['Rio de Janeiro', -22.907, -43.173], ['Buenos Aires', -34.604, -58.382],
   ['Santiago', -33.449, -70.669], ['Lima', -12.046, -77.043], ['Bogota', 4.711, -74.072],
   ['Reykjavik', 64.147, -21.942],
+  // North America (data regions: USA, Canada, Mexico)
+  ['Las Vegas', 36.17, -115.14], ['Phoenix', 33.448, -112.074], ['Denver', 39.739, -104.99],
+  ['Houston', 29.76, -95.37], ['Austin', 30.267, -97.743], ['Atlanta', 33.749, -84.388],
+  ['Salt Lake City', 40.761, -111.891], ['Albuquerque', 35.084, -106.65], ['Portland', 45.515, -122.679],
+  ['San Diego', 32.716, -117.161], ['Minneapolis', 44.978, -93.265], ['Detroit', 42.331, -83.046],
+  ['Philadelphia', 39.953, -75.165], ['Nashville', 36.163, -86.781], ['New Orleans', 29.951, -90.072],
+  ['Anchorage', 61.218, -149.9], ['Honolulu', 21.307, -157.858], ['Calgary', 51.045, -114.072],
+  ['Edmonton', 53.546, -113.494], ['Ottawa', 45.421, -75.697], ['Winnipeg', 49.895, -97.138],
+  ['Quebec City', 46.813, -71.208], ['Halifax', 44.649, -63.575], ['Monterrey', 25.686, -100.316],
+  ['Guadalajara', 20.659, -103.349], ['Tijuana', 32.514, -117.038], ['Cancun', 21.161, -86.851],
 ]; // prettier-ignore
 
 const norm = (s: string) =>

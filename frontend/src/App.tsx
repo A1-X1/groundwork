@@ -138,7 +138,11 @@ export default function App() {
   const [project, setProject] = useState<Project | null>(null);
   const [pois, setPois] = useState<Poi[]>([]);
   /** The map's last settled view, for the key (which lists only POIs on screen). */
-  const [mapBox, setMapBox] = useState<{ bbox: BBox; zoom: number } | null>(null);
+  const [mapBox, setMapBox] = useState<{
+    bbox: BBox;
+    zoom: number;
+    center: [number, number];
+  } | null>(null);
   globeVisibleRef.current = globeVisible;
   // Hexes are fetched for the map's view only; none while the globe is showing.
   const setGwViewport = gw.setViewport;
@@ -287,8 +291,9 @@ export default function App() {
   /** The smallest data region containing the map centre (London inside the UK → London). */
   const placeName = useMemo(() => {
     if (!mapBox) return null;
-    const [w, so, e, n] = mapBox.bbox;
-    return regionsAt((so + n) / 2, (w + e) / 2, regions)[0]?.name ?? null;
+    // The map's real centre: with pitch, the middle of the visible bbox lies far beyond it.
+    const [lon, lat] = mapBox.center;
+    return regionsAt(lat, lon, regions)[0]?.name ?? null;
   }, [mapBox, regions]);
   const poiKindsInView = useMemo(() => {
     if (globeVisible || screen !== 'explore' || !mapBox || mapBox.zoom < POI_MIN_ZOOM) return [];
@@ -1054,7 +1059,7 @@ export default function App() {
           onAreaClick={selectArea}
           onView={(v) => {
             mapViewRef.current = v;
-            setMapBox({ bbox: v.bbox, zoom: v.zoom });
+            setMapBox({ bbox: v.bbox, zoom: v.zoom, center: v.center });
             if (!globeVisibleRef.current) gw.setViewport({ bbox: v.bbox, zoom: v.zoom });
             settleCamera();
           }}
