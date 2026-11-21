@@ -301,3 +301,36 @@ def test_open_map_first_from_home(monkeypatch) -> None:
     assert [c.type for c in assistant.handle(on_map, [], []).commands] == ["PAN_CITY"]
     help_home = assistant.AssistantRequest(text="help", context={"screen": "home"})
     assert [c.type for c in assistant.handle(help_home, [], []).commands] == ["HELP"]
+
+
+def test_rules_back_up_mistral(monkeypatch) -> None:
+    """When the model refuses a plain request or lists sites instead of going to one, the
+    deterministic rules' commands are used."""
+    from backend.api import assistant
+
+    monkeypatch.setattr(assistant, "mistral_key", lambda: "k")
+
+    def refuse(text, ctx, profiles, layers, key):
+        return [], "Please provide a more specific request.", False
+
+    monkeypatch.setattr(assistant, "ask_mistral", refuse)
+    out = assistant.handle(
+        assistant.AssistantRequest(text="fly to Tokyo", context={}), [], []
+    )
+    assert [c.type for c in out.commands] == ["PAN_CITY"] and out.understood
+
+    def lists(text, ctx, profiles, layers, key):
+        return (
+            [assistant.Command(type="SHOW_TOP_SITES", args={"n": 1})],
+            "Showing the best.",
+            True,
+        )
+
+    monkeypatch.setattr(assistant, "ask_mistral", lists)
+    req = assistant.AssistantRequest(text="take me to the best location", context={})
+    assert [c.type for c in assistant.handle(req, [], []).commands] == ["GO_TO_RANK"]
+    # nulls from the model are dropped during validation
+    cleaned = assistant.clean(
+        [{"type": "SHOW_TOP_SITES", "args": {"n": 3, "profile": None}}], [], []
+    )
+    assert cleaned[0].args == {"n": 3}

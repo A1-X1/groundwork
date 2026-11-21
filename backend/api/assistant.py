@@ -207,7 +207,8 @@ def clean(raw: Any, profiles: list[str], layers: list[str]) -> list[Command]:
         args = item.get("args") or {}
         if not isinstance(args, dict):
             args = {}
-        args = {k: v for k, v in args.items() if k in COMMANDS[item["type"]]}
+        # unknown args and nulls ("profile": null) are dropped
+        args = {k: v for k, v in args.items() if k in COMMANDS[item["type"]] and v is not None}
         t = item["type"]
         if t == "SET_PROFILE" and args.get("id") not in profiles:
             continue
@@ -487,10 +488,19 @@ def open_map_first(cmds: list[Command], ctx: AssistantContext) -> list[Command]:
 
 
 def handle(req: AssistantRequest, profiles: list[dict], layers: list[dict]) -> AssistantResponse:
+    rule_cmds, rule_reply = rules(req.text, profiles, layers)
     key = mistral_key()
     if key:
         try:
             cmds, reply, understood = ask_mistral(req.text, req.context, profiles, layers, key)
+            # The model sometimes refuses plain requests ("fly to Tokyo": no data there) or lists
+            # sites when asked to go to one. The deterministic rules are reliable for those, so
+            # they win when the model returns nothing, or when the rules found a ranked site.
+            rule_rank = any(c.type == "GO_TO_RANK" for c in rule_cmds)
+            if rule_cmds and (
+                not cmds or (rule_rank and not any(c.type == "GO_TO_RANK" for c in cmds))
+            ):
+                cmds, reply, understood = rule_cmds, rule_reply, True
             return AssistantResponse(
                 commands=open_map_first(cmds, req.context),
                 reply=reply,
@@ -499,7 +509,7 @@ def handle(req: AssistantRequest, profiles: list[dict], layers: list[dict]) -> A
             )
         except Exception as exc:  # network, quota, bad JSON: fall back to the offline parser
             log.warning("Mistral call failed (%s); using rule-based parser", exc)
-    cmds, reply = rules(req.text, profiles, layers)
+    cmds, reply = rule_cmds, rule_reply
     return AssistantResponse(
         commands=open_map_first(cmds, req.context),
         reply=reply,
