@@ -59,10 +59,13 @@ def _sources() -> list[dict[str, Any]]:
 # ---- read-only ---------------------------------------------------------------
 def get_catalog() -> dict[str, Any]:
     s = _scoring()
+    status = s.health()["layers"]
     return {
         "region": s.data_status()["region"],
         # compact so the whole catalog fits in one tool result; descriptions on request via search
-        "layers": [f"{m['id']} ({m['unit']})" for m in s.list_layers()],
+        "layers": [f"{m['id']} ({m['unit']}){' [SYNTHETIC]' if status.get(m['id']) == 'synthetic' else ''}"
+                   for m in s.list_layers()],
+        "data_note": "Layers marked [SYNTHETIC] are placeholders (source unreachable in this build); all others are real.",
         "profiles": [{"id": p["id"], "label": p["label"], "has_model": p["has_model"]} for p in s.list_profiles()],
         "default_profiles": s.default_profiles(),
         "mask_layers": [m["id"] for m in s.list_layers() if m["id"] in ("flood_zone_3", "protected_land")],

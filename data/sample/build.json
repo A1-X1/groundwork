@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-21T11:49:35Z",
+  "generated_at": "2026-11-21T12:01:46Z",
   "region": "london",
   "resolution": 8,
   "boundary": "simplified built-in outline",
@@ -182,9 +182,8 @@
       "seconds": 0.08
     },
     "wind_gust_max": {
-      "status": "synthetic",
-      "reason": "offline and no cache at data/raw/open_meteo/daily_wind_gusts_10m_max_2016_2025_15.json",
-      "seconds": 0.02
+      "status": "real",
+      "seconds": 0.07
     }
   }
 }

@@ -96,8 +96,8 @@
     "kind": "raster",
     "description": "Mean hourly wind speed at a typical turbine hub height (100 m).",
     "source": "Open-Meteo Historical Weather API (ERA5 hourly), 2025",
-    "min": 5.497234828029679,
-    "max": 6.835872151601246
+    "min": 5.4972,
+    "max": 6.8359
   },
   {
     "id": "wind_power_density",
@@ -106,8 +106,8 @@
     "kind": "raster",
     "description": "Mean available wind power per m² of rotor at 100 m (0.5·ρ·v³): what a turbine can actually harvest.",
     "source": "Open-Meteo Historical Weather API (ERA5 hourly), 2025",
-    "min": 165.81773375750052,
-    "max": 308.2261363418752
+    "min": 165.8177,
+    "max": 308.2261
   },
   {
     "id": "precipitation_annual",
@@ -366,8 +366,8 @@
     "kind": "raster",
     "description": "Mean daily total cloud cover (2016–2025); cloudier sites lose solar yield.",
     "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
-    "min": 66.15965356404207,
-    "max": 66.97896996317895
+    "min": 66.1597,
+    "max": 66.979
   },
   {
     "id": "dist_airport",
@@ -396,8 +396,8 @@
     "kind": "raster",
     "description": "Mean yearly hours of bright sunshine (2016–2025), the direct driver of solar PV yield.",
     "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
-    "min": 2736.1249862109294,
-    "max": 2838.1604205624776
+    "min": 2736.125,
+    "max": 2838.1604
   },
   {
     "id": "wind_gust_max",
@@ -406,7 +406,7 @@
     "kind": "raster",
     "description": "Mean of each year's strongest 10 m gust (2016–2025); extreme loads for turbines and panels.",
     "source": "Open-Meteo Historical Weather API (ERA5 daily), 2016–2025",
-    "min": 7.913270872126301,
-    "max": 13.793142290657027
+    "min": 96.11613467576734,
+    "max": 105.97413156505074
   }
 ]
