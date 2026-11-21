@@ -10,7 +10,7 @@ WEB_PORT ?= 5173
 
 STAMP   := $(VENV)/.groundwork-installed
 
-.PHONY: help dev macdeps installinstall-api install-pipeline install-agent install-web data data-offline train api web test test-api test-scoring test-web lint clean
+.PHONY: help dev macdeps agents install install-api install-pipeline install-agent install-web data data-offline train api web test test-api test-scoring test-web lint clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -71,6 +71,10 @@ data-offline: ## Build the grid using deterministic synthetic fallbacks only
 
 train: ## Train presence-only ML models for profiles that declare one
 	$(BIN)/python -m backend.scoring.train
+
+agents: ## Serve the Planner + Data Aggregator as Mistral managed agents (shows in AI Studio → Agents); key from .env
+	@command -v uv >/dev/null 2>&1 || { echo "Needs uv: brew install uv"; exit 1; }
+	@set -a; [ -f .env ] && . ./.env; set +a; cd backend/agent/managed && uv run agents serve
 
 api: ## Run the API on http://localhost:8000 (docs at /docs)
 	$(BIN)/python -m uvicorn backend.api.main:app --reload --port $(API_PORT)

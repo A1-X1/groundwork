@@ -84,6 +84,8 @@ export default function App() {
   const [arrival, setArrival] = useState<{ lat: number; lon: number; nonce: number } | null>(null);
   const [globeNotice, setGlobeNotice] = useState<string | null>(null);
   const [screen, setScreen] = useState<'home' | 'explore'>('home');
+  /** The best-sites list order: "show the worst sites" flips it. */
+  const [topOrder, setTopOrder] = useState<'best' | 'worst'>('best');
   const [addressPin, setAddressPin] = useState<{
     lat: number;
     lon: number;
@@ -550,6 +552,7 @@ export default function App() {
   const rankSnapRef = useRef<{
     profile: string;
     weights: string;
+    order: 'best' | 'worst';
     bbox: BBox;
     cells: { h3: string; score: number | null }[];
   } | null>(null);
@@ -727,12 +730,24 @@ export default function App() {
               notes.push('Pick what you’re building first, e.g. “show school sites”.');
               break;
             }
+            // "worst" ranks least suitable first; "next"/"prev" keep the order in use.
+            const stepping = args.rank === 'next' || args.rank === 'prev';
+            const order: 'best' | 'worst' =
+              args.order === 'worst'
+                ? 'worst'
+                : args.order === 'best' && !stepping
+                  ? 'best'
+                  : (rankSnapRef.current?.order ?? 'best');
             const sc = scoreRef.current;
             const fresh =
               sc.status === 'ready'
                 ? sc.data.cells
                     .filter((c) => !c.masked && c.score != null)
-                    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+                    .sort((a, b) =>
+                      order === 'worst'
+                        ? (a.score ?? 0) - (b.score ?? 0)
+                        : (b.score ?? 0) - (a.score ?? 0),
+                    )
                 : [];
             const weightsKey = JSON.stringify(gw.weights);
             const centre = mapViewRef.current?.center;
@@ -741,6 +756,7 @@ export default function App() {
               !!snap &&
               snap.profile === gw.profile.id &&
               snap.weights === weightsKey &&
+              snap.order === order &&
               !!centre &&
               centre[0] >= snap.bbox[0] &&
               centre[0] <= snap.bbox[2] &&
@@ -752,6 +768,7 @@ export default function App() {
               rankSnapRef.current = {
                 profile: gw.profile.id,
                 weights: weightsKey,
+                order,
                 bbox: mapViewRef.current.bbox,
                 cells: fresh,
               };
@@ -768,7 +785,7 @@ export default function App() {
                   ? current - 1
                   : Number(args.rank) || 1;
             if (want < 1) {
-              notes.push('That’s already the best site in view.');
+              notes.push(`That’s already the ${order} site in view.`);
               break;
             }
             if (want > ranked.length) {
@@ -780,13 +797,16 @@ export default function App() {
             select({ h3: cell.h3, lat, lon });
             setFocus({ lat, lon, nonce: Date.now(), zoom: 13.5 });
             await waitForCamera(3000);
-            const ord = ['best', 'second best', 'third best'][want - 1] ?? `number ${want}`;
+            const ord =
+              [order, `second ${order}`, `third ${order}`][want - 1] ??
+              `number ${want} (${order} first)`;
             notes.push(
               `Here’s the ${ord} ${gw.profile.label.toLowerCase()} site in view: score ${formatScore(cell.score)}.`,
             );
             break;
           }
           case 'SHOW_TOP_SITES':
+            setTopOrder(args.order === 'worst' ? 'worst' : 'best');
             if (typeof args.profile === 'string') gw.chooseProfile(args.profile);
             gw.setSelection(null);
             setView('overview');
@@ -1469,6 +1489,8 @@ export default function App() {
                 cells={scoreData?.cells}
                 isLoading={gw.score.status === 'loading'}
                 placeName={placeName}
+                order={topOrder}
+                onOrderChange={setTopOrder}
                 onPick={(c) => {
                   const [lat, lon] = cellToLatLng(c.h3);
                   select({ h3: c.h3, lat, lon });
