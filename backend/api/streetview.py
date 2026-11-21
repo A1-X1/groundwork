@@ -5,10 +5,10 @@ Provider order: Google Street View when ``GOOGLE_MAPS_API_KEY`` is set, else Map
 ``MAPILLARY_TOKEN`` is set. Both are read from the environment or the repo's gitignored ``.env``
 and can be saved from Connections (``PUT /streetview/keys/{provider}``).
 
-- Google: the Street View metadata endpoint checks for imagery within 200 m first; the preview is
+- Google: the Street View metadata endpoint checks for imagery within RADIUS_M first; the preview is
   the Street View Static API. The viewer uses the Maps JavaScript API with a browser key
   (``GOOGLE_MAPS_BROWSER_KEY``, referrer-restricted; falls back to the server key).
-- Mapillary: the Graph API's nearest image within ~200 m; its 1024 px thumbnail is the preview
+- Mapillary: the Graph API's nearest image within ~RADIUS_M; its 1024 px thumbnail is the preview
   and its image id opens MapillaryJS (the token is a client token by design).
 """
 
@@ -27,9 +27,15 @@ from . import assistant
 router = APIRouter()
 TAGS = ["streetview"]
 TIMEOUT_S = 8.0
-RADIUS_M = 200
-# ~200 m around a point, in degrees (latitude); longitude is scaled by cos(lat) below.
+# How far from the hexagon centre to look for street imagery (user request: wider than 200 m).
+RADIUS_M = int(os.environ.get("STREETVIEW_RADIUS_M", "1000"))
+# The search box half-size in degrees of latitude; longitude is scaled by cos(lat) below.
 _DEG = RADIUS_M / 111_000
+
+
+def _within() -> str:
+    return f"{RADIUS_M / 1000:g} km" if RADIUS_M >= 1000 else f"{RADIUS_M} m"
+
 
 Provider = Literal["google", "mapillary"]
 ENV = {"google": "GOOGLE_MAPS_API_KEY", "mapillary": "MAPILLARY_TOKEN"}
@@ -112,7 +118,7 @@ def _google_preview(lat: float, lon: float, key: str) -> tuple[bytes, dict[str, 
         timeout=TIMEOUT_S,
     ).json()
     if meta.get("status") != "OK":
-        raise _err(404, "no_imagery", "No street imagery within 200 m of this hexagon.")
+        raise _err(404, "no_imagery", f"No street imagery within {_within()} of this hexagon.")
     img = httpx.get(
         "https://maps.googleapis.com/maps/api/streetview",
         params={
@@ -139,15 +145,26 @@ def _mapillary_preview(lat: float, lon: float, token: str) -> tuple[bytes, dict[
     bbox = f"{lon - dlon},{lat - _DEG},{lon + dlon},{lat + _DEG}"
     found = httpx.get(
         "https://graph.mapillary.com/images",
-        params={"access_token": token, "fields": "id,thumb_1024_url", "bbox": bbox, "limit": 1},
+        params={
+            "access_token": token,
+            "fields": "id,thumb_1024_url,computed_geometry",
+            "bbox": bbox,
+            "limit": 100,
+        },
         timeout=TIMEOUT_S,
     ).json()
-    rows: list[dict[str, Any]] = found.get("data") or []
-    if not rows or not rows[0].get("thumb_1024_url"):
-        raise _err(404, "no_imagery", "No street imagery within 200 m of this hexagon.")
-    img = httpx.get(rows[0]["thumb_1024_url"], timeout=TIMEOUT_S)
+    rows = [r for r in (found.get("data") or []) if r.get("thumb_1024_url")]
+    if not rows:
+        raise _err(404, "no_imagery", f"No street imagery within {_within()} of this hexagon.")
+
+    def dist2(r: dict[str, Any]) -> float:
+        coords = (r.get("computed_geometry") or {}).get("coordinates") or [lon, lat]
+        return ((coords[0] - lon) * math.cos(math.radians(lat))) ** 2 + (coords[1] - lat) ** 2
+
+    best = min(rows, key=dist2)  # the closest image, not just the first one listed
+    img = httpx.get(best["thumb_1024_url"], timeout=TIMEOUT_S)
     img.raise_for_status()
-    return img.content, {"X-Pano-Id": str(rows[0]["id"])}
+    return img.content, {"X-Pano-Id": str(best["id"])}
 
 
 @router.get(
@@ -156,7 +173,7 @@ def _mapillary_preview(lat: float, lon: float, token: str) -> tuple[bytes, dict[
     summary="Street-level preview image near a point",
     responses={
         200: {"content": {"image/jpeg": {}}, "description": "JPEG preview."},
-        404: {"description": "No imagery within 200 m."},
+        404: {"description": "No imagery within the search radius (STREETVIEW_RADIUS_M, 1 km)."},
         503: {"description": "No Street View provider configured."},
     },
 )

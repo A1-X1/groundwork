@@ -103,7 +103,7 @@ export function StreetPreview({
       {state.status === 'loading' && <Skeleton height={180} />}
       {state.status === 'none' && (
         <Text type="supporting" color="secondary">
-          No street imagery here (nothing within 200 m).
+          No street imagery within 1 km of this hexagon.
         </Text>
       )}
       {state.status === 'error' && (
