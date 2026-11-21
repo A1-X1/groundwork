@@ -399,9 +399,14 @@ def _models3d() -> Any | None:
 
 @router.get("/models3d", tags=["agent"], summary="List parametric 3D building specs")
 def list_models3d() -> list[str]:
-    """Ids of building specs the agent (or a person) has saved in `backend/profiles/models/`."""
+    """Ids of building specs: committed (`backend/profiles/models/`) and agent-made local ones
+    (`data/local/models3d/`, gitignored), via Person 1's `models3d.list_ids()`."""
     mod = _models3d()
-    if mod is None or not mod.MODELS_DIR.exists():
+    if mod is None:
+        return []
+    if hasattr(mod, "list_ids"):
+        return list(mod.list_ids())
+    if not mod.MODELS_DIR.exists():  # older models3d without list_ids
         return []
     return sorted(p.stem for p in mod.MODELS_DIR.glob("*.json"))
 
