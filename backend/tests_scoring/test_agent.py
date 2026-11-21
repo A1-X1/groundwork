@@ -128,7 +128,9 @@ def test_train_model_asks_for_azure_when_not_connected(sandbox, monkeypatch):
 
 
 def test_ui_command_whitelist():
-    assert tools.call("ui_command", {"commands": [{"command": "PAN_CITY", "name": "London"}]})["ui"]
+    q = tools.call("ui_command", {"commands": [{"command": "PAN_CITY", "name": "London"},
+                                               {"command": "SET_PROFILE", "id": "house"}]})
+    assert [c["seq"] for c in q["ui"]] == [0, 1] and q["ui"][0]["command"] == "PAN_CITY"
     assert "error" in tools.call("ui_command", {"commands": [{"command": "RM_RF"}]})
 
 
@@ -159,7 +161,7 @@ class _FakeClient:
 def test_runner_executes_tool_calls_and_streams_events():
     events = []
     out = runner.run("show me London", events.append, client=_FakeClient())
-    assert out["content"] == "Showing London." and out["ui"] == [{"command": "PAN_CITY", "name": "London"}]
+    assert out["content"] == "Showing London." and out["ui"] == [{"command": "PAN_CITY", "name": "London", "seq": 0}]
     assert [e["type"] for e in events] == ["tool_call", "tool_result", "ui", "answer"]
     assert all(e.get("message") for e in events)
     assert "messages" not in out

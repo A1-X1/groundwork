@@ -223,10 +223,17 @@ def preview_scores(profile_id: str, top_n: int = 5) -> dict[str, Any]:
         p = s.score_point(profile_id, *_centre(c["h3"]))
         drivers = sorted(p["breakdown"].items(), key=lambda kv: -kv[1])[:3]
         out.append({"h3": c["h3"], "score": c["score"], "lat": p["lat"], "lon": p["lon"],
+                    "area": _area(p["lat"], p["lon"]) if len(out) < 3 else None,
                     "top_drivers": [k for k, _ in drivers]})
     all_cells = s.score(profile_id)
     return {"profile": profile_id, "top": out, "cells": len(all_cells),
             "masked": sum(c["masked"] for c in all_cells)}
+
+
+def _area(lat: float, lon: float) -> str | None:
+    from backend.layers._geocode import area_name
+
+    return area_name(lat, lon)
 
 
 def _centre(cell: str) -> tuple[float, float]:
@@ -236,10 +243,14 @@ def _centre(cell: str) -> tuple[float, float]:
 
 
 def ui_command(commands: list[dict[str, Any]]) -> dict[str, Any]:
+    """An ordered queue: the UI runs each command after the previous one finishes."""
+    if not commands:
+        raise ToolError("send at least one command")
     bad = [c for c in commands if c.get("command") not in UI_COMMANDS]
     if bad:
         raise ToolError(f"unknown UI commands {bad}; allowed: {sorted(UI_COMMANDS)}")
-    return {"ui": commands}
+    queue = [{**c, "seq": i} for i, c in enumerate(commands)]
+    return {"ui": queue, "queued": len(queue)}
 
 
 def request_user_action(action: str, message: str) -> dict[str, Any]:
@@ -302,7 +313,8 @@ SCHEMAS: list[dict[str, Any]] = [
                           "backend": {"type": "string", "enum": ["auto", "azure", "local"]}}, ["profile_id"]),
     _fn("preview_scores", "Score the profile and return the best sites with their top drivers, to verify results.",
         {"profile_id": {"type": "string"}, "top_n": {"type": "integer"}}, ["profile_id"]),
-    _fn("ui_command", "Send map commands to the Groundwork UI (e.g. SET_PROFILE, PAN_CITY, SHOW_TOP_SITES).",
+    _fn("ui_command", "Send an ORDERED QUEUE of map commands; the UI runs them one after another, each waiting for "
+        "the previous to finish (e.g. PAN_CITY then SET_PROFILE then SHOW_TOP_SITES).",
         {"commands": {"type": "array", "items": {"type": "object", "description": "{command: NAME, ...args}"}}},
         ["commands"]),
     _fn("request_user_action", "Ask the user to do something only they can (sign in to Azure ML, add a key, confirm).",
