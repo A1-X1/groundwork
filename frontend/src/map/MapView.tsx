@@ -1,12 +1,15 @@
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { H3HexagonLayer } from '@deck.gl/geo-layers';
+import { IconLayer, PathLayer, PolygonLayer, ScatterplotLayer } from '@deck.gl/layers';
 import type { PickingInfo } from '@deck.gl/core';
 import { VStack } from '@astryxdesign/core/VStack';
-import { cellToLatLng } from 'h3-js';
+import { cellToLatLng, polygonToCells } from 'h3-js';
 import * as maplibregl from 'maplibre-gl';
 import type { StyleSpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Poi } from '../api/types';
+import { POI_LABEL, poiIconUrl } from './poiIcons';
 import { MASKED_RGB, RAMPS, sample, type RampId } from '../lib/colour';
 import { BuildingsLayer, type SiteRender } from './buildings';
 
@@ -18,6 +21,8 @@ export interface HexDatum {
   h: number;
   masked: boolean;
   tooltip: string;
+  /** Covered by data but not scored yet (no use case chosen). */
+  neutral?: boolean;
 }
 
 export interface MapFocus {
@@ -42,9 +47,30 @@ interface Props {
   /** Set when the globe hands over: the map flies in to this point. */
   arrival: { lat: number; lon: number; nonce: number } | null;
   zoomCmd: { dir: 'in' | 'out'; nonce: number } | null;
+  pois: Poi[];
+  /** False while hidden behind the home screen; the map resizes when it becomes visible. */
+  isActive: boolean;
+  basemap: Basemap;
+  isDrawing: boolean;
+  draft: [number, number][];
+  areas: MapArea[];
+  selectedAreaId: string | null;
+  onDrawPoint: (lon: number, lat: number) => void;
+  onDrawFinish: () => void;
+  onAreaClick: (id: string) => void;
+}
+
+export type Basemap = 'map' | 'satellite' | 'grid';
+
+export interface MapArea {
+  id: string;
+  name: string;
+  ring: [number, number][];
 }
 
 export const ELEVATION_SCALE = 1800;
+/** Points of interest appear once the map is zoomed in past this level. */
+export const POI_MIN_ZOOM = 10.8;
 const CENTRE: [number, number] = [-0.11, 51.5];
 const DEM_TILES = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
 const STYLES = {
@@ -52,6 +78,50 @@ const STYLES = {
   dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
 };
 const ACCENT: [number, number, number] = [118, 172, 255];
+const SATELLITE_TILES =
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+
+function satelliteStyle(): StyleSpecification {
+  return {
+    version: 8,
+    sources: {
+      satellite: {
+        type: 'raster',
+        tiles: [SATELLITE_TILES],
+        tileSize: 256,
+        maxzoom: 18,
+        attribution: 'Imagery © Esri, Maxar, Earthstar Geographics',
+      },
+    },
+    layers: [
+      { id: 'background', type: 'background', paint: { 'background-color': '#0b0e12' } },
+      // dimmed so hexes and icons stay readable
+      {
+        id: 'satellite',
+        type: 'raster',
+        source: 'satellite',
+        paint: { 'raster-brightness-max': 0.7 },
+      },
+    ],
+  };
+}
+
+function styleFor(b: Basemap): string | StyleSpecification {
+  if (b === 'satellite') return satelliteStyle();
+  if (b === 'grid') return fallbackStyle(true);
+  return STYLES.dark;
+}
+
+/** H3 resolution for the surrounding grid at a zoom level (about 8–30 px per hex). */
+function contextRes(zoom: number): number {
+  if (zoom < 5) return 3;
+  if (zoom < 6.5) return 4;
+  if (zoom < 8) return 5;
+  if (zoom < 9.3) return 6;
+  if (zoom < 10.6) return 7;
+  return 8;
+}
+const MAX_CONTEXT_CELLS = 7000;
 const HOME = { zoom: 9.7, pitch: 50, bearing: -12 };
 
 function fallbackStyle(dark: boolean): StyleSpecification {
@@ -111,6 +181,11 @@ export function MapView(props: Props) {
   const buildingsRef = useRef<BuildingsLayer | null>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
+  const [showPois, setShowPois] = useState(false);
+  const [viewport, setViewport] = useState<{
+    bbox: [number, number, number, number];
+    zoom: number;
+  } | null>(null);
 
   // ---- one-time map setup
   useEffect(() => {
@@ -119,7 +194,7 @@ export function MapView(props: Props) {
     const dark = prefersDark();
     const map = new maplibregl.Map({
       container: container as HTMLDivElement,
-      style: STYLES[dark ? 'dark' : 'light'],
+      style: styleFor(propsRef.current.basemap),
       center: CENTRE,
       zoom: 5.2,
       pitch: 0,
@@ -130,11 +205,43 @@ export function MapView(props: Props) {
       canvasContextAttributes: { antialias: true },
     });
     mapRef.current = map;
+    if (import.meta.env.DEV) (window as unknown as { __gwMap?: maplibregl.Map }).__gwMap = map;
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
 
     const overlay = new MapboxOverlay({ interleaved: true, layers: [] });
     overlayRef.current = overlay;
     map.addControl(overlay);
+
+    map.on('zoom', () => setShowPois(map.getZoom() >= POI_MIN_ZOOM));
+    const updateViewport = () => {
+      const b = map.getBounds();
+      setViewport({
+        bbox: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
+        zoom: map.getZoom(),
+      });
+    };
+    map.on('moveend', updateViewport);
+    map.on('load', updateViewport);
+
+    // ---- drawing an area: click to add points, double-click (or click the first point) to finish
+    map.on('click', (e) => {
+      if (!propsRef.current.isDrawing) return;
+      const d = propsRef.current.draft;
+      const first = d[0];
+      if (first && d.length >= 3) {
+        const p0 = map.project(first);
+        if (Math.hypot(p0.x - e.point.x, p0.y - e.point.y) < 12) {
+          propsRef.current.onDrawFinish();
+          return;
+        }
+      }
+      propsRef.current.onDrawPoint(e.lngLat.lng, e.lngLat.lat);
+    });
+    map.on('dblclick', (e) => {
+      if (!propsRef.current.isDrawing) return;
+      e.preventDefault();
+      propsRef.current.onDrawFinish();
+    });
 
     const buildings = new BuildingsLayer();
     buildingsRef.current = buildings;
@@ -146,7 +253,9 @@ export function MapView(props: Props) {
     map.on('error', (e: { error?: unknown }) => {
       // Basemap unreachable (offline demo): drop to a plain background, keep the hexes.
       const msg = String((e.error as Error | undefined)?.message ?? '');
-      if (!loaded && /style|fetch|Failed/i.test(msg)) map.setStyle(fallbackStyle(dark));
+      if (!loaded && propsRef.current.basemap === 'map' && /style|fetch|Failed/i.test(msg)) {
+        map.setStyle(fallbackStyle(dark));
+      }
     });
     map.on('style.load', () => {
       loaded = true;
@@ -185,6 +294,7 @@ export function MapView(props: Props) {
     const map = mapRef.current;
     const a = props.arrival;
     if (!map || !a) return;
+    map.resize();
     map.flyTo({
       center: [a.lon, a.lat],
       ...HOME,
@@ -194,6 +304,53 @@ export function MapView(props: Props) {
       essential: false,
     });
   }, [props.arrival]);
+
+  useEffect(() => {
+    if (props.isActive) mapRef.current?.resize();
+  }, [props.isActive]);
+
+  // ---- basemap switch
+  const firstBasemap = useRef(true);
+  useEffect(() => {
+    if (firstBasemap.current) {
+      firstBasemap.current = false;
+      return;
+    }
+    mapRef.current?.setStyle(styleFor(props.basemap));
+  }, [props.basemap]);
+
+  // ---- drawing mode: crosshair, no double-click zoom
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (props.isDrawing) map.doubleClickZoom.disable();
+    else map.doubleClickZoom.enable();
+    map.getCanvas().style.cursor = props.isDrawing || props.isPlacing ? 'crosshair' : '';
+  }, [props.isDrawing, props.isPlacing]);
+
+  // ---- surrounding grid: empty hexes around (and beyond) the scored region
+  const dataIds = useMemo(() => new Set(props.cells.map((c) => c.h3)), [props.cells]);
+  const contextCells = useMemo(() => {
+    if (!viewport) return [];
+    const res = contextRes(viewport.zoom);
+    const [w, so, e, n] = viewport.bbox;
+    const padX = (e - w) * 0.15;
+    const padY = (n - so) * 0.15;
+    const ring: [number, number][] = [
+      [so - padY, w - padX],
+      [so - padY, e + padX],
+      [n + padY, e + padX],
+      [n + padY, w - padX],
+    ];
+    let cells: string[] = [];
+    try {
+      cells = polygonToCells(ring, res);
+    } catch {
+      return [];
+    }
+    if (cells.length > MAX_CONTEXT_CELLS) return [];
+    return res === 8 ? cells.filter((c) => !dataIds.has(c)) : cells;
+  }, [viewport, dataIds]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -207,12 +364,6 @@ export function MapView(props: Props) {
     const map = mapRef.current;
     if (map?.isStyleLoaded()) addRelief(map, props.relief, props.terrain && !props.lowPower);
   }, [props.relief, props.terrain, props.lowPower]);
-
-  // ---- cursor in placing mode
-  useEffect(() => {
-    const canvas = mapRef.current?.getCanvas();
-    if (canvas) canvas.style.cursor = props.isPlacing ? 'crosshair' : '';
-  }, [props.isPlacing]);
 
   // ---- fly to focus
   useEffect(() => {
@@ -261,6 +412,7 @@ export function MapView(props: Props) {
       getFillColor: (d) => {
         if (d.h3 === selected) return [...ACCENT, 255];
         if (d.masked) return [...MASKED_RGB, 110];
+        if (d.neutral) return [118, 130, 148, 120];
         return [...sample(ramp, d.t), 235];
       },
       material: { ambient: 0.6, diffuse: 0.55, shininess: 12, specularColor: [40, 40, 40] },
@@ -278,23 +430,103 @@ export function MapView(props: Props) {
             getFillColor: { duration: 450, type: 'interpolation' },
           },
       onClick: (info: PickingInfo<HexDatum>) => {
-        if (!info.object) return;
+        if (!info.object || propsRef.current.isDrawing) return;
         const [lat, lon] = cellToLatLng(info.object.h3);
         propsRef.current.onHexClick(info.object.h3, lat, lon);
       },
       onHover: (info: PickingInfo<HexDatum>) => {
         const canvas = mapRef.current?.getCanvas();
-        if (canvas && !propsRef.current.isPlacing) {
+        if (canvas && !propsRef.current.isPlacing && !propsRef.current.isDrawing) {
           canvas.style.cursor = info.object ? 'pointer' : '';
         }
       },
     });
+    const poiLayer = new IconLayer<Poi>({
+      id: 'pois',
+      data: props.pois,
+      visible: showPois,
+      getPosition: (d) => [d.lon, d.lat, extrudeFloor >= 0 ? 0 : 0],
+      getIcon: (d) => ({ url: poiIconUrl(d.kind), width: 64, height: 64, mask: false }),
+      getSize: 26,
+      sizeUnits: 'pixels',
+      billboard: true,
+      pickable: true,
+      parameters: { depthCompare: 'always' },
+      transitions: prefersReducedMotion() ? {} : { getSize: 200 },
+    });
+    const gridStrength = props.basemap === 'grid' ? 70 : 26;
+    const contextLayer = new H3HexagonLayer<string>({
+      id: 'context-grid',
+      data: contextCells,
+      getHexagon: (d) => d,
+      filled: false,
+      stroked: true,
+      extruded: false,
+      highPrecision: false,
+      getLineColor: [255, 255, 255, gridStrength],
+      lineWidthMinPixels: 1,
+      lineWidthMaxPixels: 1,
+      pickable: false,
+    });
+    const areaLayer = new PolygonLayer<MapArea>({
+      id: 'areas',
+      data: props.areas,
+      getPolygon: (d) => d.ring,
+      filled: true,
+      stroked: true,
+      getFillColor: (d) => [...ACCENT, d.id === props.selectedAreaId ? 46 : 22],
+      getLineColor: [...ACCENT, 230],
+      getLineWidth: (d) => (d.id === props.selectedAreaId ? 3 : 1.5),
+      lineWidthUnits: 'pixels',
+      pickable: !props.isDrawing,
+      parameters: { depthCompare: 'always' },
+      updateTriggers: { getFillColor: props.selectedAreaId, getLineWidth: props.selectedAreaId },
+      onClick: (info: PickingInfo<MapArea>) => {
+        if (info.object && !propsRef.current.isDrawing)
+          propsRef.current.onAreaClick(info.object.id);
+        return true;
+      },
+    });
+    const draftPath = props.draft.length
+      ? [...props.draft, ...(props.draft.length > 2 ? [props.draft[0]!] : [])]
+      : [];
+    const draftLayers = props.isDrawing
+      ? [
+          new PathLayer<[number, number][]>({
+            id: 'draft-path',
+            data: draftPath.length > 1 ? [draftPath] : [],
+            getPath: (d) => d,
+            getColor: [...ACCENT, 255],
+            getWidth: 2,
+            widthUnits: 'pixels',
+            parameters: { depthCompare: 'always' },
+          }),
+          new ScatterplotLayer<[number, number]>({
+            id: 'draft-points',
+            data: props.draft,
+            getPosition: (d) => d,
+            getRadius: (_d, { index }) => (index === 0 ? 7 : 5),
+            radiusUnits: 'pixels',
+            getFillColor: (_d, { index }) =>
+              index === 0 ? [...ACCENT, 255] : [255, 255, 255, 255],
+            getLineColor: [...ACCENT, 255],
+            stroked: true,
+            lineWidthMinPixels: 2,
+            parameters: { depthCompare: 'always' },
+          }),
+        ]
+      : [];
     overlay.setProps({
-      layers: [layer],
-      getTooltip: ({ object }: PickingInfo<HexDatum>) =>
-        object
+      layers: [contextLayer, layer, areaLayer, poiLayer, ...draftLayers],
+      getTooltip: ({ object }: PickingInfo<HexDatum | Poi | MapArea>) =>
+        object && !propsRef.current.isDrawing
           ? {
-              text: object.tooltip,
+              text:
+                'kind' in object
+                  ? `${POI_LABEL[object.kind]}: ${object.name}\n${object.source}`
+                  : 'ring' in object
+                    ? object.name
+                    : object.tooltip,
               style: {
                 fontFamily: 'var(--font-family-body, system-ui)',
                 fontSize: '13px',
@@ -308,7 +540,20 @@ export function MapView(props: Props) {
             }
           : null,
     });
-  }, [visible, props.ramp, props.selectedH3, extrudeFloor]);
+  }, [
+    visible,
+    props.ramp,
+    props.selectedH3,
+    extrudeFloor,
+    props.pois,
+    showPois,
+    contextCells,
+    props.basemap,
+    props.areas,
+    props.selectedAreaId,
+    props.draft,
+    props.isDrawing,
+  ]);
 
   return (
     <VStack

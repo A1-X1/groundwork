@@ -22,6 +22,11 @@ log = logging.getLogger("groundwork.assistant")
 
 MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions"
 MISTRAL_MODEL = os.environ.get("MISTRAL_MODEL", "mistral-small-latest")
+# Voxtral speech-to-text. Endpoint and model id follow Mistral's audio transcription API;
+# both can be overridden in .env if Mistral renames them.
+VOXTRAL_URL = os.environ.get("VOXTRAL_URL", "https://api.mistral.ai/v1/audio/transcriptions")
+VOXTRAL_MODEL = os.environ.get("VOXTRAL_MODEL", "voxtral-mini-latest")
+MAX_AUDIO_BYTES = 10 * 1024 * 1024
 TIMEOUT_S = 12.0
 
 # Command set agreed with Person 1 (shared/handoff/p1-to-p2.md): name → argument names.
@@ -307,3 +312,50 @@ def handle(req: AssistantRequest, profiles: list[dict], layers: list[dict]) -> A
             log.warning("Mistral call failed (%s); using rule-based parser", exc)
     cmds, reply = rules(req.text, profiles, layers)
     return AssistantResponse(commands=cmds, reply=reply, source="rules")
+
+
+# --------------------------------------------------------------------------- voxtral
+
+
+class AssistantStatus(BaseModel):
+    mistral: bool = Field(description="A Mistral key is configured on the server.")
+    voxtral_model: str | None = Field(description="Speech-to-text model used, if any.")
+    chat_model: str | None
+
+
+class Transcript(BaseModel):
+    text: str
+    model: str
+
+
+def status() -> AssistantStatus:
+    ok = mistral_key() is not None
+    return AssistantStatus(
+        mistral=ok,
+        voxtral_model=VOXTRAL_MODEL if ok else None,
+        chat_model=MISTRAL_MODEL if ok else None,
+    )
+
+
+def transcribe(audio: bytes, filename: str, content_type: str, language: str | None) -> Transcript:
+    """Send recorded audio to Voxtral and return the text. Raises ValueError without a key."""
+    key = mistral_key()
+    if not key:
+        raise ValueError("Voice transcription needs MISTRAL_API_KEY in the server's .env")
+    if not audio:
+        raise ValueError("No audio received")
+    if len(audio) > MAX_AUDIO_BYTES:
+        raise ValueError("Audio is too long; keep voice commands under about a minute")
+    data = {"model": VOXTRAL_MODEL}
+    if language:
+        data["language"] = language
+    r = httpx.post(
+        VOXTRAL_URL,
+        headers={"Authorization": f"Bearer {key}"},
+        data=data,
+        files={"file": (filename or "speech.webm", audio, content_type or "audio/webm")},
+        timeout=30.0,
+    )
+    r.raise_for_status()
+    body = r.json()
+    return Transcript(text=str(body.get("text", "")).strip(), model=VOXTRAL_MODEL)

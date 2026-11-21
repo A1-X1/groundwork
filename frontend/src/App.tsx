@@ -6,7 +6,19 @@ import { HStack } from '@astryxdesign/core/HStack';
 import { cellToLatLng, cellToParent, latLngToCell } from 'h3-js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api/client';
-import type { AssistantCommand } from './api/types';
+import type { AssistantCommand, Poi } from './api/types';
+import {
+  loadProjects,
+  projectWeights,
+  saveProjects,
+  type DataCentreSpec,
+  type Project,
+} from './lib/structures';
+import { AreaDetail, AreasPanel } from './panels/AreasPanel';
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
+import type { Area, AreaSummary, StructureRecord } from './api/types';
+import type { Basemap, MapArea } from './map/MapView';
+import { HomeScreen } from './panels/HomeScreen';
 import { findPlace } from './lib/places';
 import { flushSync } from 'react-dom';
 import { formatRaw, formatScore } from './lib/format';
@@ -20,7 +32,17 @@ import { CellDetail, SiteCompare, TopSites } from './panels/DetailPanel';
 import { TopBar, type LegendSpec } from './panels/TopBar';
 import { useGroundwork, type PlacedSite, type Selection } from './state/useGroundwork';
 
-type RightView = 'overview' | 'detail' | 'compare-sites';
+type RightView = 'overview' | 'detail' | 'compare-sites' | 'area';
+
+const toProject = (r: StructureRecord): Project => ({
+  id: r.id,
+  name: r.name,
+  type: r.type,
+  profile: r.profile,
+  createdAt: Date.parse(r.created_at),
+  spec: (r.spec as unknown as DataCentreSpec | null) ?? undefined,
+  priorities: r.priorities,
+});
 
 export default function App() {
   const gw = useGroundwork();
@@ -38,6 +60,109 @@ export default function App() {
   const [mapZoom, setMapZoom] = useState<{ dir: 'in' | 'out'; nonce: number } | null>(null);
   const [arrival, setArrival] = useState<{ lat: number; lon: number; nonce: number } | null>(null);
   const [globeNotice, setGlobeNotice] = useState<string | null>(null);
+  const [screen, setScreen] = useState<'home' | 'explore'>('home');
+  const [projects, setProjects] = useState<Project[]>([]);
+  /** Structures live in the API's database; browser storage is the fallback when it's down. */
+  const [projectsLocal, setProjectsLocal] = useState(false);
+  const [basemap, setBasemap] = useState<Basemap>('map');
+  const [isDrawing, setDrawing] = useState(false);
+  const [draft, setDraft] = useState<[number, number][]>([]);
+  const [pendingName, setPendingName] = useState<string | null>(null);
+  const [areaError, setAreaError] = useState<string | null>(null);
+  const [areas, setAreas] = useState<Area[]>([]);
+  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
+  const [areaSummary, setAreaSummary] = useState<
+    | { status: 'loading' }
+    | { status: 'ready'; data: AreaSummary }
+    | { status: 'error'; message: string }
+    | null
+  >(null);
+  const [project, setProject] = useState<Project | null>(null);
+  const [pois, setPois] = useState<Poi[]>([]);
+
+  useEffect(() => {
+    api
+      .pois()
+      .then(setPois)
+      .catch(() => setPois([]));
+  }, []);
+  useEffect(() => {
+    api
+      .structures()
+      .then((rs) => setProjects(rs.map(toProject)))
+      .catch(() => {
+        setProjectsLocal(true);
+        setProjects(loadProjects());
+      });
+    api
+      .areas()
+      .then(setAreas)
+      .catch(() => setAreas([]));
+  }, []);
+  useEffect(() => {
+    if (projectsLocal) saveProjects(projects);
+  }, [projects, projectsLocal]);
+
+  const createProject = useCallback(
+    async (p: Project): Promise<Project> => {
+      if (projectsLocal) {
+        setProjects((ps) => [p, ...ps]);
+        return p;
+      }
+      try {
+        const rec = await api.createStructure({
+          name: p.name,
+          type: p.type,
+          profile: p.profile,
+          spec: (p.spec as unknown as Record<string, unknown>) ?? null,
+          priorities: p.priorities ?? [],
+          area_id: null,
+        });
+        const saved = toProject(rec);
+        setProjects((ps) => [saved, ...ps]);
+        return saved;
+      } catch {
+        setProjectsLocal(true);
+        setProjects((ps) => [p, ...ps]);
+        return p;
+      }
+    },
+    [projectsLocal],
+  );
+
+  const removeProject = useCallback(
+    (id: string) => {
+      setProjects((ps) => ps.filter((x) => x.id !== id));
+      if (!projectsLocal) api.deleteStructure(id).catch(() => undefined);
+    },
+    [projectsLocal],
+  );
+
+  // ---- areas
+  const mapAreas: MapArea[] = useMemo(
+    () => areas.map((a) => ({ id: a.id, name: a.name, ring: a.geometry.coordinates[0] ?? [] })),
+    [areas],
+  );
+  const selectedArea = areas.find((a) => a.id === selectedAreaId) ?? null;
+
+  useEffect(() => {
+    if (!selectedAreaId || !gw.profile) {
+      setAreaSummary(null);
+      return;
+    }
+    let alive = true;
+    setAreaSummary({ status: 'loading' });
+    api
+      .areaSummary(selectedAreaId, gw.profile.id)
+      .then((d) => alive && setAreaSummary({ status: 'ready', data: d }))
+      .catch(
+        (e: unknown) =>
+          alive && setAreaSummary({ status: 'error', message: String((e as Error).message) }),
+      );
+    return () => {
+      alive = false;
+    };
+  }, [selectedAreaId, gw.profile]);
 
   const overlay = overlayFor(gw.overlayId);
   const scoreData = 'data' in gw.score ? gw.score.data : undefined;
@@ -59,10 +184,28 @@ export default function App() {
   }, [scoreData]);
 
   // ---- coarse (res 5) hexes for the globe, and where detailed hexes exist
-  const scoredIds = useMemo(() => new Set(scoreData?.cells.map((c) => c.h3)), [scoreData]);
+  // Where detailed hexes exist, independent of the chosen use case (any layer covers the grid).
+  const [coverage, setCoverage] = useState<string[]>([]);
+  useEffect(() => {
+    const first = gw.layers[0];
+    if (!first || coverage.length) return;
+    api
+      .layer(first.id)
+      .then((lv) => setCoverage(lv.cells.map((c) => c.h3)))
+      .catch(() => undefined);
+  }, [gw.layers, coverage.length]);
+  const scoredIds = useMemo(
+    () => new Set([...coverage, ...(scoreData?.cells.map((c) => c.h3) ?? [])]),
+    [scoreData, coverage],
+  );
   const regionHexes: RegionHex[] = useMemo(() => {
     const acc = new Map<string, { sum: number; n: number }>();
-    for (const c of scoreData?.cells ?? []) {
+    if (!scoreData) {
+      // No use case yet: show the covered region as neutral coarse hexes.
+      const parents = new Set(coverage.map((h) => cellToParent(h, 5)));
+      return [...parents].map((h3) => ({ h3, t: 0.25 }));
+    }
+    for (const c of scoreData.cells) {
       if (c.score == null) continue;
       const parent = cellToParent(c.h3, 5);
       const a = acc.get(parent) ?? { sum: 0, n: 0 };
@@ -74,7 +217,7 @@ export default function App() {
     const lo = Math.min(...avgs.map((x) => x.v));
     const span = Math.max(1e-6, Math.max(...avgs.map((x) => x.v)) - lo);
     return avgs.map((x) => ({ h3: x.h3, t: (x.v - lo) / span }));
-  }, [scoreData]);
+  }, [scoreData, coverage]);
   const hasDetail = useCallback(
     (lat: number, lon: number) => scoredIds.has(latLngToCell(lat, lon, 8)),
     [scoredIds],
@@ -82,8 +225,17 @@ export default function App() {
 
   // ---- hexes for the map
   const cells: HexDatum[] = useMemo(() => {
-    if (!scoreData) return [];
-    if (!overlay.layer) {
+    if (!scoreData && !overlay.layer) {
+      return coverage.map((h3) => ({
+        h3,
+        t: 0.08,
+        h: 0,
+        masked: false,
+        tooltip: 'Choose a use case to score this hexagon',
+        neutral: true,
+      }));
+    }
+    if (!overlay.layer && scoreData) {
       const scores = scoreData.cells.flatMap((c) => (c.score == null ? [] : [c.score]));
       const lo = Math.min(...scores);
       const span = Math.max(1e-6, Math.max(...scores) - lo);
@@ -101,7 +253,7 @@ export default function App() {
       });
     }
     if (layerAsync?.status !== 'ready') return [];
-    const maskedSet = new Set(scoreData.cells.filter((c) => c.masked).map((c) => c.h3));
+    const maskedSet = new Set(scoreData?.cells.filter((c) => c.masked).map((c) => c.h3));
     return layerAsync.data.cells.map((c) => ({
       h3: c.h3,
       t: c.value,
@@ -111,21 +263,24 @@ export default function App() {
     }));
   }, [scoreData, overlay.layer, overlay.label, layerAsync, layerMeta, ranks]);
 
-  const legend: LegendSpec | null = overlay.layer
-    ? layerMeta
-      ? {
-          title: layerMeta.label,
-          ramp: overlay.ramp,
-          low: formatRaw(layerMeta.min, layerMeta.unit),
-          high: formatRaw(layerMeta.max, layerMeta.unit),
-        }
-      : null
-    : {
-        title: `${gw.profile?.label ?? ''} suitability`,
-        ramp: 'suitability',
-        low: 'Worse',
-        high: 'Better',
-      };
+  const legend: LegendSpec | null =
+    !overlay.layer && !gw.profile
+      ? null
+      : overlay.layer
+        ? layerMeta
+          ? {
+              title: layerMeta.label,
+              ramp: overlay.ramp,
+              low: formatRaw(layerMeta.min, layerMeta.unit),
+              high: formatRaw(layerMeta.max, layerMeta.unit),
+            }
+          : null
+        : {
+            title: `${gw.profile?.label ?? ''} suitability`,
+            ramp: 'suitability',
+            low: 'Worse',
+            high: 'Better',
+          };
 
   // ---- placed sites → three.js
   const heightOf = useCallback(
@@ -404,6 +559,87 @@ export default function App() {
     [gw, runCommands],
   );
 
+  // ---- structures (home screen)
+  const openProject = useCallback(
+    (p: Project) => {
+      const prof = gw.profileList.find((x) => x.id === p.profile);
+      if (!prof) return;
+      gw.applyProfileWeights(p.profile, projectWeights(p, prof.layers));
+      gw.setSelection(null);
+      setView('overview');
+      setProject(p);
+      setScreen('explore');
+      setGlobeVisible(true);
+      setSpinning(false);
+      // let the globe mount and start turning before the dive
+      window.setTimeout(() => flyGlobe(51.5, -0.11, 'city'), 350);
+    },
+    [gw, flyGlobe],
+  );
+
+  const startDraw = useCallback(() => {
+    setAreaError(null);
+    setDraft([]);
+    setPendingName(null);
+    setPlacing(false);
+    setDrawing(true);
+  }, []);
+  const cancelDraw = useCallback(() => {
+    setDrawing(false);
+    setDraft([]);
+    setPendingName(null);
+  }, []);
+  const finishDraw = useCallback(() => {
+    setDrawing(false);
+    setDraft((d) => {
+      if (d.length < 3) {
+        setAreaError('An area needs at least three corners.');
+        return [];
+      }
+      setPendingName('');
+      return d;
+    });
+  }, []);
+  const saveArea = useCallback(async () => {
+    const name = (pendingName ?? '').trim() || `Area ${areas.length + 1}`;
+    const ring = [...draft, draft[0]!];
+    try {
+      const a = await api.createArea(name, { type: 'Polygon', coordinates: [ring] });
+      setAreas((as) => [a, ...as]);
+      setSelectedAreaId(a.id);
+      setView('area');
+      setPendingName(null);
+      setDraft([]);
+      setAreaError(null);
+    } catch (e) {
+      setAreaError(e instanceof Error ? e.message : 'Could not save the area.');
+    }
+  }, [pendingName, draft, areas.length]);
+  const selectArea = useCallback(
+    (id: string) => {
+      const a = areas.find((x) => x.id === id);
+      if (!a) return;
+      setSelectedAreaId(id);
+      setView('area');
+      const ring = a.geometry.coordinates[0] ?? [];
+      const lon = ring.reduce((t, p) => t + p[0], 0) / Math.max(1, ring.length);
+      const lat = ring.reduce((t, p) => t + p[1], 0) / Math.max(1, ring.length);
+      goTo(lat, lon);
+    },
+    [areas, goTo],
+  );
+  const renameArea = useCallback((id: string, name: string) => {
+    api
+      .renameArea(id, name)
+      .then((a) => setAreas((as) => as.map((x) => (x.id === id ? a : x))))
+      .catch((e: unknown) => setAreaError(String((e as Error).message)));
+  }, []);
+  const deleteArea = useCallback((id: string) => {
+    setAreas((as) => as.filter((x) => x.id !== id));
+    setSelectedAreaId((cur) => (cur === id ? null : cur));
+    api.deleteArea(id).catch(() => undefined);
+  }, []);
+
   const selectedSite = gw.sites.find(
     (s) => s.h3 === gw.selection?.h3 && s.profile === gw.profile?.id,
   );
@@ -417,28 +653,75 @@ export default function App() {
     <Layout
       header={
         <LayoutHeader hasDivider padding={0}>
-          <TopBar legend={legend} onGlobe={() => flyGlobe(51.5, -0.11, 'country')} />
+          <TopBar
+            legend={screen === 'explore' ? legend : null}
+            onGlobe={() => {
+              setScreen('explore');
+              flyGlobe(51.5, -0.11, 'country');
+            }}
+            onHome={() => setScreen('home')}
+          />
         </LayoutHeader>
       }
       start={
-        <LayoutPanel width={340} hasDivider padding={4} label="Controls">
-          <ControlPanel
-            gw={gw}
-            isPlacing={isPlacing}
-            onTogglePlacing={() => setPlacing((p) => !p)}
-            showMasked={showMasked}
-            onShowMasked={setShowMasked}
-            terrain={terrain}
-            onTerrain={setTerrain}
-            lowPower={lowPower}
-            onOpenSite={openSite}
-            onCompareSites={() => setView('compare-sites')}
-          />
-        </LayoutPanel>
+        screen === 'explore' && (
+          <LayoutPanel width={340} hasDivider padding={4} label="Controls">
+            <ControlPanel
+              project={project}
+              onEditProject={() => setScreen('home')}
+              gw={gw}
+              isPlacing={isPlacing}
+              onTogglePlacing={() => setPlacing((p) => !p)}
+              showMasked={showMasked}
+              onShowMasked={setShowMasked}
+              terrain={terrain}
+              onTerrain={setTerrain}
+              lowPower={lowPower}
+              onOpenSite={openSite}
+              onCompareSites={() => setView('compare-sites')}
+              areas={
+                <AreasPanel
+                  areas={areas}
+                  selectedId={selectedAreaId}
+                  isDrawing={isDrawing}
+                  draftPoints={draft.length}
+                  pendingName={pendingName}
+                  error={areaError}
+                  onStartDraw={() => {
+                    startDraw();
+                    if (globeVisible) flyGlobe(51.5, -0.11, 'city');
+                  }}
+                  onCancelDraw={cancelDraw}
+                  onFinishDraw={finishDraw}
+                  onPendingName={setPendingName}
+                  onSave={() => void saveArea()}
+                  onSelect={selectArea}
+                  onRename={renameArea}
+                  onDelete={deleteArea}
+                />
+              }
+            />
+          </LayoutPanel>
+        )
       }
       content={
-        <LayoutContent padding={0} isScrollable={false} label="Map">
-          <VStack height="100%" style={{ position: 'relative' }}>
+        <LayoutContent padding={0} isScrollable={false} label={screen === 'home' ? 'Home' : 'Map'}>
+          {screen === 'home' && (
+            <HomeScreen
+              profiles={gw.profileList}
+              layersById={gw.layersById}
+              projects={projects}
+              onCreate={(p) => {
+                void createProject(p).then(openProject);
+              }}
+              onOpen={openProject}
+              onRemove={removeProject}
+            />
+          )}
+          <VStack
+            height="100%"
+            style={{ position: 'relative', display: screen === 'home' ? 'none' : undefined }}
+          >
             <MapView
               cells={cells}
               ramp={overlay.layer ? overlay.ramp : 'suitability'}
@@ -454,7 +737,43 @@ export default function App() {
               onLowPower={() => setLowPower(true)}
               arrival={arrival}
               zoomCmd={mapZoom}
+              pois={pois}
+              isActive={screen === 'explore'}
+              basemap={basemap}
+              isDrawing={isDrawing}
+              draft={draft}
+              areas={mapAreas}
+              selectedAreaId={selectedAreaId}
+              onDrawPoint={(lon, lat) => setDraft((d) => [...d, [lon, lat]])}
+              onDrawFinish={finishDraw}
+              onAreaClick={selectArea}
             />
+            {!globeVisible && (
+              <HStack
+                padding={4}
+                style={{ position: 'absolute', insetInlineStart: 0, insetBlockEnd: 0, zIndex: 3 }}
+              >
+                <HStack
+                  padding={1}
+                  style={{
+                    background: 'var(--color-background-card)',
+                    borderRadius: 'var(--radius-container)',
+                    boxShadow: 'var(--shadow-med)',
+                  }}
+                >
+                  <SegmentedControl
+                    label="Base map"
+                    value={basemap}
+                    onChange={(v) => setBasemap(v as Basemap)}
+                    size="sm"
+                  >
+                    <SegmentedControlItem value="map" label="Map" />
+                    <SegmentedControlItem value="satellite" label="Satellite" />
+                    <SegmentedControlItem value="grid" label="Grid" />
+                  </SegmentedControl>
+                </HStack>
+              </HStack>
+            )}
             <GlobeView
               isVisible={globeVisible}
               isSpinning={spinning}
@@ -522,47 +841,66 @@ export default function App() {
         </LayoutContent>
       }
       end={
-        <LayoutPanel width={380} hasDivider padding={4} label="Details">
-          {view === 'compare-sites' && gw.sites.length >= 2 ? (
-            <SiteCompare
-              sites={gw.sites}
-              profiles={gw.profileList}
-              profile={gw.profile}
-              layersById={gw.layersById}
-              onBack={() => setView('overview')}
-            />
-          ) : view === 'detail' && gw.selection ? (
-            <CellDetail
-              selection={gw.selection}
-              profile={gw.profile}
-              profiles={gw.profileList}
-              layersById={gw.layersById}
-              point={gw.point}
-              compare={gw.compare}
-              fallbackCell={fallbackCell}
-              fallbackRank={{ rank: ranks.get(gw.selection.h3) ?? null, total: ranks.size }}
-              site={selectedSite}
-              heroActive={!!selectedSite && heroSiteId === selectedSite.id}
-              onBack={() => {
-                gw.setSelection(null);
-                setView('overview');
-              }}
-              onPlace={() => gw.selection && gw.placeSite(gw.selection)}
-              onChooseProfile={gw.chooseProfile}
-            />
-          ) : (
-            <TopSites
-              profile={gw.profile}
-              cells={scoreData?.cells}
-              isLoading={gw.score.status === 'loading'}
-              onPick={(c) => {
-                const [lat, lon] = cellToLatLng(c.h3);
-                select({ h3: c.h3, lat, lon });
-                setFocus({ lat, lon, nonce: Date.now() });
-              }}
-            />
-          )}
-        </LayoutPanel>
+        screen === 'explore' && (
+          <LayoutPanel width={380} hasDivider padding={4} label="Details">
+            {view === 'area' && selectedArea ? (
+              <AreaDetail
+                area={selectedArea}
+                profileLabel={gw.profile?.label ?? null}
+                summary={areaSummary}
+                onBack={() => {
+                  setSelectedAreaId(null);
+                  setView('overview');
+                }}
+                onBest={(h3) => {
+                  const [lat, lon] = cellToLatLng(h3);
+                  select({ h3, lat, lon });
+                  setFocus({ lat, lon, nonce: Date.now() });
+                }}
+              />
+            ) : view === 'compare-sites' && gw.sites.length >= 2 ? (
+              <SiteCompare
+                sites={gw.sites}
+                profiles={gw.profileList}
+                profile={gw.profile}
+                layersById={gw.layersById}
+                onBack={() => setView('overview')}
+              />
+            ) : view === 'detail' && gw.selection ? (
+              <CellDetail
+                selection={gw.selection}
+                profile={gw.profile}
+                profiles={gw.profileList}
+                layersById={gw.layersById}
+                point={gw.point}
+                compare={gw.compare}
+                fallbackCell={fallbackCell}
+                fallbackRank={{ rank: ranks.get(gw.selection.h3) ?? null, total: ranks.size }}
+                site={selectedSite}
+                heroActive={!!selectedSite && heroSiteId === selectedSite.id}
+                onBack={() => {
+                  gw.setSelection(null);
+                  setView('overview');
+                }}
+                onPlace={() => gw.selection && gw.placeSite(gw.selection)}
+                onChooseProfile={gw.chooseProfile}
+              />
+            ) : (
+              <TopSites
+                profiles={gw.profileList}
+                onChooseProfile={gw.chooseProfile}
+                profile={gw.profile}
+                cells={scoreData?.cells}
+                isLoading={gw.score.status === 'loading'}
+                onPick={(c) => {
+                  const [lat, lon] = cellToLatLng(c.h3);
+                  select({ h3: c.h3, lat, lon });
+                  setFocus({ lat, lon, nonce: Date.now() });
+                }}
+              />
+            )}
+          </LayoutPanel>
+        )
       }
     />
   );

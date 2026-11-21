@@ -16,14 +16,15 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Annotated, Any, TypeVar
 
-from fastapi import FastAPI, Path, Query, Request
+import httpx
+from fastapi import FastAPI, File, Form, Path, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from backend.api import assistant, scoring_source
+from backend.api import areas, assistant, pois, scoring_source
 from backend.api.models import (
     CompareEntry,
     CompareResponse,
@@ -67,6 +68,9 @@ TAGS = [
     {"name": "layers", "description": "Per-hexagon data layers for map overlays."},
     {"name": "scores", "description": "Suitability for a profile, a point, or a comparison."},
     {"name": "assistant", "description": "Natural-language / voice commands for the UI."},
+    {"name": "pois", "description": "Points of interest for map icons (power, fibre, transport)."},
+    {"name": "areas", "description": "Areas users draw and name, stored in SQLite."},
+    {"name": "structures", "description": "Saved structures and their requirements."},
 ]
 
 ERRORS: dict[int | str, dict[str, Any]] = {
@@ -106,9 +110,13 @@ app.add_middleware(
     CORSMiddleware,
     # Any local dev port (make web WEB_PORT=...), never a remote origin.
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["*"],
 )
+
+
+areas.scoring = scoring
+app.include_router(areas.router, responses=ERRORS)
 
 
 # ---------------------------------------------------------------- errors
@@ -527,3 +535,59 @@ def assistant_command(body: assistant.AssistantRequest) -> assistant.AssistantRe
     SET_OVERLAY, SET_WEIGHT, SHOW_TOP_SITES, PLACE_SITE, EXPLAIN, …), so the model can only ask
     the frontend to do listed things. The key never leaves the server."""
     return assistant.handle(body, scoring.list_profiles(), scoring.list_layers())
+
+
+@app.get(
+    "/pois",
+    response_model=list[pois.Poi],
+    tags=["pois"],
+    summary="Points of interest for map icons",
+    responses=ERRORS,
+)
+def list_pois(
+    kinds: Annotated[
+        str | None,
+        Query(
+            description="Comma-separated kinds: substation, ixp, data_centre, station, water.",
+            examples=["substation,ixp"],
+        ),
+    ] = None,
+    bbox: BBoxQuery = None,
+) -> list[dict[str, Any]]:
+    """Substations, internet exchanges, existing data centres, stations and reservoirs, for
+    minimal icons on the map. Each item says where its location comes from. Display only:
+    scoring uses the layers, not these points."""
+    ks = [k.strip() for k in kinds.split(",") if k.strip()] if kinds else None
+    return pois.list_pois(scoring, ks, parse_bbox(bbox))
+
+
+@app.get(
+    "/assistant/status",
+    response_model=assistant.AssistantStatus,
+    tags=["assistant"],
+    summary="Whether Mistral / Voxtral are configured",
+)
+def assistant_status() -> assistant.AssistantStatus:
+    """The frontend uses Voxtral for voice when this says `mistral: true`, otherwise the
+    browser's own speech recognition. The key itself is never returned."""
+    return assistant.status()
+
+
+@app.post(
+    "/assistant/transcribe",
+    response_model=assistant.Transcript,
+    tags=["assistant"],
+    summary="Speech to text with Mistral Voxtral",
+    responses={**ERRORS, 502: {"model": ErrorResponse, "description": "Voxtral call failed."}},
+)
+async def assistant_transcribe(
+    file: Annotated[UploadFile, File(description="Recorded audio (webm/ogg/wav/mp3/m4a).")],
+    language: Annotated[str | None, Form(description="Optional ISO language, e.g. `en`.")] = None,
+) -> assistant.Transcript | JSONResponse:
+    """Forwards a short recording to Voxtral using the server-side key and returns the text.
+    Send the text to `POST /assistant/command` to act on it."""
+    audio = await file.read()
+    try:
+        return assistant.transcribe(audio, file.filename or "", file.content_type or "", language)
+    except httpx.HTTPError as exc:
+        return _error(502, "upstream_error", f"Voxtral transcription failed: {exc}")

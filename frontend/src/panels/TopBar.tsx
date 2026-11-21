@@ -1,5 +1,4 @@
 import { Button } from '@astryxdesign/core/Button';
-import { Heading } from '@astryxdesign/core/Heading';
 import { Icon } from '@astryxdesign/core/Icon';
 import { Globe2 } from 'lucide-react';
 import { HStack } from '@astryxdesign/core/HStack';
@@ -7,6 +6,7 @@ import { Link } from '@astryxdesign/core/Link';
 import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
 import { API_URL, USE_FIXTURE } from '../api/client';
+import { Logo } from './Logo';
 import { cssGradient, RAMPS, type RampId } from '../lib/colour';
 
 export interface LegendSpec {
@@ -16,7 +16,15 @@ export interface LegendSpec {
   high: string;
 }
 
-export function TopBar({ legend, onGlobe }: { legend: LegendSpec | null; onGlobe: () => void }) {
+export function TopBar({
+  legend,
+  onGlobe,
+  onHome,
+}: {
+  legend: LegendSpec | null;
+  onGlobe: () => void;
+  onHome: () => void;
+}) {
   return (
     <HStack
       justify="between"
@@ -31,10 +39,9 @@ export function TopBar({ legend, onGlobe }: { legend: LegendSpec | null; onGlobe
       }}
     >
       <HStack gap={2} align="center">
-        <Heading level={1} weight="semibold">
-          Groundwork
-        </Heading>
-        <Text color="secondary">London</Text>
+        <Button label="Groundwork home" variant="ghost" onClick={onHome} icon={undefined}>
+          <Logo size="md" />
+        </Button>
       </HStack>
 
       {legend && (

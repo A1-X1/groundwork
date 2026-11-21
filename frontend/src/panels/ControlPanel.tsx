@@ -13,14 +13,56 @@ import { Text } from '@astryxdesign/core/Text';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { VStack } from '@astryxdesign/core/VStack';
 import { Check, MapPin, Pencil, Trash2 } from 'lucide-react';
-import { useState, type MouseEvent } from 'react';
+import { useState, type MouseEvent, type ReactNode } from 'react';
 import type { LayerMeta, ProfileLayer } from '../api/types';
 import { VIEWS } from '../lib/overlays';
 import type { GroundworkState, PlacedSite } from '../state/useGroundwork';
+import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList';
+import { estimate, GPUS, STRUCTURE_TYPES, type Project } from '../lib/structures';
+
+const n1 = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 1 });
+const n0 = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 0 });
+
+function ProjectSummary({ project, onEdit }: { project: Project; onEdit: () => void }) {
+  const type = STRUCTURE_TYPES.find((t) => t.id === project.type);
+  const e = project.spec ? estimate(project.spec) : null;
+  return (
+    <VStack gap={3}>
+      <HStack justify="between" align="center">
+        <VStack gap={0.5}>
+          <Text type="supporting" color="secondary">
+            {type?.label}
+          </Text>
+          <Heading level={2}>{project.name}</Heading>
+        </VStack>
+        <Button label="All structures" variant="ghost" size="sm" onClick={onEdit} />
+      </HStack>
+      {e && project.spec && (
+        <MetadataList>
+          <MetadataListItem label="Accelerators">
+            <Text hasTabularNumbers>
+              {n0.format(project.spec.gpuCount)} ×{' '}
+              {GPUS.find((g) => g.id === project.spec?.gpu)?.label}
+            </Text>
+          </MetadataListItem>
+          <MetadataListItem label="Facility power">
+            <Text hasTabularNumbers>{n1.format(e.facilityMw)} MW</Text>
+          </MetadataListItem>
+          <MetadataListItem label="Peak compute">
+            <Text hasTabularNumbers>{n1.format(e.peakPflops)} PFLOPS</Text>
+          </MetadataListItem>
+        </MetadataList>
+      )}
+    </VStack>
+  );
+}
 
 const VISIBLE_SLIDERS = 4;
 
 interface Props {
+  areas: ReactNode;
+  project: Project | null;
+  onEditProject: () => void;
   gw: GroundworkState;
   isPlacing: boolean;
   onTogglePlacing: () => void;
@@ -176,6 +218,7 @@ export function ControlPanel(props: Props) {
 
   return (
     <VStack gap={6} paddingBlockEnd={6}>
+      {props.project && <ProjectSummary project={props.project} onEdit={props.onEditProject} />}
       <VStack gap={3}>
         {gw.profiles.status === 'loading' ? (
           <Skeleton height={64} />
@@ -183,7 +226,8 @@ export function ControlPanel(props: Props) {
           <Selector
             label="Use case"
             options={gw.profileList.map((p) => ({ value: p.id, label: p.label }))}
-            value={profile?.id ?? ''}
+            value={profile?.id}
+            placeholder="Choose what you're building"
             onChange={(v) => v && gw.chooseProfile(v)}
             width="100%"
             description={profile?.description}
@@ -191,42 +235,44 @@ export function ControlPanel(props: Props) {
         )}
       </VStack>
 
-      <VStack gap={3}>
-        <HStack justify="between" align="center">
-          <Heading level={2}>Weights</Heading>
-          <Button
-            label="Reset weights"
-            variant="ghost"
-            size="sm"
-            isDisabled={gw.isDefaultWeights}
-            onClick={gw.resetWeights}
-          />
-        </HStack>
-        {profile ? (
-          <VStack gap={4}>{top.map(slider)}</VStack>
-        ) : (
-          <VStack gap={4}>
-            {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} height={56} index={i} />
-            ))}
-          </VStack>
-        )}
-        {rest.length > 0 && (
-          <Collapsible
-            trigger={<Text weight="medium">More layers ({rest.length})</Text>}
-            defaultIsOpen={false}
-          >
-            <VStack gap={4} paddingBlockStart={2}>
-              {rest.map(slider)}
+      {(profile || gw.profiles.status === 'loading') && (
+        <VStack gap={3}>
+          <HStack justify="between" align="center">
+            <Heading level={2}>Weights</Heading>
+            <Button
+              label="Reset weights"
+              variant="ghost"
+              size="sm"
+              isDisabled={gw.isDefaultWeights}
+              onClick={gw.resetWeights}
+            />
+          </HStack>
+          {profile ? (
+            <VStack gap={4}>{top.map(slider)}</VStack>
+          ) : (
+            <VStack gap={4}>
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} height={56} index={i} />
+              ))}
             </VStack>
-          </Collapsible>
-        )}
-        {gw.weightsError && (
-          <Text color="secondary" display="block" role="alert">
-            {gw.weightsError}
-          </Text>
-        )}
-      </VStack>
+          )}
+          {rest.length > 0 && (
+            <Collapsible
+              trigger={<Text weight="medium">More layers ({rest.length})</Text>}
+              defaultIsOpen={false}
+            >
+              <VStack gap={4} paddingBlockStart={2}>
+                {rest.map(slider)}
+              </VStack>
+            </Collapsible>
+          )}
+          {gw.weightsError && (
+            <Text color="secondary" display="block" role="alert">
+              {gw.weightsError}
+            </Text>
+          )}
+        </VStack>
+      )}
 
       <VStack gap={3}>
         <Heading level={2}>Map</Heading>
@@ -262,6 +308,8 @@ export function ControlPanel(props: Props) {
           />
         )}
       </VStack>
+
+      {props.areas}
 
       <VStack gap={3}>
         <HStack justify="between" align="center">

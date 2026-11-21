@@ -6,6 +6,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { VStack } from '@astryxdesign/core/VStack';
 import { Mic, MicOff, SendHorizontal } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { api } from '../api/client';
 
 // Minimal Web Speech API typing (Chrome/Edge/Safari expose it with a webkit prefix).
 interface SpeechResultEvent {
@@ -46,7 +47,58 @@ export function CommandBar({ onSubmit }: Props) {
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
   const recRef = useRef<Recognition | null>(null);
+  const mediaRef = useRef<MediaRecorder | null>(null);
+  const [voxtral, setVoxtral] = useState<string | null>(null);
   const Ctor = recognitionCtor();
+  const canRecord =
+    typeof window !== 'undefined' && 'MediaRecorder' in window && !!navigator.mediaDevices;
+
+  useEffect(() => {
+    api
+      .assistantStatus()
+      .then((s) => setVoxtral(s.mistral ? (s.voxtral_model ?? 'Voxtral') : null))
+      .catch(() => setVoxtral(null));
+  }, []);
+
+  /** Voxtral path: record a short clip, send it to the API, act on the transcript. */
+  const toggleRecording = async () => {
+    if (listening) {
+      mediaRef.current?.stop();
+      return;
+    }
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      setReply('Microphone access was blocked.');
+      return;
+    }
+    const rec = new MediaRecorder(stream);
+    const chunks: Blob[] = [];
+    rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    rec.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop());
+      setListening(false);
+      window.clearTimeout(limit);
+      const blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
+      setBusy(true);
+      try {
+        const { text: heard } = await api.transcribe(blob);
+        setText(heard);
+        setBusy(false);
+        if (heard) await submit(heard, true);
+        else setReply('I didn’t hear anything.');
+      } catch (e) {
+        setBusy(false);
+        setReply(e instanceof Error ? e.message : 'Transcription failed.');
+      }
+    };
+    mediaRef.current = rec;
+    rec.start();
+    setListening(true);
+    // voice commands are short: stop after 12 s
+    const limit = window.setTimeout(() => rec.state === 'recording' && rec.stop(), 12000);
+  };
 
   const submit = async (value: string, spoken: boolean) => {
     const q = value.trim();
@@ -99,7 +151,7 @@ export function CommandBar({ onSubmit }: Props) {
         <TextInput
           label="Ask Groundwork"
           isLabelHidden
-          placeholder="Try “best data centre sites”, “fly to Tokyo”, “thermal view”"
+          placeholder="Try “best school sites”, “fly to Tokyo”, “thermal view”"
           value={text}
           onChange={(v: string) => setText(v)}
           onKeyDown={(e) => {
@@ -107,12 +159,13 @@ export function CommandBar({ onSubmit }: Props) {
           }}
           width="100%"
         />
-        {Ctor && (
+        {((voxtral && canRecord) || Ctor) && (
           <IconButton
             label={listening ? 'Stop listening' : 'Speak a command'}
+            tooltip={voxtral ? `Voice by Mistral ${voxtral}` : 'Voice by your browser'}
             icon={<Icon icon={listening ? MicOff : Mic} size="sm" />}
             variant={listening ? 'primary' : 'secondary'}
-            onClick={toggleMic}
+            onClick={() => (voxtral && canRecord ? void toggleRecording() : toggleMic())}
           />
         )}
         <IconButton
@@ -124,7 +177,7 @@ export function CommandBar({ onSubmit }: Props) {
         />
       </HStack>
       <Text type="supporting" color="secondary" display="block" role="status" maxLines={2}>
-        {listening ? 'Listening…' : (reply ?? '')}
+        {listening ? 'Listening… click the mic again to stop.' : (reply ?? '')}
       </Text>
     </VStack>
   );

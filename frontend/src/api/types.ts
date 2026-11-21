@@ -130,3 +130,50 @@ export interface AssistantResponse {
   reply: string;
   source: 'mistral' | 'rules';
 }
+
+export interface Poi {
+  id: string;
+  kind: 'substation' | 'ixp' | 'data_centre' | 'station' | 'water';
+  name: string;
+  lat: number;
+  lon: number;
+  source: string;
+}
+
+export interface GeoPolygon {
+  type: 'Polygon';
+  coordinates: [number, number][][];
+}
+
+export interface Area {
+  id: string;
+  name: string;
+  note: string;
+  geometry: GeoPolygon;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AreaSummary {
+  area_id: string;
+  profile: string;
+  cells: number;
+  area_km2: number;
+  scored_cells: number;
+  masked_cells: number;
+  mean_score: number | null;
+  best_h3: string | null;
+  best_score: number | null;
+}
+
+export interface StructureRecord {
+  id: string;
+  name: string;
+  type: string;
+  profile: string;
+  spec: Record<string, unknown> | null;
+  priorities: string[];
+  area_id: string | null;
+  created_at: string;
+  updated_at: string;
+}

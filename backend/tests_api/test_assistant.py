@@ -96,3 +96,45 @@ def test_mistral_failure_falls_back_to_rules(client, monkeypatch) -> None:
     assert body["source"] == "rules"
     assert "HELP" in types(body)
     json.dumps(body)
+
+
+def test_status_without_key(client) -> None:
+    body = client.get("/assistant/status").json()
+    assert body == {"mistral": False, "voxtral_model": None, "chat_model": None}
+
+
+def test_transcribe_without_key_is_422(client) -> None:
+    r = client.post("/assistant/transcribe", files={"file": ("a.webm", b"xx", "audio/webm")})
+    assert r.status_code == 422
+    assert "MISTRAL_API_KEY" in r.json()["error"]["message"]
+
+
+def test_transcribe_calls_voxtral(client, monkeypatch) -> None:
+    monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
+    seen: dict = {}
+
+    def fake_post(url, headers=None, data=None, files=None, timeout=None, **_):
+        seen.update(url=url, auth=headers["Authorization"], model=data["model"])
+        req = httpx.Request("POST", url)
+        return httpx.Response(200, json={"text": " fly to Tokyo "}, request=req)
+
+    monkeypatch.setattr(assistant.httpx, "post", fake_post)
+    r = client.post(
+        "/assistant/transcribe",
+        files={"file": ("speech.webm", b"\x1a\x45\xdf\xa3", "audio/webm")},
+        data={"language": "en"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json() == {"text": "fly to Tokyo", "model": assistant.VOXTRAL_MODEL}
+    assert seen["auth"] == "Bearer test-key" and seen["url"].endswith("/audio/transcriptions")
+
+
+def test_transcribe_upstream_failure_is_502(client, monkeypatch) -> None:
+    monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
+
+    def boom(*a, **k):
+        raise httpx.ConnectError("blocked")
+
+    monkeypatch.setattr(assistant.httpx, "post", boom)
+    r = client.post("/assistant/transcribe", files={"file": ("a.webm", b"xx", "audio/webm")})
+    assert r.status_code == 502

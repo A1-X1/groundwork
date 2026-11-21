@@ -73,13 +73,7 @@ export function useGroundwork() {
         if (!alive) return;
         setProfiles({ status: 'ready', data: ps });
         setLayers(ls);
-        const first = ps.find((p) => p.id === 'data_centre') ?? ps[0];
-        if (first) {
-          setProfileId(first.id);
-          const w = defaultWeights(first);
-          setWeights(w);
-          lastGoodWeights.current = w;
-        }
+        // No default use case: the user picks what they are building.
       })
       .catch((e: unknown) => alive && setProfiles({ status: 'error', message: message(e) }));
     api
@@ -206,6 +200,19 @@ export function useGroundwork() {
     [profileList],
   );
 
+  /** Switch profile and apply a full set of slider weights in one go (from a structure). */
+  const applyProfileWeights = useCallback(
+    (id: string, w: Record<string, number>) => {
+      const p = profileList.find((x) => x.id === id);
+      if (!p) return;
+      lastGoodWeights.current = defaultWeights(p);
+      setWeightsError(null);
+      setProfileId(id);
+      setWeights(w);
+    },
+    [profileList],
+  );
+
   const setWeight = useCallback((layerId: string, value: number) => {
     setWeightsError(null);
     setWeights((w) => ({ ...w, [layerId]: value }));
@@ -261,6 +268,7 @@ export function useGroundwork() {
     compare,
     sites,
     chooseProfile,
+    applyProfileWeights,
     setWeight,
     resetWeights,
     setOverlayId,

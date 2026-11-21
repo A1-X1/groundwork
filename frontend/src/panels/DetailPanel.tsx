@@ -88,11 +88,15 @@ function DivergingBars({
 // ---------------------------------------------------------------- overview
 
 export function TopSites({
+  profiles,
+  onChooseProfile,
   profile,
   cells,
   isLoading,
   onPick,
 }: {
+  profiles: Profile[];
+  onChooseProfile: (id: string) => void;
   profile: Profile | undefined;
   cells: ScoredCell[] | undefined;
   isLoading: boolean;
@@ -102,11 +106,35 @@ export function TopSites({
     .filter((c) => c.score != null)
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
   const masked = (cells ?? []).filter((c) => c.masked).length;
+  if (!profile) {
+    return (
+      <VStack gap={4}>
+        <VStack gap={1}>
+          <Heading level={2} textWrap="balance">
+            What are you building?
+          </Heading>
+          <Text color="secondary" display="block" textWrap="pretty">
+            Pick a use case to score every hexagon and rank the best sites.
+          </Text>
+        </VStack>
+        <List density="compact" edge="outset" hasDividers>
+          {profiles.map((p) => (
+            <ListItem
+              key={p.id}
+              label={p.label}
+              description={p.description}
+              onClick={() => onChooseProfile(p.id)}
+            />
+          ))}
+        </List>
+      </VStack>
+    );
+  }
   return (
     <VStack gap={4}>
       <VStack gap={1}>
         <Heading level={2} textWrap="balance">
-          Best {profile?.label.toLowerCase() ?? ''} sites in London
+          Best {profile.label.toLowerCase()} sites in London
         </Heading>
         {cells ? (
           <Text color="secondary" display="block" hasTabularNumbers textWrap="pretty">

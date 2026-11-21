@@ -1,6 +1,11 @@
 import type {
   ApiErrorBody,
   AssistantResponse,
+  Area,
+  AreaSummary,
+  GeoPolygon,
+  StructureRecord,
+  Poi,
   CompareResponse,
   Health,
   LayerMeta,
@@ -62,6 +67,53 @@ function fixtureOnly(): never {
 // ---------------------------------------------------------------- endpoints
 
 export const api = {
+  areas: (): Promise<Area[]> => (fixtures ? Promise.resolve([]) : request('/areas')),
+  createArea: (name: string, geometry: GeoPolygon): Promise<Area> =>
+    request('/areas', { method: 'POST', body: JSON.stringify({ name, geometry }) }),
+  renameArea: (id: string, name: string): Promise<Area> =>
+    request(`/areas/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  deleteArea: (id: string): Promise<void> => request(`/areas/${id}`, { method: 'DELETE' }),
+  areaSummary: (id: string, profile: string): Promise<AreaSummary> =>
+    request(`/areas/${id}/summary?profile=${encodeURIComponent(profile)}`),
+
+  structures: (): Promise<StructureRecord[]> =>
+    fixtures ? Promise.resolve([]) : request('/structures'),
+  createStructure: (
+    s: Omit<StructureRecord, 'id' | 'created_at' | 'updated_at'>,
+  ): Promise<StructureRecord> =>
+    request('/structures', { method: 'POST', body: JSON.stringify(s) }),
+  deleteStructure: (id: string): Promise<void> =>
+    request(`/structures/${id}`, { method: 'DELETE' }),
+
+  assistantStatus: (): Promise<{ mistral: boolean; voxtral_model: string | null }> =>
+    fixtures
+      ? Promise.resolve({ mistral: false, voxtral_model: null })
+      : request('/assistant/status'),
+
+  transcribe: async (audio: Blob): Promise<{ text: string }> => {
+    const form = new FormData();
+    const ext = audio.type.includes('ogg') ? 'ogg' : audio.type.includes('mp4') ? 'm4a' : 'webm';
+    form.append('file', audio, `speech.${ext}`);
+    form.append('language', 'en');
+    let res: Response;
+    try {
+      res = await fetch(`${API_URL}/assistant/transcribe`, { method: 'POST', body: form });
+    } catch {
+      throw new ApiError(0, 'network', `Can't reach the API at ${API_URL}.`);
+    }
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as ApiErrorBody | null;
+      throw new ApiError(
+        res.status,
+        body?.error.code ?? 'http_error',
+        body?.error.message ?? res.statusText,
+      );
+    }
+    return (await res.json()) as { text: string };
+  },
+
+  pois: (): Promise<Poi[]> => (fixtures ? Promise.resolve([]) : request('/pois')),
+
   assistant: (text: string, context: Record<string, unknown>): Promise<AssistantResponse> =>
     fixtures
       ? Promise.reject(fixtureOnly())
