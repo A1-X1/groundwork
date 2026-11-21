@@ -3,7 +3,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-pytest.importorskip("lightgbm")
+try:
+    import lightgbm  # noqa: F401
+except (ImportError, OSError):  # macOS without libomp raises OSError
+    pytest.skip("lightgbm unavailable", allow_module_level=True)
 
 from backend.scoring import data as _data  # noqa: E402
 from backend.scoring import ml  # noqa: E402

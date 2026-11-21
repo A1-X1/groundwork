@@ -137,14 +137,23 @@ def model_dir(data: GridData) -> Path:
     return data.directory / "models"
 
 
+def lightgbm_available() -> bool:
+    """True if LightGBM imports. On macOS without libomp the import raises OSError
+    ("Library not loaded: libomp.dylib"), not ImportError, so catch both."""
+    try:
+        import lightgbm  # noqa: F401
+    except (ImportError, OSError):
+        return False
+    return True
+
+
 def get_model(data: GridData, profile: Profile) -> TrainedModel | None:
     """Saved model if fresh, else trained in memory (~1 s). None if LightGBM is missing."""
     if profile.model is None:
         return None
-    try:
-        import lightgbm  # noqa: F401
-    except ImportError:
-        log.warning("lightgbm not installed: feasibility = 1.0 for %s", profile.id)
+    if not lightgbm_available():
+        log.warning("lightgbm unavailable (not installed, or libomp missing on macOS): feasibility = 1.0 for %s",
+                    profile.id)
         return None
     return load_saved(data, profile, model_dir(data)) or train(data, profile)
 
