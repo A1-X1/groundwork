@@ -1,0 +1,16 @@
+id: dist_tourist_attraction
+label: Distance to tourist attraction
+unit: m
+kind: proximity
+description: Distance to nearest tourist attraction from OSM
+template: osm_proximity
+params:
+  selectors:
+  - nwr["tourism"="attraction"]
+  - nwr["tourism"="museum"]
+  - nwr["tourism"="zoo"]
+  - nwr["tourism"="theme_park"]
+  - nwr["tourism"="aquarium"]
+  - nwr["amenity"="theatre"]
+added_by: agent
+is_mask: false
