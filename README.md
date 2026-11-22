@@ -394,8 +394,8 @@ Sources and licences: [docs/data-sources.md](docs/data-sources.md).
 
 ## Team
 
-- Person 1: data, profiles, scoring, ML
-- Person 2: repo, API, frontend, docs
+- Daanyar: data, profiles, scoring, ML
+- Aditya: repo, API, frontend, docs
 
 ## Licence
 
